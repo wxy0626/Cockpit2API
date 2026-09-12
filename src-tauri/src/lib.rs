@@ -633,6 +633,7 @@ pub fn run() {
             commands::codex_pelican::codex_pelican_artifact,
             commands::codex_pelican::codex_pelican_delete,
             modules::codex_pelican_preview::codex_pelican_preview,
+            modules::codex_pelican_preview::codex_pelican_browser,
             // Account Commands
             commands::account::list_accounts,
             commands::account::add_account,
@@ -839,6 +840,7 @@ pub fn run() {
             commands::announcement::announcement_force_refresh_top_right_ad,
             commands::announcement::announcement_get_sponsor_module,
             commands::announcement::announcement_force_refresh_sponsor_module,
+            commands::announcement::announcement_sync_sponsor_routes,
             commands::remote_config::remote_config_get_state,
             commands::remote_config::remote_config_force_refresh,
             // Group Commands

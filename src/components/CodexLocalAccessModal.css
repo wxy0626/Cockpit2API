@@ -40,7 +40,7 @@
     0 34px 90px rgba(2, 6, 23, 0.24), 0 10px 32px rgba(15, 23, 42, 0.14);
   width: 100%;
   max-width: min(1120px, calc(100vw - 32px));
-  max-height: none;
+  max-height: calc(100vh - 40px);
   margin: 0 auto;
   border-radius: 28px;
   border: 1px solid var(--codex-local-border);
@@ -335,7 +335,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 18px 28px 24px;
   background: transparent;
 }
@@ -3308,4 +3309,16 @@
 [data-theme="dark"] .codex-local-access-panel-grid .group-account-empty {
   background: rgba(15, 23, 42, 0.42);
   border-color: rgba(148, 163, 184, 0.16);
+}
+
+/* 该弹框同时挂 codex-local-access-modal-members 与 group-account-picker-modal，
+   两者的 max-width 优先级相同，会随打包后的 CSS 顺序互相覆盖；这里显式提高到
+   .modal.xxx，保证尺寸只由本文件的规则决定（成员弹框 1080px / 面板 1120px）。 */
+.modal.codex-local-access-modal {
+  max-width: min(1120px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+}
+
+.modal.codex-local-access-modal-members {
+  max-width: min(1080px, calc(100vw - 24px));
 }

@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Hasil pengujian",
+    "openBrowser": "Buka di peramban",
     "error": {
       "stateUnavailable": "Status tugas tidak tersedia. Coba lagi.",
       "accountsRequired": "Pilih setidaknya satu akun.",
@@ -77,7 +79,8 @@
     "clearAll": "Bersihkan semua",
     "confirmClearAll": "Bersihkan semua pengujian Pelican?",
     "clearAllHelp": "Semua riwayat pengujian dan file yang dihasilkan akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.",
-    "search": "Cari akun"
+    "search": "Cari akun",
+    "viewError": "Lihat kesalahan"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2245,6 +2248,22 @@
     "refreshAllSuccess": "Penyegaran selesai, {{count}} akun berhasil",
     "refreshAllPartialFailed": "Penyegaran selesai, {{success}} / {{total}} akun berhasil dan beberapa gagal",
     "launchPreview": {
+      "accessModeTitle": "Mode mulai",
+      "prosLabel": "Keunggulan:",
+      "consLabel": "Kekurangan:",
+      "accessModeDescription": "Pilih cara DeepSeek dimulai; mode ini berbeda pada pergantian model, OAuth, dan penerusan gambar.",
+      "accessModeGatewayPros": "1: Ganti model di dalam Codex\n2: Tautkan akun OAuth dan gunakan fitur OAuth seperti kompresi jarak jauh dan kontrol peramban\n3: Konfigurasikan akun GPT untuk meneruskan pembuatan gambar",
+      "accessModeGatewayCons": "1: Memerlukan gateway lokal instance, jadi sedikit lebih lambat dari langsung",
+      "accessModeDirectPros": "1: Tanpa gateway, paling cepat",
+      "accessModeDirectCons": "1: Tidak bisa ganti model di Codex, tanpa tautan OAuth dan penerusan gambar",
+      "accessModeCdpPros": "1: Kecepatan sama dengan langsung\n2: Flash / Pro bisa diganti di daftar model resmi Codex",
+      "accessModeCdpCons": "1: Perlu menyuntikkan klien resmi, tanpa tautan OAuth dan penerusan gambar",
+      "imageGenPickerDesc": "Saat ada permintaan gambar, permintaan diteruskan: model dasar memproses lebih dulu, lalu model gambar membuat gambar, dan memakai sebagian kuota akun yang dipilih.",
+      "imageGenSwitchTitle": "Hanya didukung di mode gateway",
+      "imageGenSwitchDescription": "Mengaktifkan pembuatan gambar GPT memerlukan mode gateway. Beralih dan aktifkan?",
+      "imageGenSwitchYes": "Ya",
+      "imageGenSwitchNo": "Tidak",
+      "imageGenTitle": "Aktifkan pembuatan gambar GPT",
       "title": "Pratinjau Peluncuran Codex",
       "description": "Periksa pengaturan terlebih dahulu; klien baru berubah setelah Anda memilih ganti atau mulai.",
       "notApplied": "Belum diterapkan",
@@ -2577,7 +2596,16 @@
       "apiPortUrl": "URL Port API",
       "modelId": "ID Model",
       "modelIdPlaceholder": "Pilih ID model",
-      "imageGenerationModel": { "label": "Model gambar", "custom": "Kustom", "save": "Simpan model", "placeholder": "Masukkan ID model kustom", "description": "Digunakan untuk /v1/images/generations dan /v1/images/edits; defaultnya gpt-image-2.5.", "required": "Masukkan nama model gambar", "tooLong": "Nama model gambar terlalu panjang", "saveSuccess": "Model gambar diperbarui" },
+      "imageGenerationModel": {
+        "label": "Model gambar",
+        "custom": "Kustom",
+        "save": "Simpan model",
+        "placeholder": "Masukkan ID model kustom",
+        "description": "Digunakan untuk /v1/images/generations dan /v1/images/edits; defaultnya gpt-image-2.5.",
+        "required": "Masukkan nama model gambar",
+        "tooLong": "Nama model gambar terlalu panjang",
+        "saveSuccess": "Model gambar diperbarui"
+      },
       "modelIdViewOnly": "Hanya lihat",
       "quotaPool": {
         "title": "Kumpulan kuota",
@@ -2701,7 +2729,7 @@
         "recoverSuccess": "Pemulihan diminta untuk {{count}} akun",
         "dialog": {
           "title": "Masalah Akun",
-      "description": "Setiap akun ditampilkan bersama model, alasan tidak tersedia, dan tindakan pemulihan yang tersedia.",
+          "description": "Setiap akun ditampilkan bersama model, alasan tidak tersedia, dan tindakan pemulihan yang tersedia.",
           "noIssues": "Tidak ada masalah akun",
           "unscopedApiKey": "API Key saat ini",
           "poolUnavailable": "Tidak ada akun pool yang tersedia",
@@ -3507,15 +3535,32 @@
         "hint": "Pilih cara koneksi dan model sebelum mulai. Gateway dan CDP mengganti Flash / Pro di daftar model resmi Codex; langsung mulai tanpa gateway dengan model yang dipilih di sini.",
         "accessMode": "Koneksi",
         "gatewayMode": "Daftar gateway",
-        "gatewayDesc": "Gateway lokal instans hanya menulis ulang nama model. Di Codex Anda bisa lihat dan ganti Flash / Pro.",
+        "gatewayDesc": "Memerlukan gateway lokal. Memungkinkan menautkan akun GPT OAuth dan memakai semua kemampuan OAuth (aksi browser, dll.), mengganti model di Codex, dan menyerahkan pembuatan gambar ke akun GPT.",
         "directMode": "API resmi",
-        "directDesc": "Tanpa gateway, langsung ke API resmi. Codex tidak bisa ganti; pilih di sini setiap mulai.",
+        "directDesc": "Tanpa gateway dan lebih cepat. Tidak bisa mengganti model di Codex, tanpa kemampuan OAuth dan tanpa penerusan gambar.",
         "chatOnlyHint": "Chat Completions hanya lewat gateway lokal. Pilih model mulai di sini.",
         "model": "Model awal",
         "confirm": "Mulai",
         "chooseAtStart": "Saat mulai",
         "cdpMode": "Injeksi CDP",
-        "cdpDesc": "API resmi tanpa gateway. CDP mengambil alih daftar model resmi Codex agar Flash / Pro bisa diganti seperti mode gateway."
+        "cdpDesc": "Mengambil alih daftar model resmi Codex lewat injection, kecepatan sama dengan mode langsung. Perlu injection ke klien resmi; penautan OAuth tidak didukung.",
+        "context": "Konteks yang didukung",
+        "imageGen": "Pembuatan gambar GPT",
+        "imageGenHint": "Hanya didukung di mode gateway. Percakapan tetap diproses oleh model penyedia ini; pembuatan gambar memakai jalur gpt-image asli, dijalankan oleh akun GPT yang dipilih, dan memakai kuotanya.",
+        "imageGenPick": "Pilih akun GPT",
+        "imageGenSelected": "{{count}} akun dipilih",
+        "imageGenEmpty": "Belum ada akun dipilih",
+        "imageGenLocked": "Centang untuk memilih akun",
+        "pickerTitle": "Pilih akun gambar",
+        "pickerEmpty": "Tidak ada akun OAuth yang bisa membuat gambar (akun Free dan API Key tidak didukung).",
+        "pickerSelectAll": "Pilih semua",
+        "pickerClear": "Bersihkan",
+        "protocol": "Protokol",
+        "accessRoute": "Akses",
+        "gatewayRequired": "Gateway lokal instance",
+        "directUpstream": "Langsung ke upstream",
+        "gatewayHint": "Protokol ini butuh gateway lokal untuk konversi, yang juga memungkinkan ganti model di Codex dan penerusan gambar.",
+        "directUpstreamHint": "Akun ini mengakses upstream secara langsung, jadi penerusan gambar tidak tersedia."
       }
     },
     "modelProviders": {
@@ -4131,6 +4176,8 @@
         "saveOptions": "Simpan Opsi",
         "immediateSseResponse": "SSE 200 langsung",
         "maxConcurrentImageRequests": "Permintaan gambar per akun",
+        "maxAccountConcurrency": "Konkurensi akun",
+        "accountConcurrencyWait": "Tunggu (dtk)",
         "optionsSaved": "Opsi routing tersimpan"
       },
       "validation": {
@@ -5789,7 +5836,10 @@
       "startTime": "Waktu Mulai",
       "endTime": "Waktu Selesai",
       "timeRangeHint": "Memilih waktu acak dalam rentang ini setiap hari untuk menyelesaikan check-in latar belakang.",
-      "timeRangeError": "Waktu mulai tidak boleh lebih lambat dari waktu selesai"
+      "timeRangeError": "Waktu mulai tidak boleh lebih lambat dari waktu selesai",
+      "checkinTimeTooltip": "Check-in pada {{time}}",
+      "scheduleTooltip": "Dijadwalkan pada {{time}}",
+      "scheduleBadge": "Terjadwal {{time}}"
     }
   },
   "mfaVault": {

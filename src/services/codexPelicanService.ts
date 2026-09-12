@@ -24,3 +24,6 @@ export const artifactPelican = (batchId: string, itemId: string) =>
 export const previewPelican = (batchId: string, itemId: string) =>
   invoke<void>('codex_pelican_preview', { batchId, itemId });
 export const deletePelican = (batchId: string) => invoke<void>('codex_pelican_delete', { batchId });
+
+export const browserPelican = (batchId: string, itemId: string) =>
+  invoke<string>('codex_pelican_browser', { batchId, itemId });

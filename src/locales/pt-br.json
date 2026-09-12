@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Resultados do teste",
+    "openBrowser": "Abrir no navegador",
     "error": {
       "stateUnavailable": "Estado da tarefa indisponível. Tente novamente.",
       "accountsRequired": "Selecione pelo menos uma conta.",
@@ -77,7 +79,8 @@
     "clearAll": "Limpar tudo",
     "confirmClearAll": "Limpar todos os testes do Pelican?",
     "clearAllHelp": "Todo o histórico de testes e os arquivos gerados serão excluídos permanentemente. Não é possível desfazer.",
-    "search": "Buscar contas"
+    "search": "Buscar contas",
+    "viewError": "Ver erro"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "Atualização concluída, {{count}} conta(s) com sucesso",
     "refreshAllPartialFailed": "Atualização concluída, {{success}} / {{total}} conta(s) com sucesso e algumas falharam",
     "launchPreview": {
+      "accessModeTitle": "Modo de inicialização",
+      "prosLabel": "Vantagens:",
+      "consLabel": "Desvantagens:",
+      "accessModeDescription": "Escolha como o DeepSeek inicia; os modos diferem em troca de modelo, OAuth e encaminhamento de imagens.",
+      "accessModeGatewayPros": "1: Trocar de modelo dentro do Codex\n2: Vincular contas OAuth e usar funções OAuth como compactação remota e controle do navegador\n3: Configurar contas GPT para encaminhar a geração de imagens",
+      "accessModeGatewayCons": "1: Exige o gateway local da instância e é um pouco mais lento que o direto",
+      "accessModeDirectPros": "1: Sem gateway, a opção mais rápida",
+      "accessModeDirectCons": "1: Sem troca de modelo no Codex, sem vínculo OAuth e sem encaminhamento de imagens",
+      "accessModeCdpPros": "1: Mesma velocidade do direto\n2: Flash / Pro alternáveis na lista oficial de modelos do Codex",
+      "accessModeCdpCons": "1: Exige injetar o cliente oficial, sem vínculo OAuth e sem encaminhamento de imagens",
+      "imageGenPickerDesc": "Quando surge um pedido de imagem, ele é encaminhado: primeiro o modelo base processa e depois o modelo de imagem gera a imagem, consumindo parte da cota das contas selecionadas.",
+      "imageGenSwitchTitle": "Somente no modo gateway",
+      "imageGenSwitchDescription": "Ativar a geração de imagens GPT exige o modo gateway. Alternar para esse modo e ativar?",
+      "imageGenSwitchYes": "Sim",
+      "imageGenSwitchNo": "Não",
+      "imageGenTitle": "Ativar geração de imagens GPT",
       "title": "Prévia de inicialização do Codex",
       "description": "Configure e verifique primeiro; o cliente só muda após escolher Alternar ou Iniciar.",
       "notApplied": "Ainda não aplicado",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "URL da porta API",
       "modelId": "ID do modelo",
       "modelIdPlaceholder": "Selecione o ID do modelo",
-      "imageGenerationModel": { "label": "Modelo de imagem", "custom": "Personalizado", "save": "Salvar modelo", "placeholder": "Digite o ID de um modelo personalizado", "description": "Usado para /v1/images/generations e /v1/images/edits; o padrão é gpt-image-2.5.", "required": "Digite o nome de um modelo de imagem", "tooLong": "O nome do modelo de imagem é muito longo", "saveSuccess": "Modelo de imagem atualizado" },
+      "imageGenerationModel": {
+        "label": "Modelo de imagem",
+        "custom": "Personalizado",
+        "save": "Salvar modelo",
+        "placeholder": "Digite o ID de um modelo personalizado",
+        "description": "Usado para /v1/images/generations e /v1/images/edits; o padrão é gpt-image-2.5.",
+        "required": "Digite o nome de um modelo de imagem",
+        "tooLong": "O nome do modelo de imagem é muito longo",
+        "saveSuccess": "Modelo de imagem atualizado"
+      },
       "modelIdViewOnly": "Só visualizar",
       "quotaPool": {
         "title": "Pool de cota",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "Recuperação solicitada para {{count}} conta(s)",
         "dialog": {
           "title": "Problemas de contas",
-      "description": "Cada conta é exibida com o modelo, o motivo da indisponibilidade e a ação de recuperação disponível.",
+          "description": "Cada conta é exibida com o modelo, o motivo da indisponibilidade e a ação de recuperação disponível.",
           "noIssues": "Nenhum problema de contas",
           "unscopedApiKey": "API Key atual",
           "poolUnavailable": "Nenhuma conta disponível no pool",
@@ -3460,15 +3488,32 @@
         "hint": "Escolha a conexão e o modelo antes de iniciar. Gateway e CDP trocam Flash / Pro na lista oficial do Codex; Direto inicia sem gateway com o modelo escolhido aqui.",
         "accessMode": "Conexão",
         "gatewayMode": "Lista gateway",
-        "gatewayDesc": "O gateway da instância só reescreve o nome do modelo. No Codex você pode ver e trocar Flash / Pro.",
+        "gatewayDesc": "Requer o gateway local. Permite vincular contas GPT OAuth e usar todos os recursos OAuth (ações no navegador etc.), trocar de modelo no Codex e delegar a geração de imagens às contas GPT.",
         "directMode": "API oficial",
-        "directDesc": "Sem gateway, API oficial direta. O Codex não troca; escolha aqui a cada início.",
+        "directDesc": "Sem gateway e mais rápido. Não permite trocar de modelo no Codex nem oferece recursos OAuth ou encaminhamento de imagens.",
         "chatOnlyHint": "Chat Completions usa só o gateway local. Escolha o modelo de início aqui.",
         "model": "Modelo",
         "confirm": "Iniciar",
         "chooseAtStart": "Na inicialização",
         "cdpMode": "Injeção CDP",
-        "cdpDesc": "API oficial sem gateway. O CDP assume a lista oficial de modelos do Codex para trocar Flash / Pro como no gateway."
+        "cdpDesc": "Assume a lista oficial de modelos do Codex por injeção, com a mesma velocidade do modo direto. Requer injetar o cliente oficial; a vinculação OAuth não é suportada.",
+        "context": "Contexto suportado",
+        "imageGen": "Geração de imagens GPT",
+        "imageGenHint": "Somente no modo gateway. O chat continua nos modelos deste fornecedor; a geração de imagens usa o pipeline gpt-image original, executado pelas contas GPT selecionadas e consumindo a cota delas.",
+        "imageGenPick": "Escolher contas GPT",
+        "imageGenSelected": "{{count}} conta(s) selecionada(s)",
+        "imageGenEmpty": "Nenhuma conta selecionada",
+        "imageGenLocked": "Marque para escolher contas",
+        "pickerTitle": "Escolher contas de imagem",
+        "pickerEmpty": "Nenhuma conta OAuth pode gerar imagens (contas Free e API Key não são suportadas).",
+        "pickerSelectAll": "Selecionar tudo",
+        "pickerClear": "Limpar",
+        "protocol": "Protocolo",
+        "accessRoute": "Acesso",
+        "gatewayRequired": "Gateway local da instância",
+        "directUpstream": "Direto ao upstream",
+        "gatewayHint": "Este protocolo precisa do gateway local para conversão, que também permite trocar de modelo no Codex e encaminhar imagens.",
+        "directUpstreamHint": "Esta conta acessa o upstream diretamente, portanto o encaminhamento de imagens não está disponível."
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "Salvar opções",
         "immediateSseResponse": "SSE 200 imediato",
         "maxConcurrentImageRequests": "Solicitações de imagem por conta",
+        "maxAccountConcurrency": "Concorrência por conta",
+        "accountConcurrencyWait": "Espera (s)",
         "optionsSaved": "Opções de rota salvas"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "Horário de início",
       "endTime": "Horário de término",
       "timeRangeHint": "Seleciona diariamente um horário aleatório dentro deste intervalo para concluir o check-in.",
-      "timeRangeError": "O horário de início não pode ser posterior ao horário de término"
+      "timeRangeError": "O horário de início não pode ser posterior ao horário de término",
+      "checkinTimeTooltip": "Check-in às {{time}}",
+      "scheduleTooltip": "Agendado para {{time}}",
+      "scheduleBadge": "Agendado {{time}}"
     }
   },
   "zcode": {

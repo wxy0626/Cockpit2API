@@ -1440,7 +1440,7 @@
   margin-top: 8px;
 }
 
-.codex-api-key-usage-detail-modal {
+.modal-content.codex-api-key-usage-detail-modal {
   width: min(760px, calc(100vw - 32px));
 }
 

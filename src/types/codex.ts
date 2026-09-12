@@ -61,6 +61,8 @@ export interface CodexAccount {
   api_vision_routing_model?: string | null;
   api_instance_access_mode?: "gateway" | "direct" | "cdp" | string | null;
   api_startup_model?: string | null;
+  /** 网关模式下用于生图转发的 GPT(OAuth) 账号池。 */
+  api_image_generation_account_ids?: string[] | null;
   bound_oauth_account_id?: string | null;
   user_id?: string;
   plan_type?: string;

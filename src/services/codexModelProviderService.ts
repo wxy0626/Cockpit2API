@@ -16,6 +16,7 @@ import {
 import {
   APIKEY_FUN_DEFAULT_MODEL_CATALOG,
   isApiKeyFunProviderBaseUrl,
+  normalizeApiKeyFunProviderBaseUrl,
 } from '../utils/apikeyFunLinks';
 import {
   queryModelProviderUsage,
@@ -188,11 +189,20 @@ function normalizeIntegrationType(value: unknown): 'sub2api' | 'new_api' | undef
   return value === 'sub2api' || value === 'new_api' ? value : undefined;
 }
 
-function migrateApiKeyFunProviderWireApi(
+function migrateApiKeyFunProvider(
   providers: CodexModelProvider[],
 ): { providers: CodexModelProvider[]; changed: boolean } {
   let changed = false;
   const next = providers.map((provider) => {
+    const baseUrl = normalizeApiKeyFunProviderBaseUrl(provider.baseUrl);
+    if (baseUrl !== provider.baseUrl) {
+      changed = true;
+      provider = {
+        ...provider,
+        baseUrl,
+        updatedAt: Date.now(),
+      };
+    }
     if (
       isApiKeyFunProviderBaseUrl(provider.baseUrl) &&
       provider.wireApi === 'chat_completions'
@@ -240,21 +250,21 @@ function enforceDeepSeekProvider(provider: CodexModelProvider): boolean {
       provider.supportsWebsockets = false;
       changed = true;
     }
-    // DeepSeek Responses supports vision only through the dedicated
-    // `deepseek-v4-flash-vision-exp` model. Keep provider-level vision off and
-    // preserve per-model capability metadata for that model.
+    // DeepSeek Responses 的识图按模型声明，走 per-model 能力位。供应商级默认保持关闭，
+    // 官方模型只补默认值，用户在模型列表里的开关（含手动关闭）原样保留。
     if (provider.supportsVision === true) {
       provider.supportsVision = false;
       changed = true;
     }
-    const visionModel = DEEPSEEK_CODEX_VISION_MODEL_CATALOG[0];
     const capabilities = provider.modelCapabilities ?? {};
-    const nextCapabilities = Object.fromEntries(
-      Object.entries(capabilities).filter(
-        ([model]) => model.trim().toLowerCase() !== visionModel.toLowerCase(),
-      ),
-    );
-    nextCapabilities[visionModel] = { supportsVision: true };
+    const nextCapabilities = { ...capabilities };
+    for (const visionModel of DEEPSEEK_CODEX_VISION_MODEL_CATALOG) {
+      if (!Object.keys(nextCapabilities).some(
+        (model) => model.trim().toLowerCase() === visionModel.toLowerCase(),
+      )) {
+        nextCapabilities[visionModel] = { supportsVision: true };
+      }
+    }
     if (JSON.stringify(provider.modelCapabilities ?? {}) !== JSON.stringify(nextCapabilities)) {
       provider.modelCapabilities = nextCapabilities;
       changed = true;
@@ -263,10 +273,8 @@ function enforceDeepSeekProvider(provider: CodexModelProvider): boolean {
       provider.visionRoutingModel = undefined;
       changed = true;
     }
-    if (
-      provider.modelCatalog?.length !== modelCatalog.length ||
-      modelCatalog.some((model, index) => provider.modelCatalog?.[index] !== model)
-    ) {
+    // 模型列表以用户维护的为准，仅在为空时补官方默认。
+    if (!provider.modelCatalog?.length) {
       provider.modelCatalog = modelCatalog;
       changed = true;
     }
@@ -482,7 +490,7 @@ async function ensureProvidersLoaded(): Promise<CodexModelProvider[]> {
     }
     return true;
   });
-  const migration = migrateApiKeyFunProviderWireApi(loaded);
+  const migration = migrateApiKeyFunProvider(loaded);
   loaded = migration.providers;
   let migratedDeepSeek = false;
   for (const provider of loaded) {

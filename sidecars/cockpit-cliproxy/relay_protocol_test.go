@@ -221,6 +221,27 @@ func TestRelayServerProviderGatewayRoutesResponsesToChatCompletions(t *testing.T
 	}
 }
 
+func TestApplyOpenCodeSessionHeaderPreservesAndDerivesSession(t *testing.T) {
+	src := http.Header{"Session_id": []string{"codex-conversation-1"}}
+	dst := make(http.Header)
+	applyOpenCodeSessionHeader(dst, src, []byte(`{"model":"x"}`))
+	if got := dst.Get("x-opencode-session"); got != "codex:codex-conversation-1" {
+		t.Fatalf("derived session = %q", got)
+	}
+	preserved := http.Header{"X-Opencode-Session": []string{"client-session"}}
+	dst = make(http.Header)
+	applyOpenCodeSessionHeader(dst, preserved, nil)
+	if got := dst.Get("x-opencode-session"); got != "client-session" {
+		t.Fatalf("preserved session = %q", got)
+	}
+}
+
+func TestIsOpenCodeGoGateway(t *testing.T) {
+	if !isOpenCodeGoGateway("https://opencode.ai/zen/go/v1") || isOpenCodeGoGateway("https://api.deepseek.com/v1") {
+		t.Fatal("unexpected OpenCode Go gateway detection")
+	}
+}
+
 func TestRelayServerProviderGatewayPreservesVersionedBaseURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var upstreamPath string
@@ -1451,12 +1472,36 @@ func TestBuildImageToolUsesConfiguredModel(t *testing.T) {
 		map[string]any{"model": "gpt-image-2", "prompt": "draw"},
 		"generate",
 		"custom-image-model",
+		false,
 	)
 	if err != nil {
 		t.Fatalf("build image tool: %v", err)
 	}
 	if got := tool["model"]; got != "custom-image-model" {
 		t.Fatalf("configured image model = %#v, want custom-image-model", got)
+	}
+}
+
+func TestBuildImageToolFallsBackToConfiguredModelWhenPoolConfigured(t *testing.T) {
+	tool, err := buildImageToolWithModel(
+		map[string]any{"model": "deepseek-flash", "prompt": "draw"},
+		"generate",
+		"gpt-image-2.5",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("build image tool with fallback: %v", err)
+	}
+	if got := tool["model"]; got != "gpt-image-2.5" {
+		t.Fatalf("fallback image model = %#v, want gpt-image-2.5", got)
+	}
+	if _, err := buildImageToolWithModel(
+		map[string]any{"model": "deepseek-flash", "prompt": "draw"},
+		"generate",
+		"gpt-image-2.5",
+		false,
+	); err == nil {
+		t.Fatal("strict mode must keep rejecting unsupported image models")
 	}
 }
 

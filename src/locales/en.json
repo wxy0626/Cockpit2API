@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Test results",
+    "openBrowser": "Open in browser",
     "error": {
       "stateUnavailable": "Task state unavailable. Try again.",
       "accountsRequired": "Select at least one account.",
@@ -77,7 +79,8 @@
     "clearAll": "Clear all",
     "confirmClearAll": "Clear all Pelican tests?",
     "clearAllHelp": "All test history and generated files will be permanently deleted. This cannot be undone.",
-    "search": "Search accounts"
+    "search": "Search accounts",
+    "viewError": "View error"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2397,6 +2400,22 @@
     "refreshAllSuccess": "Refresh completed, {{count}} account(s) succeeded",
     "refreshAllPartialFailed": "Refresh completed, {{success}} / {{total}} account(s) succeeded and some failed",
     "launchPreview": {
+      "accessModeTitle": "Start mode",
+      "prosLabel": "Pros:",
+      "consLabel": "Cons:",
+      "accessModeDescription": "Choose how DeepSeek starts; the modes differ in model switching, OAuth, and image forwarding.",
+      "accessModeGatewayPros": "1: Switch models inside Codex\n2: Bind OAuth accounts and use OAuth features such as remote compaction and browser control\n3: Configure GPT accounts to forward image generation",
+      "accessModeGatewayCons": "1: Requires the instance local gateway, so it is slightly slower than direct",
+      "accessModeDirectPros": "1: Skips the gateway and is the fastest option",
+      "accessModeDirectCons": "1: No model switching inside Codex, and no OAuth binding or image forwarding",
+      "accessModeCdpPros": "1: Same speed as direct\n2: Switch Flash / Pro in the official Codex model list",
+      "accessModeCdpCons": "1: Requires injecting the official client, and supports neither OAuth binding nor image forwarding",
+      "imageGenPickerDesc": "When an image request comes in, the request is forwarded: the base model handles it first, then the image model generates the picture, which consumes part of the selected accounts' quota.",
+      "imageGenSwitchTitle": "Gateway mode only",
+      "imageGenSwitchDescription": "Enabling GPT image generation requires the gateway-list mode. Switch to it and enable the option?",
+      "imageGenSwitchYes": "Yes",
+      "imageGenSwitchNo": "No",
+      "imageGenTitle": "Enable GPT image generation",
       "title": "Codex Launch Preview",
       "description": "Configure and inspect first; the client changes only after you choose Switch or Start.",
       "notApplied": "Not applied yet",
@@ -2414,8 +2433,8 @@
       "modelConfigDialogDescription": "Configure visible models, reasoning levels, context windows, and compact limits for each model.",
       "applyModelConfig": "Apply settings",
       "defaultModel": "Default model",
-      "repairCompleted": "Session visibility repair completed"
-      ,"forceRefreshTitle": "Force-refresh Token",
+      "repairCompleted": "Session visibility repair completed",
+      "forceRefreshTitle": "Force-refresh Token",
       "forceRefreshReady": "OAuth tokens can be refreshed manually",
       "forceRefreshDescription": "Use refresh_token to obtain new access_token and id_token values. This may rotate the current refresh token.",
       "forceRefreshUnavailable": "Unavailable for this account type",
@@ -2691,7 +2710,16 @@
       "modelId": "Model ID",
       "modelIdViewOnly": "View only, no switching",
       "modelIdPlaceholder": "Select model ID",
-      "imageGenerationModel": { "label": "Image model", "custom": "Custom", "save": "Save model", "placeholder": "Enter custom model ID", "description": "Used for /v1/images/generations and /v1/images/edits; default is gpt-image-2.5.", "required": "Enter an image model name", "tooLong": "Image model name is too long", "saveSuccess": "Image model updated" },
+      "imageGenerationModel": {
+        "label": "Image model",
+        "custom": "Custom",
+        "save": "Save model",
+        "placeholder": "Enter custom model ID",
+        "description": "Used for /v1/images/generations and /v1/images/edits; default is gpt-image-2.5.",
+        "required": "Enter an image model name",
+        "tooLong": "Image model name is too long",
+        "saveSuccess": "Image model updated"
+      },
       "statusRunning": "Running",
       "statusStopped": "Stopped",
       "statusDisabled": "Disabled",
@@ -3170,15 +3198,32 @@
         "hint": "Choose connection and model before start. Gateway and CDP let you switch Flash / Pro in the official Codex model list; Direct skips the gateway and uses the model chosen here.",
         "accessMode": "Connection",
         "gatewayMode": "Gateway list",
-        "gatewayDesc": "Uses the instance gateway only to rewrite model names. Codex can show and switch Flash / Pro.",
+        "gatewayDesc": "Requires the local gateway. Lets you bind OAuth GPT accounts and use all OAuth capabilities (browser actions and more), switch models inside Codex, and hand image generation to GPT accounts.",
         "directMode": "Official API",
-        "directDesc": "No gateway. Codex cannot switch models; pick Flash or Pro here each start.",
+        "directDesc": "No gateway and faster. You cannot switch models inside Codex, and there is no OAuth capability or image forwarding.",
         "cdpMode": "CDP inject",
-        "cdpDesc": "Talks to the official API without a gateway. CDP takes over the official Codex model picker so you can switch Flash / Pro the same way as Gateway.",
+        "cdpDesc": "Takes over the official Codex model list by injection with the same speed as direct mode. Requires injecting the official client; OAuth binding is not supported.",
         "chatOnlyHint": "Chat Completions must use the local gateway. Pick the startup model here.",
         "model": "Model",
         "confirm": "Start",
-        "chooseAtStart": "Chosen at start"
+        "chooseAtStart": "Chosen at start",
+        "context": "Supported context",
+        "imageGen": "GPT image generation",
+        "imageGenHint": "Gateway mode only. Chat still runs on this supplier's models; image generation uses the original gpt-image pipeline, executed by the selected GPT accounts and consuming their quota.",
+        "imageGenPick": "Choose GPT accounts",
+        "imageGenSelected": "{{count}} account(s) selected",
+        "imageGenEmpty": "No accounts selected",
+        "imageGenLocked": "Select the checkbox to choose accounts",
+        "pickerTitle": "Choose image accounts",
+        "pickerEmpty": "No OAuth account can generate images (free and API key accounts are not supported).",
+        "pickerSelectAll": "Select all",
+        "pickerClear": "Clear",
+        "protocol": "Protocol",
+        "accessRoute": "Route",
+        "gatewayRequired": "Instance local gateway",
+        "directUpstream": "Direct upstream",
+        "gatewayHint": "This protocol needs the local gateway for conversion, which also enables model switching in Codex and image forwarding.",
+        "directUpstreamHint": "This account talks to the upstream directly, so image forwarding is not available."
       }
     },
     "modelProviders": {
@@ -4326,6 +4371,8 @@
         "saveOptions": "Save Options",
         "immediateSseResponse": "Immediate SSE 200",
         "maxConcurrentImageRequests": "Image requests per account",
+        "maxAccountConcurrency": "Account concurrency",
+        "accountConcurrencyWait": "Concurrency wait (s)",
         "optionsSaved": "Routing options saved"
       },
       "timeouts": {

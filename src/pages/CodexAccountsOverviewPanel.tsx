@@ -12,7 +12,6 @@ import { CodexLocalAccessModal } from "../components/CodexLocalAccessModal";
 import { CodexAccountPoolHealthModal } from "../components/CodexAccountPoolHealthModal";
 import { isCodexApiKeyAccount, isCodexAgentIdentityAccount, isCodexWebSessionAccount, isCodexChatCompletionsApiKeyAccount, isCodexNewApiAccount } from "../types/codex";
 import { isCodexOAuthBindingEligibleAccount } from "../utils/codexLocalAccessAccounts";
-import { CodexModelContextWindowTable } from "../components/codex/CodexModelContextWindowTable";
 import { QuickSettingsPopover } from "../components/QuickSettingsPopover";
 import { MultiSelectFilterDropdown } from "../components/MultiSelectFilterDropdown";
 import { AccountTagFilterDropdown } from "../components/AccountTagFilterDropdown";
@@ -105,7 +104,6 @@ export function CodexAccountsOverviewPanel(props: CodexAccountsViewProps) {
     editingApiModelCatalogFetching,
     editingApiModelCatalogInput,
     editingApiModelCatalogSyncAvailable,
-    editingApiModelContextWindowsInput,
     editingApiProviderPresetId,
     editingApiSyncModelCatalogToCodex,
     editingManagedProviderApiKeyId,
@@ -324,7 +322,6 @@ export function CodexAccountsOverviewPanel(props: CodexAccountsViewProps) {
     setEditingApiKeyCredentialsVisible,
     setEditingApiModelCatalogError,
     setEditingApiModelCatalogInput,
-    setEditingApiModelContextWindowsInput,
     setEditingApiSyncModelCatalogToCodex,
     setEditingNewManagedProviderNameInput,
     setExportFormat,
@@ -2385,20 +2382,6 @@ export function CodexAccountsOverviewPanel(props: CodexAccountsViewProps) {
                             )}
                             disabled={savingApiKeyCredentials}
                             aria-describedby="codex-api-model-catalog-edit-hint"
-                          />
-                          <CodexModelContextWindowTable
-                            models={editingApiModelCatalogDraft}
-                            drafts={editingApiModelContextWindowsInput}
-                            onChange={(model, value) => {
-                              setEditingApiModelContextWindowsInput(
-                                (current) => ({
-                                  ...current,
-                                  [model]: value,
-                                }),
-                              );
-                              setEditingApiModelCatalogError(null);
-                            }}
-                            disabled={savingApiKeyCredentials}
                           />
                           <div className="api-model-catalog-toolbar">
                             <p

@@ -273,6 +273,8 @@ function isAllowedEnglishReuse(key, value) {
   const allowedKeys = new Set([
     'accounts.status.normal',
     'codex.columns.plan',
+    // 西语 / 意大利语等语言里 "No" 本身就是正确译法
+    'codex.launchPreview.imageGenSwitchNo',
     'codex.wakeup.runtimeCardTitle',
     'common.shared.columns.plan',
     'gemini.quota.pro',

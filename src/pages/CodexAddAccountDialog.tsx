@@ -1,7 +1,6 @@
 import { createPortal } from "react-dom";
 import { RefreshCw, Download, X, Globe, KeyRound, Database, Copy, Check, RotateCw, CircleAlert, Info, Star, Eye, EyeOff, FileUp, FileText, ExternalLink, FolderPlus, Terminal, ShieldCheck } from "lucide-react";
 import { MfaQuickCodeSelect } from "../components/MfaQuickCodeSelect";
-import { CodexModelContextWindowTable } from "../components/codex/CodexModelContextWindowTable";
 import { SingleSelectDropdown } from "../components/SingleSelectDropdown";
 import { CODEX_API_PROVIDER_CUSTOM_ID, CODEX_API_PROVIDER_PRESETS, COCKPIT_API_PROVIDER_ID } from "../utils/codexProviderPresets";
 import type { CodexAccountsViewProps } from "./CodexAccountsView";
@@ -20,7 +19,6 @@ export function CodexAddAccountDialog(props: CodexAccountsViewProps) {
     apiModelCatalogFetching,
     apiModelCatalogInput,
     apiModelCatalogSyncAvailable,
-    apiModelContextWindowsInput,
     apiProviderPresetId,
     apiSyncModelCatalogToCodex,
     closeCodexAddModal,
@@ -97,7 +95,6 @@ export function CodexAddAccountDialog(props: CodexAccountsViewProps) {
     setApiKeyInputVisible,
     setApiModelCatalogError,
     setApiModelCatalogInput,
-    setApiModelContextWindowsInput,
     setApiSyncModelCatalogToCodex,
     setNewManagedProviderNameInput,
     setOauthCallbackInput,
@@ -1006,18 +1003,6 @@ export function CodexAddAccountDialog(props: CodexAccountsViewProps) {
                                 )}
                                 disabled={addStatus === "loading"}
                                 aria-describedby="codex-api-model-catalog-add-hint"
-                              />
-                              <CodexModelContextWindowTable
-                                models={apiModelCatalogDraft}
-                                drafts={apiModelContextWindowsInput}
-                                onChange={(model, value) => {
-                                  setApiModelContextWindowsInput((current) => ({
-                                    ...current,
-                                    [model]: value,
-                                  }));
-                                  setApiModelCatalogError(null);
-                                }}
-                                disabled={addStatus === "loading"}
                               />
                               <div className="api-model-catalog-toolbar">
                                 <p

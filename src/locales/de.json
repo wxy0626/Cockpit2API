@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Testergebnisse",
+    "openBrowser": "Im Browser öffnen",
     "error": {
       "stateUnavailable": "Aufgabenstatus nicht verfügbar. Bitte erneut versuchen.",
       "accountsRequired": "Mindestens ein Konto auswählen.",
@@ -77,7 +79,8 @@
     "clearAll": "Alle löschen",
     "confirmClearAll": "Alle Pelican-Tests löschen?",
     "clearAllHelp": "Der gesamte Testverlauf und erzeugte Dateien werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.",
-    "search": "Konten suchen"
+    "search": "Konten suchen",
+    "viewError": "Fehler anzeigen"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "Aktualisierung abgeschlossen, {{count}} Konto/Konten erfolgreich",
     "refreshAllPartialFailed": "Aktualisierung abgeschlossen, {{success}} / {{total}} Konten erfolgreich, einige fehlgeschlagen",
     "launchPreview": {
+      "accessModeTitle": "Startmodus",
+      "prosLabel": "Vorteile:",
+      "consLabel": "Nachteile:",
+      "accessModeDescription": "Wähle, wie DeepSeek startet; die Modi unterscheiden sich bei Modellwechsel, OAuth und Bildweiterleitung.",
+      "accessModeGatewayPros": "1: Modellwechsel direkt in Codex\n2: OAuth-Konten binden und OAuth-Funktionen wie Remote-Kompaktierung und Browser-Steuerung nutzen\n3: GPT-Konten für die Weiterleitung der Bildgenerierung konfigurieren",
+      "accessModeGatewayCons": "1: Erfordert das lokale Instanz-Gateway und ist etwas langsamer als Direkt",
+      "accessModeDirectPros": "1: Ohne Gateway, die schnellste Option",
+      "accessModeDirectCons": "1: Kein Modellwechsel in Codex, keine OAuth-Bindung und keine Bildweiterleitung",
+      "accessModeCdpPros": "1: Gleiche Geschwindigkeit wie Direkt\n2: Flash / Pro in der offiziellen Codex-Modellliste umschaltbar",
+      "accessModeCdpCons": "1: Erfordert das Injizieren des offiziellen Clients, keine OAuth-Bindung und keine Bildweiterleitung",
+      "imageGenPickerDesc": "Bei einem Bildwunsch wird die Anfrage weitergeleitet: zuerst verarbeitet das Basismodell, dann erzeugt das Bildmodell das Bild. Das verbraucht einen Teil des Kontingents der ausgewählten Konten.",
+      "imageGenSwitchTitle": "Nur im Gateway-Modus",
+      "imageGenSwitchDescription": "Für die GPT-Bildgenerierung muss auf den Modus „Gateway-Liste“ umgeschaltet werden. Umschalten und aktivieren?",
+      "imageGenSwitchYes": "Ja",
+      "imageGenSwitchNo": "Nein",
+      "imageGenTitle": "GPT-Bildgenerierung aktivieren",
       "title": "Codex-Startvorschau",
       "description": "Zuerst konfigurieren und prüfen; der Client ändert sich erst nach „Wechseln“ oder „Starten“.",
       "notApplied": "Noch nicht angewendet",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "API-Port-URL",
       "modelId": "Modell-ID",
       "modelIdPlaceholder": "Modell-ID wählen",
-      "imageGenerationModel": { "label": "Bildmodell", "custom": "Benutzerdefiniert", "save": "Modell speichern", "placeholder": "Benutzerdefinierte Modell-ID eingeben", "description": "Für /v1/images/generations und /v1/images/edits; Standard ist gpt-image-2.5.", "required": "Gib einen Namen für das Bildmodell ein", "tooLong": "Der Name des Bildmodells ist zu lang", "saveSuccess": "Bildmodell aktualisiert" },
+      "imageGenerationModel": {
+        "label": "Bildmodell",
+        "custom": "Benutzerdefiniert",
+        "save": "Modell speichern",
+        "placeholder": "Benutzerdefinierte Modell-ID eingeben",
+        "description": "Für /v1/images/generations und /v1/images/edits; Standard ist gpt-image-2.5.",
+        "required": "Gib einen Namen für das Bildmodell ein",
+        "tooLong": "Der Name des Bildmodells ist zu lang",
+        "saveSuccess": "Bildmodell aktualisiert"
+      },
       "modelIdViewOnly": "Nur Ansicht",
       "quotaPool": {
         "title": "Kontingentpool",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "Wiederherstellung für {{count}} Konto/Konten angefordert",
         "dialog": {
           "title": "Kontoprobleme",
-      "description": "Jedes Konto wird mit Modell, Grund der Nichtverfügbarkeit und möglicher Wiederherstellung angezeigt.",
+          "description": "Jedes Konto wird mit Modell, Grund der Nichtverfügbarkeit und möglicher Wiederherstellung angezeigt.",
           "noIssues": "Keine Kontoprobleme",
           "unscopedApiKey": "Aktueller API Key",
           "poolUnavailable": "Kein verfügbares Pool-Konto",
@@ -3460,15 +3488,32 @@
         "hint": "Vor dem Start Verbindung und Modell wählen. Gateway und CDP wechseln Flash / Pro in der offiziellen Codex-Liste; Direkt startet ohne Gateway mit dem hier gewählten Modell.",
         "accessMode": "Verbindung",
         "gatewayMode": "Gateway-Liste",
-        "gatewayDesc": "Lokales Instanz-Gateway schreibt nur Modellnamen um. In Codex kannst du Flash / Pro wechseln.",
+        "gatewayDesc": "Erfordert das lokale Gateway. Ermöglicht die Bindung von OAuth-GPT-Konten samt aller OAuth-Funktionen (Browser-Aktionen usw.), Modellwechsel in Codex und die Übergabe der Bilderzeugung an GPT-Konten.",
         "directMode": "Offizielle API",
-        "directDesc": "Kein Gateway, direkte offizielle API. In Codex kein Wechsel; jedes Start hier wählen.",
+        "directDesc": "Ohne Gateway und schneller. Kein Modellwechsel in Codex, keine OAuth-Funktionen und keine Bildweiterleitung.",
         "chatOnlyHint": "Chat Completions nutzt nur das lokale Gateway. Startmodell hier wählen.",
         "model": "Modell",
         "confirm": "Starten",
         "chooseAtStart": "Beim Start",
         "cdpMode": "CDP-Injektion",
-        "cdpDesc": "Offizielle API ohne Gateway. CDP übernimmt die offizielle Codex-Modellliste, Wechsel von Flash / Pro wie im Gateway."
+        "cdpDesc": "Übernimmt die offizielle Codex-Modellliste per Injection, gleich schnell wie der Direktmodus. Erfordert Injection in den offiziellen Client; OAuth-Bindung wird nicht unterstützt.",
+        "context": "Unterstützter Kontext",
+        "imageGen": "GPT-Bilderzeugung",
+        "imageGenHint": "Nur im Gateway-Modus. Der Chat läuft weiter über die Modelle dieses Anbieters; die Bildgenerierung nutzt die ursprüngliche gpt-image-Pipeline, wird von den gewählten GPT-Konten ausgeführt und verbraucht deren Kontingent.",
+        "imageGenPick": "GPT-Konten wählen",
+        "imageGenSelected": "{{count}} Konto/Konten gewählt",
+        "imageGenEmpty": "Keine Konten gewählt",
+        "imageGenLocked": "Nach dem Aktivieren können Konten gewählt werden",
+        "pickerTitle": "Bildkonten wählen",
+        "pickerEmpty": "Keine OAuth-Konten für Bilderzeugung verfügbar (Free- und API-Key-Konten werden nicht unterstützt).",
+        "pickerSelectAll": "Alle auswählen",
+        "pickerClear": "Leeren",
+        "protocol": "Protokoll",
+        "accessRoute": "Zugang",
+        "gatewayRequired": "Lokales Instanz-Gateway",
+        "directUpstream": "Direkt zum Upstream",
+        "gatewayHint": "Dieses Protokoll benötigt das lokale Gateway zur Konvertierung, das auch Modellwechsel in Codex und die Bildweiterleitung ermöglicht.",
+        "directUpstreamHint": "Dieses Konto greift direkt auf den Upstream zu, daher ist keine Bildweiterleitung verfügbar."
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "Optionen speichern",
         "immediateSseResponse": "Sofortiges SSE 200",
         "maxConcurrentImageRequests": "Bildanfragen pro Konto",
+        "maxAccountConcurrency": "Konten-Parallelität",
+        "accountConcurrencyWait": "Wartezeit (s)",
         "optionsSaved": "Routingoptionen gespeichert"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "Startzeit",
       "endTime": "Endzeit",
       "timeRangeHint": "Wählt täglich eine zufällige Zeit in diesem Bereich, um den Hintergrund-Check-in abzuschließen.",
-      "timeRangeError": "Die Startzeit darf nicht nach der Endzeit liegen"
+      "timeRangeError": "Die Startzeit darf nicht nach der Endzeit liegen",
+      "checkinTimeTooltip": "Eingecheckt um {{time}}",
+      "scheduleTooltip": "Geplant um {{time}}",
+      "scheduleBadge": "Geplant {{time}}"
     }
   },
   "zcode": {

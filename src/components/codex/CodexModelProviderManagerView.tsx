@@ -44,7 +44,7 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
     closeBatchTestModal,
     closeModal,
     currentEditingProvider,
-    deepSeekStart,
+    providerLaunchDialog,
     displayInstances,
     draggedProviderCustomSortId,
     editingApiKey,
@@ -1820,7 +1820,7 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
                     {form.wireApi === "responses"
                       ? t(
                           "codex.modelProviders.wireApi.deepseekResponsesHint",
-                          "原生 Responses 直连官方 API，写入官方 models.json（工具/shell/apply_patch），默认模型 deepseek-v4-flash。",
+                          "原生 Responses 直连官方 API，写入官方 models.json（工具/shell/apply_patch），默认模型 deepseek-flash。",
                         )
                       : t(
                           "codex.modelProviders.wireApi.deepseekChatHint",
@@ -1829,7 +1829,9 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
                   </p>
                 )}
               </div>
-              {form.wireApi === "responses" && (
+              {/* DeepSeek 官方 Responses 强制直连、不支持 WebSocket：不展示该开关。 */}
+              {form.wireApi === "responses" &&
+                selectedPresetId !== DEEPSEEK_API_PROVIDER_ID && (
                 <div className="form-group">
                   <label>
                     {t(
@@ -1870,7 +1872,8 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
                   </label>
                 </div>
               )}
-              {form.wireApi === "chat_completions" && (
+              {(form.wireApi === "chat_completions" ||
+                selectedPresetId === DEEPSEEK_API_PROVIDER_ID) && (
                 <>
                   <div className="form-group">
                     <label>
@@ -1883,12 +1886,13 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
                       onChange={(event) =>
                         mutateForm({ modelCatalogText: event.target.value })
                       }
-                      placeholder={"deepseek-v4-flash\ndeepseek-v4-pro"}
+                      placeholder={"deepseek-flash\ndeepseek-v4-pro"}
                       disabled={saving}
                     />
                     <CodexModelContextWindowTable
                       models={parseModelCatalogText(form.modelCatalogText)}
                       drafts={form.modelContextWindowsDraft}
+                      showContextWindow={false}
                       onChange={(model, value) =>
                         mutateForm({
                           modelContextWindowsDraft: {
@@ -1897,9 +1901,22 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
                           },
                         })
                       }
+                      visionStates={form.visionModelStates}
+                      onVisionChange={(model, value) =>
+                        mutateForm({
+                          visionModelStates: {
+                            ...form.visionModelStates,
+                            [model]: value,
+                          },
+                        })
+                      }
                       disabled={saving}
                     />
                   </div>
+                  {/* Responses 只用逐模型能力位：供应商级默认与兜底模型在
+                      DeepSeek Responses 下会被规范化清空/归零，不再展示。 */}
+                  {form.wireApi === "chat_completions" && (
+                    <>
                   <div className="form-group">
                     <label>
                       {t(
@@ -1942,22 +1959,26 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
                         "支持图片的模型",
                       )}
                     </label>
-                    <textarea
-                      className="form-input"
-                      rows={3}
-                      value={form.visionModelText}
-                      onChange={(event) =>
-                        mutateForm({ visionModelText: event.target.value })
-                      }
-                      placeholder={"qwen-vl-plus\ngpt-4o"}
-                      disabled={saving}
-                    />
-                  <p className="api-provider-hint">
-                    {t(
-                      "codex.modelProviders.vision.modelsHint",
-                      "每行一个模型名。适合同一供应商里只有部分视觉模型支持粘贴图片的情况。",
-                    )}
-                  </p>
+                    {parseModelCatalogText(form.modelCatalogText).length === 0 ? (
+                      <>
+                        <textarea
+                          className="form-input"
+                          rows={3}
+                          value={form.visionModelText}
+                          onChange={(event) =>
+                            mutateForm({ visionModelText: event.target.value })
+                          }
+                          placeholder={"qwen-vl-plus\ngpt-4o"}
+                          disabled={saving}
+                        />
+                        <p className="api-provider-hint">
+                          {t(
+                            "codex.modelProviders.vision.modelsHint",
+                            "每行一个模型名。适合同一供应商里只有部分视觉模型支持粘贴图片的情况。",
+                          )}
+                        </p>
+                      </>
+                    ) : null}
                 </div>
                 <div className="form-group">
                   <label>
@@ -1982,12 +2003,16 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
                     )}
                   </p>
                 </div>
-                <p className="api-provider-hint">
-                  {t(
-                    "codex.modelProviders.gatewayHint",
+                    </>
+                  )}
+                {form.wireApi === "chat_completions" && (
+                  <p className="api-provider-hint">
+                    {t(
+                      "codex.modelProviders.gatewayHint",
                       "第三方供应商启动时会使用本地网关隔离实例并完成协议转换；OpenAI 官方供应商保持直连。",
                     )}
                   </p>
+                )}
                 </>
               )}
               <div className="form-group">
@@ -3058,7 +3083,7 @@ export function CodexModelProviderManagerView(props: CodexModelProviderManagerVi
           />
         );
       })()}
-      {deepSeekStart.modal}
+      {providerLaunchDialog}
     </div>
   );
 }

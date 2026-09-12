@@ -847,18 +847,33 @@ const AUTH_DIAGNOSTIC_SCRIPT: &str = r#"
 
 fn deepseek_model_injection_script(
     _locale: &str,
-    selected_model: &str,
+    payload: &serde_json::Value,
     handled_selected_model: Option<&str>,
 ) -> String {
-    let selected = serde_json::to_string(selected_model)
-        .unwrap_or_else(|_| "\"deepseek-v4-flash\"".to_string());
+    let payload =
+        serde_json::to_string(payload).unwrap_or_else(|_| "{\"models\":[]}".to_string());
     let handled =
         serde_json::to_string(&handled_selected_model).unwrap_or_else(|_| "null".to_string());
     format!(
         r#"(() => {{
-      const flashId = "deepseek-v4-flash";
-      const proId = "deepseek-v4-pro";
-      const selectedModel = {selected};
+      const payload = {payload};
+      const models = Array.isArray(payload.models)
+        ? payload.models.filter((item) => item && typeof item.id === "string" && item.id.trim() !== "")
+        : [];
+      const modelIds = models.map((item) => String(item.id));
+      const modelMeta = {{}};
+      for (const item of models) modelMeta[String(item.id).trim().toLowerCase()] = item;
+      const shellToUpstream = {{}};
+      const rawShells = payload.shells && typeof payload.shells === "object" ? payload.shells : {{}};
+      for (const [shell, upstream] of Object.entries(rawShells)) {{
+        const key = String(shell || "").trim().toLowerCase();
+        const value = String(upstream || "").trim();
+        if (key && value) shellToUpstream[key] = value;
+      }}
+      const selectedModel =
+        typeof payload.selectedModel === "string" && payload.selectedModel.trim() !== ""
+          ? payload.selectedModel.trim()
+          : (modelIds[0] || "");
       const handledSelectedModel = {handled};
       const root = window.__cockpitCodexInjection || (window.__cockpitCodexInjection = {{}});
       root.hostHeartbeatAt = Date.now();
@@ -870,11 +885,8 @@ fn deepseek_model_injection_script(
       if (handledSelectedModel && root.pendingSelectedModel === handledSelectedModel) {{
         root.pendingSelectedModel = null;
       }}
-      const shellToUpstream = {{ "gpt-5.5": flashId, "gpt-5.4": proId, "gpt-5.6-sol": flashId, "gpt-5.6-terra": proId }};
-      const displayName = {{
-        [flashId]: "DeepSeek-V4-Flash",
-        [proId]: "DeepSeek-V4-Pro",
-      }};
+      const displayName = {{}};
+      for (const item of models) displayName[String(item.id)] = item.name || String(item.id);
       const reasoningLevels = ["low", "high", "max"];
       const reasoningDescriptors = () => reasoningLevels.map((effort) => ({{
         effort,
@@ -892,6 +904,18 @@ fn deepseek_model_injection_script(
         item.default_reasoning_level = "high";
         item.supported_reasoning_levels = levels;
       }};
+      const applyVisionMetadata = (item, official) => {{
+        if (!item || typeof item !== "object") return;
+        const meta = modelMeta[String(official || "").trim().toLowerCase()];
+        const supportsImage = Boolean(meta && meta.vision);
+        const modalities = supportsImage ? ["text", "image"] : ["text"];
+        // Same dual-shape rule as reasoning metadata: the app reads one of these
+        // depending on release, and a missing value would hide image input.
+        item.inputModalities = modalities;
+        item.input_modalities = modalities;
+        item.supportsImageDetailOriginal = supportsImage;
+        item.supports_image_detail_original = supportsImage;
+      }};
       const listMethods = {{ "model/list": true, "list-models-for-host": true }};
       const writeMethods = {{
         "thread/start": true,
@@ -904,7 +928,9 @@ fn deepseek_model_injection_script(
       const normalize = (value) => String(value || "").trim().toLowerCase();
       const toUpstream = (value) => {{
         const slug = normalize(value);
-        return shellToUpstream[slug] || ((slug === flashId || slug === proId) ? slug : null);
+        if (!slug) return null;
+        if (shellToUpstream[slug]) return shellToUpstream[slug];
+        return modelMeta[slug] ? String(modelMeta[slug].id) : null;
       }};
       const keepSlug = (value) => Boolean(toUpstream(value));
       const reportSelected = (value) => {{
@@ -926,6 +952,7 @@ fn deepseek_model_injection_script(
           isDefault: official === selectedModel,
         }};
         applyReasoningMetadata(item);
+        applyVisionMetadata(item, official);
         return item;
       }};
       const patchItem = (item) => {{
@@ -943,9 +970,20 @@ fn deepseek_model_injection_script(
         item.slug = official;
         item.id = official;
         applyReasoningMetadata(item);
+        applyVisionMetadata(item, official);
         return true;
       }};
-      const isModelArray = (value) => Array.isArray(value) && value.some((item) => item && typeof item === "object" && (typeof item.model === "string" || typeof item.slug === "string"));
+      // 只认真正的模型描述符：每一项都必须有 slug，并带模型展示字段。
+      // 队列、线程、项目列表同样是数组，宽松判定会把它们当成模型列表改写。
+      const isModelArray = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => {{
+        if (!item || typeof item !== "object") return false;
+        if (typeof item.slug !== "string" || item.slug.trim() === "") return false;
+        return (
+          typeof item.display_name === "string" ||
+          typeof item.displayName === "string" ||
+          typeof item.description === "string"
+        );
+      }});
       const patchModelArray = (value) => {{
         if (!isModelArray(value)) return false;
         for (let index = value.length - 1; index >= 0; index -= 1) {{
@@ -957,7 +995,7 @@ fn deepseek_model_injection_script(
           patchItem(value[index]);
         }}
         const have = new Set(value.map((item) => normalize(item.model || item.slug || item.id)));
-        for (const official of [flashId, proId]) {{
+        for (const official of modelIds) {{
           if (!have.has(official)) value.unshift(descriptor(official));
         }}
         return true;
@@ -971,8 +1009,13 @@ fn deepseek_model_injection_script(
         if (value.message?.result && patchContainer(value.message.result, depth + 1)) changed = true;
         return changed;
       }};
+      // 只有用户在 Codex 里显式切模型（默认模型配置、config 写入）才算切换；
+      // 发消息时的 turn/start、thread/start 也会带 model 字段，那是当次请求用的模型，
+      // 不能据此写配置——turn 进行中改后端状态会让服务端队列失效。
+      const switchMethods = {{ "set-default-model-config-for-host": true, "config/value/write": true }};
       const rewriteOutgoing = (method, params) => {{
         if (!params || typeof params !== "object") return;
+        const reportable = switchMethods[method] === true;
         if (method === "set-default-model-config-for-host" && params.model) {{
           reportSelected(params.model);
           const upstream = toUpstream(params.model);
@@ -987,12 +1030,12 @@ fn deepseek_model_injection_script(
           }}
         }}
         if (params.model) {{
-          reportSelected(params.model);
+          if (reportable) reportSelected(params.model);
           const upstream = toUpstream(params.model);
           if (upstream) params.model = upstream;
         }}
         if (params.params && typeof params.params === "object" && params.params.model) {{
-          reportSelected(params.params.model);
+          if (reportable) reportSelected(params.params.model);
           const upstream = toUpstream(params.params.model);
           if (upstream) params.params.model = upstream;
         }}
@@ -1016,7 +1059,7 @@ fn deepseek_model_injection_script(
       const patchStatsigConfig = (name, config) => {{
         if (String(name || "") !== "107580212" || !config?.value || typeof config.value !== "object") return config;
         const available = Array.isArray(config.value.available_models) ? [...config.value.available_models] : [];
-        for (const slug of [flashId, proId]) if (!available.includes(slug)) available.push(slug);
+        for (const slug of modelIds) if (!available.includes(slug)) available.push(slug);
         config.value = {{ ...config.value, available_models: available, use_hidden_models: false }};
         return config;
       }};
@@ -1091,11 +1134,13 @@ fn deepseek_model_injection_script(
       wrapBridge();
       patchStatsig();
       patchSendRequest(root.appServerClient);
-      const pendingSelectedModel = typeof root.pendingSelectedModel === "string"
-        && (root.pendingSelectedModel === flashId || root.pendingSelectedModel === proId)
-        && root.pendingSelectedModel !== selectedModel
-        && root.pendingSelectedModel !== handledSelectedModel
-        ? root.pendingSelectedModel
+      const pendingMeta = typeof root.pendingSelectedModel === "string"
+        ? modelMeta[normalize(root.pendingSelectedModel)]
+        : null;
+      const pendingSelectedModel = pendingMeta
+        && pendingMeta.id !== selectedModel
+        && pendingMeta.id !== handledSelectedModel
+        ? String(pendingMeta.id)
         : null;
       return {{ selectedModel: pendingSelectedModel }};
     }})()"#
@@ -1375,7 +1420,8 @@ fn selected_model_from_cdp_response(value: &Value) -> Option<String> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| {
-            value.eq_ignore_ascii_case("deepseek-v4-flash")
+            value.eq_ignore_ascii_case("deepseek-flash")
+                || value.eq_ignore_ascii_case("deepseek-v4-flash")
                 || value.eq_ignore_ascii_case("deepseek-v4-pro")
         })
         .map(|value| value.to_ascii_lowercase())
@@ -2825,18 +2871,16 @@ async fn run_injection_loop(
         let deepseek_cdp = bind_uses_deepseek_cdp_injection(bind_account_id.as_deref());
         if deepseek_cdp {
             let account_id = bind_account_id_value(bind_account_id.as_deref());
-            let selected_model = account_id
+            let account = account_id
                 .as_deref()
-                .and_then(crate::modules::codex_account::load_account)
-                .and_then(|account| account.api_startup_model)
-                .filter(|model| {
-                    model.eq_ignore_ascii_case("deepseek-v4-flash")
-                        || model.eq_ignore_ascii_case("deepseek-v4-pro")
-                })
-                .unwrap_or_else(|| "deepseek-v4-flash".to_string());
+                .and_then(crate::modules::codex_account::load_account);
+            let payload = account
+                .as_ref()
+                .map(crate::modules::codex_account::deepseek_injection_model_payload)
+                .unwrap_or_else(|| serde_json::json!({ "models": [] }));
             let script = deepseek_model_injection_script(
                 &locale,
-                &selected_model,
+                &payload,
                 handled_refresh_token.as_deref(),
             );
             let targets = query_targets(&client, port).await;
@@ -3002,7 +3046,15 @@ mod tests {
 
     #[test]
     fn deepseek_script_controls_official_picker_and_returns_pending_model() {
-        let script = deepseek_model_injection_script("zh-cn", "deepseek-v4-flash", None);
+        let payload = json!({
+            "selectedModel": "deepseek-v4-flash",
+            "models": [
+                { "id": "deepseek-v4-flash", "name": "DeepSeek-V4-Flash", "vision": true },
+                { "id": "deepseek-v4-pro", "name": "DeepSeek-V4-Pro", "vision": false }
+            ],
+            "shells": { "gpt-5.5": "deepseek-v4-flash", "gpt-5.4": "deepseek-v4-pro" }
+        });
+        let script = deepseek_model_injection_script("zh-cn", &payload, None);
         assert!(script.contains("deepseek-v4-flash"));
         assert!(script.contains("deepseek-v4-pro"));
         assert!(script.contains("gpt-5.5"));
@@ -3014,6 +3066,19 @@ mod tests {
         assert!(script.contains("const reasoningLevels = [\"low\", \"high\", \"max\"]"));
         assert!(script.contains("supported_reasoning_levels = levels"));
         assert!(script.contains("supportedReasoningEfforts = levels"));
+        assert!(script.contains("applyVisionMetadata"));
+        assert!(script.contains("item.input_modalities = modalities"));
+        assert!(script.contains("item.supports_image_detail_original = supportsImage"));
+        assert!(script.contains("\"vision\":true"));
+        // 模型列表判定必须严格，否则会把队列/线程等 data 数组当成模型列表改写。
+        assert!(script.contains("typeof item.slug !== \"string\""));
+        assert!(script.contains("typeof item.display_name === \"string\""));
+        // 只有显式切模型才回写默认模型，发消息时的 model 字段不算切换。
+        assert!(script.contains("const switchMethods"));
+        assert!(script.contains("if (reportable) reportSelected(params.model)"));
+        // 不得再引用已删除的 flashId/proId（会导致脚本每次执行抛异常）。
+        assert!(!script.contains("flashId"));
+        assert!(!script.contains("proId"));
         assert!(!script.contains("[\"low\", \"medium\", \"high\", \"xhigh\"]"));
         assert!(script.contains("staleBar"));
         assert!(!script.contains("data-cockpit-deepseek-model"));

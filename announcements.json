@@ -68,20 +68,25 @@
         "name": "APIKEY.FUN",
         "priority": 100,
         "logoUrl": "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlus/main/docs/images/sponsor-apikey-fun.png",
-        "url": "https://apikey.fun/register?aff=cockpit",
+        "url": "https://apikey.fan/register?aff=cockpit",
         "badge": "AI 中转",
         "description": "APIKEY.FUN 面向开发者提供多模型 API 接入与中转服务，覆盖 Claude、OpenAI、Gemini 等常用模型，适合需要统一密钥、稳定调用和成本优化的工具链场景。",
         "integration": {
           "enabled": true,
           "type": "sub2api",
-          "baseUrl": "https://api.apikey.fun/v1",
+          "baseUrl": "https://api.apikey.fan/v1",
+          "baseUrlAliases": [
+            "https://api.apikey.fun/v1",
+            "https://api.apikey.fun",
+            "https://slb.apikey.fun"
+          ],
           "wireApi": "responses",
           "quickConfigure": true,
           "dashboardCard": true,
           "models": [],
           "supportsVision": false,
-          "website": "https://apikey.fun/register?aff=cockpit",
-          "apiKeyUrl": "https://apikey.fun/register?aff=cockpit"
+          "website": "https://apikey.fan/register?aff=cockpit",
+          "apiKeyUrl": "https://apikey.fan/register?aff=cockpit"
         },
         "targetVersions": ">=0.25.2",
         "targetLanguages": [

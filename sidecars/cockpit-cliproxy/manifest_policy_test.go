@@ -937,11 +937,45 @@ func TestCodexReserveClientCatalogListsLunaReserveWithLunaCapabilities(t *testin
 	}
 }
 
+func TestImageRequestModelIsNotRewrittenToProviderUpstreamModel(t *testing.T) {
+	m := &manifest{ModelIDs: []string{"gpt-5.5", "deepseek-flash"}}
+	spec := &apiKeySpec{
+		ProviderGateway: &providerGatewaySpec{
+			UpstreamModel:  "deepseek-flash",
+			UpstreamModels: []string{"deepseek-flash", "deepseek-v4-pro"},
+		},
+		ImageGenerationAccountIDs: []string{"oauth-1"},
+	}
+
+	rewritten, model, err := rewriteBodyModel(m, spec, "text", []byte(`{"model":"gpt-5.5","input":"hi"}`))
+	if err != nil || model != "gpt-5.5" || rewritten == nil {
+		t.Fatalf("chat request should still be rewritten: model=%q rewritten=%v err=%v", model, rewritten != nil, err)
+	}
+	var chatPayload map[string]any
+	if err := json.Unmarshal(rewritten, &chatPayload); err != nil {
+		t.Fatalf("chat payload: %v", err)
+	}
+	if chatPayload["model"] != "deepseek-flash" {
+		t.Fatalf("chat request model = %v, want deepseek-flash", chatPayload["model"])
+	}
+
+	rewritten, model, err = rewriteBodyModel(m, spec, "image_generation", []byte(`{"model":"gpt-image-2","prompt":"a cat"}`))
+	if err != nil {
+		t.Fatalf("image request must not fail rewrite: %v", err)
+	}
+	if rewritten != nil {
+		t.Fatalf("image request body must stay untouched, got %s", string(rewritten))
+	}
+	if model != "gpt-image-2" {
+		t.Fatalf("image request model = %q, want gpt-image-2", model)
+	}
+}
+
 func TestReserveModelAdmissionKeepsIDAndStillHonorsExplicitAccessFilters(t *testing.T) {
 	m := &manifest{ModelIDs: []string{codexReserveModel, "gpt-5.6-luna"}}
 	spec := &apiKeySpec{AccountIDs: []string{"no-eligible-account"}}
 	body := []byte(`{"model":"gpt-reserve","input":"hello"}`)
-	rewritten, model, err := rewriteBodyModel(m, spec, body)
+	rewritten, model, err := rewriteBodyModel(m, spec, "text", body)
 	if err != nil || rewritten != nil || model != codexReserveModel {
 		t.Fatalf("Reserve must keep the original request unchanged: model=%q, err=%v", model, err)
 	}

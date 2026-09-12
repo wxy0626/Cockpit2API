@@ -38,7 +38,6 @@ export type CodexAccountsAccessControllerContext = Pick<ReturnType<typeof useCod
   | "codexAddTargetGroupId"
   | "codexCliInstanceDefaultsRef"
   | "codexInstanceStore"
-  | "deepSeekStart"
   | "deepSeekUsageRetryIdsRef"
   | "defaultApiProviderPresetId"
   | "editingApiBaseUrlCredentialsValue"

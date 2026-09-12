@@ -165,6 +165,52 @@ async fn pelican_read_error_body(mut response: reqwest::Response) -> Result<Stri
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
+/// 构造鹈鹕请求：与本地 API 服务共用同一套 Codex 客户端特征，
+/// 包括 prompt cache key、session/conversation 头与 client_metadata。
+fn build_pelican_request(
+    model: &str,
+    effort: &str,
+    prompt: &str,
+    account_id: &str,
+) -> Result<(Vec<u8>, HashMap<String, String>), String> {
+    let session_id = stable_uuid_from_text(&format!("agtools:codex:pelican:{account_id}"));
+    let window_id = format!("{session_id}:0");
+    let installation_id =
+        stable_uuid_from_text(&format!("agtools:codex:installation:{account_id}"));
+    let turn_id = stable_uuid_from_text(&format!("agtools:codex:turn:{account_id}:{session_id}"));
+    let turn_metadata = build_codex_turn_metadata(&session_id, &turn_id);
+    let mut body_value = json!({
+        "model": model,
+        "input": [{"type":"message", "role":"user", "content":[{"type":"input_text", "text":prompt}]}],
+        "instructions": PELICAN_DELIVERY_INSTRUCTIONS,
+        "reasoning": {"effort":effort, "summary":"auto"},
+        "store":false, "stream":true,
+    });
+    if let Some(object) = body_value.as_object_mut() {
+        object.insert(
+            "prompt_cache_key".to_string(),
+            Value::String(session_id.clone()),
+        );
+        object.insert(
+            "client_metadata".to_string(),
+            json!({
+                "x-codex-installation-id": installation_id,
+                "x-codex-window-id": window_id,
+                "x-codex-turn-metadata": turn_metadata,
+            }),
+        );
+    }
+    let body = serde_json::to_vec(&body_value).map_err(|e| e.to_string())?;
+    let headers = HashMap::from([
+        ("accept".to_string(), "text/event-stream".to_string()),
+        ("content-type".to_string(), "application/json".to_string()),
+        ("session-id".to_string(), session_id.clone()),
+        ("conversation_id".to_string(), session_id.clone()),
+        ("x-client-request-id".to_string(), session_id),
+    ]);
+    Ok((body, headers))
+}
+
 pub async fn run_pelican_chat(
     account_id: &str,
     model: &str,
@@ -241,17 +287,7 @@ async fn pelican_chat_inner(
     if account.is_api_key_auth() || account.is_web_session_auth() {
         return Err("PELICAN_UNSUPPORTED_ACCOUNT".into());
     }
-    let body = serde_json::to_vec(&json!({
-        "model": model,
-        "input": [{"type":"message", "role":"user", "content":[{"type":"input_text", "text":prompt}]}],
-        "instructions": PELICAN_DELIVERY_INSTRUCTIONS,
-        "reasoning": {"effort":effort, "summary":"auto"},
-        "store":false, "stream":true,
-    })).map_err(|e| e.to_string())?;
-    let mut headers = HashMap::from([
-        ("accept".to_string(), "text/event-stream".to_string()),
-        ("content-type".to_string(), "application/json".to_string()),
-    ]);
+    let (body, mut headers) = build_pelican_request(model, effort, prompt, account_id)?;
     for name in CODEX_OFFICIAL_EMPTY_HEADERS {
         headers
             .entry((*name).to_string())

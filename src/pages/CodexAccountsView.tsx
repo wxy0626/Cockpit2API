@@ -47,7 +47,6 @@ export function CodexAccountsView(props: CodexAccountsViewProps) {
     cliLaunchModal,
     closeCliLaunchModal,
     closeExternalImportProgressModal,
-    deepSeekStart,
     externalImportPercent,
     externalImportProgress,
     externalImportRunning,
@@ -836,7 +835,6 @@ export function CodexAccountsView(props: CodexAccountsViewProps) {
           onExecute={handleExecuteLocalAccessLaunchPreview}
         />
       )}
-      {deepSeekStart.modal}
 
       {activeTab === "instances" && (
         <CodexInstancesContent
@@ -866,6 +864,8 @@ export function CodexAccountsView(props: CodexAccountsViewProps) {
             setActiveTab("wakeup");
             setWakeupPresetManagerSignal((value) => value + 1);
           }}
+          resolveLaunchPreviewSummary={buildAccountLaunchPreviewSummary}
+          resolveLaunchPreviewActions={buildAccountLaunchPreviewActions}
         />
       )}
 

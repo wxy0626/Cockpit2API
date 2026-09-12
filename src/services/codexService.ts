@@ -654,11 +654,13 @@ export async function updateCodexAccountInstanceAccess(
   accountId: string,
   accessMode?: string | null,
   startupModel?: string | null,
+  imageGenerationAccountIds?: string[] | null,
 ): Promise<CodexAccount> {
   return await invoke('update_codex_account_instance_access', {
     accountId,
     accessMode: accessMode ?? null,
     startupModel: startupModel ?? null,
+    imageGenerationAccountIds: imageGenerationAccountIds ?? null,
   });
 }
 

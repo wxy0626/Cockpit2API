@@ -191,6 +191,8 @@ export async function updateCodexLocalAccessRoutingOptions(payload: {
   disableCooling: boolean;
   immediateSseResponse: boolean;
   maxConcurrentImageRequests: number;
+  maxAccountConcurrency: number;
+  accountConcurrencyWaitMs: number;
 }): Promise<CodexLocalAccessState> {
   return await invoke("codex_local_access_update_routing_options", payload);
 }

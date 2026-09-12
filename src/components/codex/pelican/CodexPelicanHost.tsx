@@ -88,6 +88,7 @@ export function CodexPelicanHost() {
     </button>, document.body) : null;
   }
   const batch = state.batch;
+  const resultsView = state.view === 'results' && !!batch;
   const activeView = state.view === 'results' && batch?.id === state.active?.id;
   const ask = (action: 'stop' | 'close') => { setError(null); setConfirm(action); };
   const close = () => {
@@ -95,7 +96,7 @@ export function CodexPelicanHost() {
     else state.minimize();
   };
   return createPortal(<div className="pelican-overlay">
-    <section className="pelican-dialog" role="dialog" aria-modal="true" aria-labelledby="pelican-title" onKeyDown={(event) => {
+    <section key={resultsView ? 'results' : 'configuration'} className={`pelican-dialog${resultsView ? ' pelican-results-dialog' : ''}`} role="dialog" aria-modal="true" aria-labelledby="pelican-title" onKeyDown={(event) => {
       if (event.key === 'Escape' && !confirm) { event.stopPropagation(); close(); }
       if (event.key === 'Tab' && !confirm) {
         const controls = event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), summary');
@@ -104,14 +105,14 @@ export function CodexPelicanHost() {
         if (last && !event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }
     }}>
-      <header className="pelican-header"><h2 id="pelican-title" ref={headingRef} tabIndex={-1}><Bird size={23} />{t('pelican.title')}</h2>
+      <header className="pelican-header"><h2 id="pelican-title" ref={headingRef} tabIndex={-1}><Bird size={23} />{t(resultsView ? 'pelican.results' : 'pelican.title')}</h2>
         <div className="pelican-actions"><button className="btn btn-secondary" aria-label={t('pelican.minimize')} title={t('pelican.minimize')} onClick={() => state.minimize()}><Minus size={18} /></button>
           <button className="btn btn-secondary" aria-label={t('common.close')} title={t('common.close')} onClick={close}><X size={18} /></button></div></header>
-      <nav className="pelican-tabs">
+      {!resultsView && <nav className="pelican-tabs">
         <button className={`btn pelican-tab${state.view === 'setup' ? ' is-active' : ''}`} aria-current={state.view === 'setup' ? 'page' : undefined} disabled={state.starting || isPelicanRunning(state.active)} onClick={() => { setError(null); state.show('setup'); }}>{t('pelican.newTest')}</button>
         {state.active && <button className={`btn pelican-tab${state.view === 'results' ? ' is-active' : ''}`} aria-current={state.view === 'results' ? 'page' : undefined} onClick={() => { setError(null); state.show('results'); }}>{t('pelican.current')}</button>}
         <button className={`btn pelican-tab${state.view === 'history' ? ' is-active' : ''}`} aria-current={state.view === 'history' ? 'page' : undefined} onClick={() => { setError(null); state.show('history'); }}><History size={15} />{t('pelican.history')}</button>
-      </nav>
+      </nav>}
       <div className="pelican-body">
         <ModalErrorMessage message={connectionError ? pelicanError(connectionError, t) : null} />
         {connectionError && <button className="btn btn-secondary" onClick={() => setListenerAttempt((attempt) => attempt + 1)}>{t('common.refresh')}</button>}

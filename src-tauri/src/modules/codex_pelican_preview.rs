@@ -12,6 +12,9 @@ static SLOTS: LazyLock<Arc<Semaphore>> = LazyLock::new(|| Arc::new(Semaphore::ne
 static REPLACE_LOCK: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
 static NEXT_ORDER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+static BROWSER_STOPS: LazyLock<
+    tokio::sync::Mutex<std::collections::VecDeque<watch::Sender<bool>>>,
+> = LazyLock::new(|| tokio::sync::Mutex::new(std::collections::VecDeque::new()));
 struct PreviewSession {
     webview: wry::WebView,
     window: tauri::Window,
@@ -58,6 +61,7 @@ thread_local! {
 
 pub async fn close_all(app: &tauri::AppHandle) -> Result<(), String> {
     let _replace_guard = REPLACE_LOCK.lock().await;
+    BROWSER_STOPS.lock().await.clear();
     let (tx, rx) = oneshot::channel();
     app.run_on_main_thread(move || {
         PREVIEWS.with(|previews| {
@@ -77,6 +81,66 @@ pub async fn close_all(app: &tauri::AppHandle) -> Result<(), String> {
         .await
         .map_err(|_| "PELICAN_PREVIEW_CLOSE_TIMEOUT".to_string())?
         .map_err(|_| "PELICAN_PREVIEW_CLOSE_INTERRUPTED".to_string())
+}
+
+// Browser previews share the native preview's nonce route and HTTP sandbox.
+// Keep at most two listeners, expire them after 15 minutes, and close them when
+// test data is cleared. Opening a browser never creates a second native window.
+#[tauri::command]
+pub async fn codex_pelican_browser(batch_id: String, item_id: String) -> Result<String, String> {
+    let artifact = super::codex_pelican::artifact(batch_id, item_id).await?;
+    start_browser_preview(
+        artifact.html.ok_or("pelican.noHtml")?,
+        Duration::from_secs(900),
+    )
+    .await
+}
+
+async fn start_browser_preview(html: String, lifetime: Duration) -> Result<String, String> {
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .await
+        .map_err(|error| error.to_string())?;
+    let host = Arc::new(
+        listener
+            .local_addr()
+            .map_err(|error| error.to_string())?
+            .to_string(),
+    );
+    let path = Arc::new(format!("/{}/result.html", uuid::Uuid::new_v4()));
+    let url = format!("http://{host}{path}");
+    let response = Arc::new(response_bytes(&format!(
+        "<script>{PREVIEW_LOCKDOWN}</script>{html}"
+    )));
+    let (stop, mut stopped) = watch::channel(false);
+    let mut sessions = BROWSER_STOPS.lock().await;
+    sessions.retain(|sender| !sender.is_closed());
+    while sessions.len() >= 2 {
+        sessions.pop_front();
+    }
+    sessions.push_back(stop);
+    drop(sessions);
+    tokio::spawn(async move {
+        let deadline = tokio::time::sleep(lifetime);
+        tokio::pin!(deadline);
+        let slots = Arc::new(Semaphore::new(4));
+        loop {
+            tokio::select! {
+                biased;
+                _ = stopped.changed() => break,
+                _ = &mut deadline => break,
+                accepted = listener.accept() => {
+                    let Ok((socket, _)) = accepted else { break; };
+                    let Ok(permit) = slots.clone().try_acquire_owned() else { continue; };
+                    let (path, host, response) = (path.clone(), host.clone(), response.clone());
+                    tokio::spawn(async move {
+                        let _permit = permit;
+                        serve_connection(socket, path, host, response).await;
+                    });
+                }
+            }
+        }
+    });
+    Ok(url)
 }
 // Inline code is required by model-generated SVG animations. Opaque origin plus
 // no remote resources, child frames, workers, forms, objects, or connections.
@@ -310,6 +374,59 @@ pub async fn codex_pelican_preview(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn browser_previews_are_sandboxed_bounded_and_expire() {
+        async fn fetch(url: &str) -> String {
+            let url = tauri::Url::parse(url).unwrap();
+            let host = format!("127.0.0.1:{}", url.port().unwrap());
+            let mut stream = TcpStream::connect(&host).await.unwrap();
+            stream
+                .write_all(
+                    format!("GET {} HTTP/1.1\r\nHost: {host}\r\n\r\n", url.path()).as_bytes(),
+                )
+                .await
+                .unwrap();
+            let mut result = String::new();
+            stream.read_to_string(&mut result).await.unwrap();
+            result
+        }
+        async fn wait_closed(url: &str) {
+            let url = tauri::Url::parse(url).unwrap();
+            timeout(Duration::from_secs(2), async {
+                loop {
+                    if TcpStream::connect(("127.0.0.1", url.port().unwrap()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("preview listener must close");
+        }
+        let first = start_browser_preview("<svg></svg>".into(), Duration::from_secs(10))
+            .await
+            .unwrap();
+        let response = fetch(&first).await;
+        assert!(response.contains("Content-Security-Policy:"));
+        assert!(response.contains("sandbox allow-scripts"));
+        assert!(response.contains(PREVIEW_LOCKDOWN));
+        assert!(response.ends_with("<svg></svg>"));
+        let second = start_browser_preview("second".into(), Duration::from_secs(10))
+            .await
+            .unwrap();
+        let third = start_browser_preview("third".into(), Duration::from_millis(100))
+            .await
+            .unwrap();
+        wait_closed(&first).await;
+        assert!(fetch(&second).await.ends_with("second"));
+        wait_closed(&third).await;
+        BROWSER_STOPS.lock().await.clear();
+        wait_closed(&second).await;
+    }
 
     #[test]
     fn loopback_route_checks_host_method_and_nonce() {

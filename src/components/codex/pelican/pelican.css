@@ -13,8 +13,9 @@
 .pelican-dialog {
   display: flex;
   flex-direction: column;
-  width: min(1180px, 97vw);
-  max-height: 94vh;
+  width: min(1080px, 92vw);
+  height: auto;
+  max-height: 88vh;
   color: var(--text-primary, #202939);
   background: var(--bg-primary, #fff);
   border: 1px solid var(--border-color, #e1e5eb);
@@ -22,6 +23,12 @@
   box-shadow: 0 22px 90px rgba(0, 0, 0, .23);
   overflow: hidden;
   font-size: 13px;
+}
+
+/* Only the result matrix uses a square, scrollable workspace. */
+.pelican-results-dialog {
+  height: min(900px, 88vh);
+  aspect-ratio: 1 / 1;
 }
 
 .pelican-header, .pelican-footer, .pelican-tabs { display: flex; align-items: center; gap: 10px; padding: 16px 22px; flex-shrink: 0; }
@@ -32,7 +39,15 @@
 .pelican-tabs { gap: 4px; padding-top: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border-color, #e1e5eb); flex-wrap: wrap; }
 .pelican-footer { justify-content: flex-end; padding-top: 14px; padding-bottom: 14px; border-top: 1px solid var(--border-color, #e1e5eb); background: var(--bg-secondary, #f6f7f9); }
 .pelican-footer .btn { min-width: 88px; min-height: 36px; }
-.pelican-body { padding: 20px 22px 24px; overflow-y: auto; min-height: 120px; }
+.pelican-body { flex: 1 1 auto; min-height: 0; padding: 20px 22px 24px; overflow-y: auto; }
+.pelican-results-dialog .pelican-body { overflow: hidden; padding: 12px 16px; }
+.pelican-results-dialog .pelican-table-scroll { height: 100%; box-sizing: border-box; }
+.pelican-results-dialog .btn { font-size: 10px; padding: 5px 8px; min-height: 28px; }
+.pelican-results-dialog .pelican-header > .pelican-actions .btn { width: 30px; height: 30px; padding: 0; }
+.pelican-results-dialog .pelican-footer .btn { min-height: 30px; }
+.pelican-canvas-placeholder .btn { font-size: 9px; padding: 3px 2px; min-height: 22px; }
+.pelican-canvas-placeholder > .pelican-cell-actions { margin-top: 2px; }
+
 .pelican-setup { display: flex; flex-direction: column; gap: 13px; }
 .pelican-setup label { display: flex; flex-direction: column; gap: 7px; }
 .pelican-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(130px, 1fr) minmax(100px, 1fr); gap: 12px; }
@@ -128,27 +143,35 @@
 .pelican-prompt-details { border-top: 1px solid var(--border-color, #e1e5eb); padding-top: 9px; }
 .pelican-prompt-details summary { color: var(--text-secondary, #627084); cursor: pointer; font-size: 12px; }
 .pelican-prompt-details summary::marker { color: var(--primary-color, #3576df); }
-.pelican-results-heading { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; color: var(--text-secondary, #627084); font-size: 12px; }
-.pelican-results-heading span { display: inline-flex; min-width: 20px; height: 20px; align-items: center; justify-content: center; border-radius: 10px; background: var(--bg-hover, #e9eef5); font-size: 11px; }
-.pelican-results { display: flex; flex-direction: column; gap: 8px; }
-.pelican-result { display: grid; grid-template-columns: minmax(190px, 1.2fr) 84px minmax(170px, 1fr) 220px auto; align-items: center; gap: 14px; padding: 11px 13px; border: 1px solid var(--border-color, #e1e5eb); border-radius: 10px; min-width: 0; background: var(--bg-primary, #fff); }
-.pelican-result-account { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.pelican-result-account > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pelican-result-account .pelican-result-plan { width: auto; max-width: 100px; flex: 0 1 auto; }
-.pelican-result-empty-preview { display: flex; width: 220px; height: 130px; align-items: center; justify-content: center; border: 1px dashed var(--border-color, #d7dde6); border-radius: 7px; color: var(--text-secondary, #627084); font-size: 11px; }
-.pelican-result > [role="alert"] { grid-column: 1 / -1; }
-.pelican-thumbnail { appearance: none; font: inherit; color: inherit; }
-.pelican-thumbnail:hover { border-color: var(--primary-color, #3576df); }
-.pelican-thumbnail:disabled { opacity: .5; cursor: not-allowed; }
-.pelican-result-summary { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: var(--text-secondary, #627084); font-size: 11px; }
-.pelican-result-summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pelican-thumbnail { width: 220px; height: 130px; padding: 0; overflow: hidden; border: 1px solid var(--border-color, #d7dde6); border-radius: 7px; background: #fff; cursor: pointer; }
-.pelican-thumbnail iframe { display: block; width: 880px; height: 520px; border: 0; transform: scale(.25); transform-origin: top left; pointer-events: none; }
-.pelican-result .pelican-actions { justify-content: flex-start; margin-top: 0; }
-.pelican-result > .pelican-result-actions { grid-column: 5; justify-content: flex-end; }
-.pelican-result-actions .btn { min-height: 32px; }
+/* Six compact account tiles per row; additional accounts continue vertically. */
+.pelican-table-scroll { overflow-y: auto; overflow-x: hidden; max-width: 100%; max-height: 100%; padding: 4px; }
+.pelican-table-scroll:focus-visible { outline: 2px solid var(--primary-color, #3576df); outline-offset: 2px; }
+.pelican-canvas-table { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; justify-items: stretch; align-content: start; }
+.pelican-account-tile { min-width: 0; overflow: hidden; border: 1px solid var(--border-color, #e1e5eb); border-radius: 8px; background: var(--bg-primary, #fff); }
+.pelican-account-tile h3 { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; padding: 8px 6px; border-bottom: 1px solid var(--border-color, #e1e5eb); text-align: left; font-size: 10px; line-height: 1.3; }
+.pelican-account-email { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pelican-account-plan { flex: 0 0 auto; min-width: 0; }
+.pelican-account-plan .tier-badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 9px; padding: 2px 4px; }
+.pelican-canvas-cell { padding: 6px; vertical-align: top; }
+.pelican-canvas, .pelican-canvas-placeholder { width: 100%; height: 158px; margin: 0 auto; border: 1px solid var(--border-color, #d7dde6); border-radius: 6px; box-sizing: border-box; }
+.pelican-canvas { display: block; appearance: none; -webkit-appearance: none; font: inherit; color: inherit; padding: 0; background: #fff; overflow: hidden; cursor: zoom-in; }
+.pelican-canvas:hover { border-color: var(--primary-color, #3576df); }
+.pelican-canvas iframe { display: block; width: 876px; height: 714px; border: 0; transform: scale(.18); transform-origin: top left; pointer-events: none; }
+.pelican-canvas-placeholder { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; padding: 8px; overflow: hidden; color: var(--text-secondary, #627084); background: var(--bg-secondary, #f6f7f9); }
+.pelican-canvas-placeholder.is-failed { color: #dc4545; background: rgba(220, 69, 69, .05); border-color: rgba(220, 69, 69, .25); }
+.pelican-cell-error { margin: 0; width: 100%; max-height: 58px; overflow: auto; overflow-wrap: anywhere; font-size: 10px; line-height: 1.35; user-select: text; }
+.pelican-cell-caption, .pelican-cell-actions { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; font-size: 10px; color: var(--text-secondary, #627084); font-variant-numeric: tabular-nums; }
+.pelican-cell-actions { width: 100%; flex-wrap: nowrap; }
+.pelican-cell-actions .btn { min-width: 0; flex: 1 1 0; min-height: 22px; padding: 2px 1px; border: 0; box-shadow: none; color: var(--primary-color, #3576df); background: transparent; font-size: clamp(8px, 1vw, 10px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pelican-cell-actions .btn:hover:not(:disabled) { color: var(--primary-color, #3576df); background: transparent; text-decoration: underline; }
+.pelican-canvas-placeholder > strong { font-size: 11px; font-weight: 600; line-height: 1.3; }
+.pelican-elapsed { font-variant-numeric: tabular-nums; font-size: 11px; line-height: 1.3; }
+.pelican-canvas-placeholder .pelican-elapsed { color: inherit; }
+.pelican-spinner { animation: pelican-spin 1s linear infinite; }
+@keyframes pelican-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pelican-spinner { animation: none; } }
 .pelican-detail-overlay { position: fixed; inset: 0; z-index: 10020; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(12, 17, 28, .42); backdrop-filter: blur(3px); }
-.pelican-detail-dialog { display: flex; flex-direction: column; width: min(760px, 94vw); max-height: min(700px, 88vh); overflow: auto; padding: 20px 22px; border: 1px solid var(--border-color, #e1e5eb); border-radius: 14px; background: var(--bg-primary, #fff); box-shadow: 0 18px 70px rgba(0, 0, 0, .24); }
+.pelican-detail-dialog { display: flex; flex-direction: column; width: min(760px, 88vw); max-height: 84vh; overflow: auto; padding: 20px 22px; border: 1px solid var(--border-color, #e1e5eb); border-radius: 14px; background: var(--bg-primary, #fff); box-shadow: 0 18px 70px rgba(0, 0, 0, .24); }
 .pelican-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border-color, #e1e5eb); }
 .pelican-detail-header > div { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; min-width: 0; }
 .pelican-detail-header h3 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
@@ -157,7 +180,8 @@
 .pelican-detail-error > [role="alert"] { flex: 1; margin-bottom: 0 !important; }
 .pelican-detail-error > .btn { min-height: 36px; }
 .pelican-detail-actions { padding: 10px 0 4px; border-top: 1px solid var(--border-color, #e1e5eb); }
-.pelican-detail-output { min-height: 150px; max-height: 340px; margin: 8px 0 0; padding: 12px; border: 1px solid var(--border-color, #e1e5eb); border-radius: 8px; background: var(--bg-secondary, #f6f7f9); white-space: pre-wrap; overflow: auto; overflow-wrap: anywhere; font-size: 12px; line-height: 1.55; user-select: text; }
+.pelican-detail-canvas { width: 100%; height: 65vh; min-height: 280px; flex-shrink: 0; border: 1px solid var(--border-color, #e1e5eb); border-radius: 8px; background: #fff; }
+.pelican-detail-output { min-height: 280px; max-height: 65vh; margin: 8px 0 0; padding: 12px; border: 1px solid var(--border-color, #e1e5eb); border-radius: 8px; background: var(--bg-secondary, #f6f7f9); white-space: pre-wrap; overflow: auto; overflow-wrap: anywhere; font-size: 12px; line-height: 1.55; user-select: text; }
 .pelican-detail-dialog .pelican-organize { margin-top: 14px; }
 .pelican-status { padding: 3px 8px; border-radius: 10px; font-size: 11px; background: var(--bg-hover, #e9eef5); flex-shrink: 0; }
 .pelican-status-running { color: var(--primary-color, #3576df); }
@@ -175,7 +199,7 @@
 .pelican-progress-track { margin-top: 12px; height: 5px; background: var(--bg-hover, #e9eef5); border-radius: 5px; overflow: hidden; }
 .pelican-progress-track > div { height: 100%; background: var(--primary-color, #3576df); transition: width .2s; }
 .pelican-confirm-overlay { z-index: 11010; }
-.pelican-confirm { width: min(480px, 92vw); padding: 0; }
+.pelican-confirm { width: min(480px, 92vw); height: auto; max-height: none; aspect-ratio: auto; padding: 0; }
 .pelican-confirm-heading { display: flex; align-items: center; gap: 11px; padding: 22px 24px 12px; }
 .pelican-confirm-icon { display: inline-flex; width: 34px; height: 34px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 10px; color: #dc4545; background: rgba(220, 69, 69, .1); }
 .pelican-confirm h3 { margin: 0; font-size: 16px; line-height: 1.45; }
@@ -193,9 +217,7 @@
   .pelican-retention-card { align-items: flex-start; flex-direction: column; }
   .pelican-retention-controls { width: 100%; }
   .pelican-retention-controls input { flex: 1; width: auto !important; }
-  .pelican-result { grid-template-columns: 1fr; }
-  .pelican-result > .pelican-result-actions { grid-column: 1; justify-content: flex-start; }
-  .pelican-thumbnail, .pelican-result-empty-preview { width: 100%; }
+  .pelican-canvas-table { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .pelican-detail-overlay { padding: 10px; }
   .pelican-detail-dialog { width: 100%; padding: 16px; }
   .pelican-confirm-heading { padding-left: 18px; padding-right: 18px; }

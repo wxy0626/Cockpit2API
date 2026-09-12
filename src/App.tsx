@@ -1277,6 +1277,17 @@ function MainApp() {
   }, [fetchSponsorModuleState, fetchTopRightAdState]);
 
   useEffect(() => {
+    const handleSponsorRoutesUpdated = () => {
+      void useCodexAccountStore.getState().fetchAccounts();
+      void useClaudeAccountStore.getState().fetchAccounts();
+    };
+    window.addEventListener('sponsor-routes-updated', handleSponsorRoutesUpdated);
+    return () => {
+      window.removeEventListener('sponsor-routes-updated', handleSponsorRoutesUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
     if (sponsorModuleInitialized && page === 'api-relay' && !sponsorEntryVisible) {
       setPage('dashboard');
     }

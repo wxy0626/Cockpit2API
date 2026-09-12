@@ -8,6 +8,7 @@ import {
   CODEX_API_PROVIDER_CUSTOM_ID,
   resolveCodexApiProviderPresetId,
 } from "./codexProviderPresets";
+import { resolveCodexProviderCapabilityProfile } from "./codexProviderGateway";
 import { resolveCodexModelProviderAccountName } from "./codexModelProviderAccountName";
 
 export interface CodexModelProviderReference {
@@ -61,16 +62,21 @@ export function mergeCodexModelProviderCredentialInput(
       (item) => item.apiKey.trim() === fallback.apiKey.trim(),
     )?.name ?? fallback.apiKeyName,
     sourceTag: provider?.sourceTag ?? fallback.sourceTag,
-    modelCatalog: provider?.modelCatalog ?? fallback.modelCatalog,
+    modelCatalog: fallback.modelCatalog ?? provider?.modelCatalog,
     modelContextWindows:
-      provider?.modelContextWindows ?? fallback.modelContextWindows,
+      fallback.modelContextWindows ?? provider?.modelContextWindows,
     supportsVision: provider?.supportsVision ?? fallback.supportsVision,
     modelCapabilities: provider?.modelCapabilities ?? fallback.modelCapabilities,
     visionRoutingModel:
       provider?.visionRoutingModel ?? fallback.visionRoutingModel,
     website: provider?.website ?? fallback.website,
     apiKeyUrl: provider?.apiKeyUrl ?? fallback.apiKeyUrl,
-    wireApi: provider?.wireApi ?? fallback.wireApi,
+    wireApi:
+      fallback.wireApi ??
+      provider?.wireApi ??
+      resolveCodexProviderCapabilityProfile({
+        baseUrl: provider?.baseUrl ?? fallback.apiBaseUrl,
+      }).wireApi,
     supportsWebsockets:
       provider?.supportsWebsockets ?? fallback.supportsWebsockets,
     integrationType: provider?.integrationType ?? fallback.integrationType,

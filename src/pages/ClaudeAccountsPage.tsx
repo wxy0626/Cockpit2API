@@ -655,8 +655,9 @@ function isClaudeApiKeyFunAccount(account: ClaudeAccount): boolean {
   return (
     providerId === CLAUDE_APIKEY_FUN_PROVIDER_ID ||
     sourceTag === 'apikey_fun' ||
+    providerName === 'apikey.fan' ||
     providerName === 'apikey.fun' ||
-    Boolean(baseUrl && /(^https?:\/\/)?([^/]+\.)?apikey\.fun(\/|$)/i.test(baseUrl))
+    Boolean(baseUrl && /(^https?:\/\/)?([^/]+\.)?apikey\.(?:fan|fun)(\/|$)/i.test(baseUrl))
   );
 }
 

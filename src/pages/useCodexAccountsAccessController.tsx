@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, type ReactElement } from "react";
-import { RefreshCw, Database, CircleAlert, Eye, EyeOff, Link2 } from "lucide-react";
+import { RefreshCw, CircleAlert, Eye, EyeOff, Link2 } from "lucide-react";
 import * as codexService from "../services/codexService";
 import * as codexInstanceService from "../services/codexInstanceService";
 import * as codexLocalAccessService from "../services/codexLocalAccessService";
@@ -13,7 +13,10 @@ import { requestCodexOpenAddAccount } from "../utils/codexAddAccountRequest";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { DEFAULT_CODEX_INSTANCE_ID } from "../components/codex/CodexLaunchPreviewModal";
+import {
+  DEFAULT_CODEX_INSTANCE_ID,
+  type CodexLaunchPreviewLaunchOptions,
+} from "../components/codex/CodexLaunchPreviewModal";
 import { isDeepSeekAccount, isCodexTokenPlanAccount, resolveDeepSeekBindAccountId } from "../utils/codexDeepSeekAccess";
 import { contextWindowDraftsFromRecord, parseContextWindowDrafts } from "../utils/codexModelContextWindows";
 import type { CodexAccount } from "../types/codex";
@@ -24,13 +27,15 @@ import { resolveCodexModelProviderAccountName } from "../utils/codexModelProvide
 import { CODEX_API_PROVIDER_CUSTOM_ID, COCKPIT_API_PROVIDER_ID, findCodexApiProviderPresetById, resolveCodexApiProviderPresetId } from "../utils/codexProviderPresets";
 import { APIKEY_FUN_PROVIDER_BASE_URL } from "../utils/apikeyFunLinks";
 import { APIKEY_FUN_PREFILL_EVENT, consumeApiKeyFunPrefill, type ApiKeyFunPrefillPayload } from "../utils/apiKeyFunPrefill";
-import { findCodexModelProviderById, findCodexModelProviderByBaseUrl, queryCodexModelProviderUsage, saveCodexModelProviderDetectedIntegrationType, type CodexModelProvider, type CodexModelProviderUsageSummary, upsertCodexModelProviderFromCredential } from "../services/codexModelProviderService";
+import { findCodexModelProviderById, findCodexModelProviderByBaseUrl, queryCodexModelProviderUsage, saveCodexModelProviderDetectedIntegrationType, type CodexModelProvider, upsertCodexModelProviderFromCredential } from "../services/codexModelProviderService";
 import { buildCodexModelProviderAccountSnapshot, findCodexAccountsReferencingModelProvider, mergeCodexModelProviderCredentialInput } from "../utils/codexModelProviderAccountSync";
 import { CODEX_API_KEY_USAGE_REFRESHED_EVENT, readCodexApiKeyUsageCache, writeCodexApiKeyUsageCache, type CodexApiKeyUsageState } from "../services/codexApiKeyUsageRefreshService";
-import { isModelProviderUsageUnavailableError, formatModelProviderUsageMoney, listModelProviderModels, resolveNewApiQuotaSnapshot } from "../services/modelProviderUsageService";
+import { isModelProviderUsageUnavailableError, listModelProviderModels } from "../services/modelProviderUsageService";
 import { upsertSavedMfaRecord } from "../utils/mfaVault";
 import md5 from "blueimp-md5";
-import { CODEX_BATCH_IMPORT_SESSION_STORAGE_KEY, DEFAULT_CODEX_API_BASE_URL, DEFAULT_CODEX_API_PROVIDER_ID, formatCockpitApiInteger, formatCockpitApiTokenCount, getCockpitApiStatsRecord, getCockpitApiUsageRecord, inferCodexAccountProviderMode, isRelayApiProviderTemplateId, isSameHttpBaseUrl, joinFilePath, maskCodexApiKey, normalizeHttpBaseUrl, normalizePathForCompare, OPENAI_OFFICIAL_PRESET_ID, parseApiModelCatalogText, parseOAuthQuotaReservePercent, persistLastCodexCliWorkingDir, readCockpitApiOptionalNumber, readCockpitApiString, readLastCodexCliWorkingDir, resolveApiKeyUsageMode, sanitizeCodexCliInstanceName, toCockpitApiRecord, type CockpitApiJsonRecord, type CodexCliInstanceDraft, type CodexCliLaunchModalState, type OAuthBindingQuotaReserveFieldErrors } from "./codexAccountsControllerModel";
+import { CODEX_BATCH_IMPORT_SESSION_STORAGE_KEY, DEFAULT_CODEX_API_BASE_URL, DEFAULT_CODEX_API_PROVIDER_ID, inferCodexAccountProviderMode, isRelayApiProviderTemplateId, isSameHttpBaseUrl, joinFilePath, maskCodexApiKey, normalizeHttpBaseUrl, normalizePathForCompare, OPENAI_OFFICIAL_PRESET_ID, parseApiModelCatalogText, parseOAuthQuotaReservePercent, persistLastCodexCliWorkingDir, readLastCodexCliWorkingDir, sanitizeCodexCliInstanceName, type CodexCliInstanceDraft, type CodexCliLaunchModalState, type OAuthBindingQuotaReserveFieldErrors } from "./codexAccountsControllerModel";
+import { useCodexApiKeyUsageFormatting } from "./codexApiKeyUsageFormatting";
+import { renderCodexApiKeyUsagePanel } from "./codexApiKeyUsagePanel";
 import type { CodexAccountsAccessControllerContext } from "./codexAccountsAccessControllerContract";
 
 /** 封装 useCodexAccountsPageController 的 useCodexAccountsAccessController 业务域状态与动作。 */
@@ -71,7 +76,6 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
     codexAddTargetGroupId,
     codexCliInstanceDefaultsRef,
     codexInstanceStore,
-    deepSeekStart,
     deepSeekUsageRetryIdsRef,
     defaultApiProviderPresetId,
     editingApiBaseUrlCredentialsValue,
@@ -547,6 +551,12 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
     );
     const [localAccessLaunchPreviewOpen, setLocalAccessLaunchPreviewOpen] =
       useState(false);
+    const [launchPreviewCliIntent, setLaunchPreviewCliIntent] = useState(false);
+    const [pendingCliLaunchTarget, setPendingCliLaunchTarget] = useState<{
+      accountId: string;
+      accountLabel: string;
+      bindAccountId: string;
+    } | null>(null);
     const activeLaunchPreviewAccount = useMemo(() => {
       if (!launchPreviewAccount) return null;
       return (
@@ -596,6 +606,12 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
       launchPreviewAccount,
       localAccessLaunchPreviewOpen,
     ]);
+
+    useEffect(() => {
+      if (!launchPreviewAccount && launchPreviewCliIntent) {
+        setLaunchPreviewCliIntent(false);
+      }
+    }, [launchPreviewAccount, launchPreviewCliIntent]);
   
     const handleSwitch = async (accountId: string) => {
       const account = codexAccountsRef.current.find(
@@ -620,26 +636,39 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
         return;
       }
       setLaunchPreviewInstanceId(DEFAULT_CODEX_INSTANCE_ID);
+      setLaunchPreviewCliIntent(false);
       setLaunchPreviewAccount(account ?? null);
     };
   
     const handleExecuteLaunchPreview = useCallback(
-      async (launchAfterSwitch: boolean): Promise<boolean> => {
+      async (
+        launchAfterSwitch: boolean,
+        launchOptions?: CodexLaunchPreviewLaunchOptions,
+      ): Promise<boolean> => {
         const account = activeLaunchPreviewAccount;
         if (!account) return false;
         let launchAccount = account;
-        if (isDeepSeekAccount(account)) {
-          const presentation = buildCodexAccountPresentation(account, t);
-          const prepared = await deepSeekStart.confirmStart(
-            account,
-            updateAccountInstanceAccess,
-            launchPreviewInstanceLabel ||
-              presentation.displayName ||
-              account.email ||
-              account.id,
+        if (isDeepSeekAccount(account) && launchOptions?.deepSeekAccessMode) {
+          launchAccount = await updateAccountInstanceAccess(
+            account.id,
+            launchOptions.deepSeekAccessMode,
+            null,
+            launchOptions.imageGenerationAccountIds ?? [],
           );
-          if (!prepared) return false;
-          launchAccount = prepared;
+        }
+        if (launchPreviewCliIntent) {
+          const presentation = buildCodexAccountPresentation(launchAccount, t);
+          setPendingCliLaunchTarget({
+            accountId: launchAccount.id,
+            accountLabel:
+              presentation.displayName || launchAccount.email || launchAccount.id,
+            bindAccountId: isDeepSeekAccount(launchAccount)
+              ? resolveDeepSeekBindAccountId(launchAccount)
+              : launchAccount.id,
+          });
+          setLaunchPreviewCliIntent(false);
+          setLaunchPreviewAccount(null);
+          return true;
         }
         if (launchPreviewInstanceId !== DEFAULT_CODEX_INSTANCE_ID) {
           const bindAccountId = isDeepSeekAccount(launchAccount)
@@ -693,7 +722,7 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
         return true;
       },
       [
-        deepSeekStart,
+        launchPreviewCliIntent,
         codexInstanceStore,
         executeCodexAccountSwitch,
         activeLaunchPreviewAccount,
@@ -1100,6 +1129,19 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
         void prepareCodexCliLaunch(modal);
       }
     };
+
+    // 启动预览确认后进入 CLI 启动流程（CLI 弹框在本文件后面才定义，用状态桥接）。
+    useEffect(() => {
+      if (!pendingCliLaunchTarget) return;
+      const target = pendingCliLaunchTarget;
+      setPendingCliLaunchTarget(null);
+      openCodexCliLaunchModal(
+        "account",
+        target.accountId,
+        target.accountLabel,
+        target.bindAccountId,
+      );
+    }, [pendingCliLaunchTarget, openCodexCliLaunchModal]);
   
     const handleLaunchCodexCli = async (account: CodexAccount) => {
       const blockedReason = getCodexSwitchOrLaunchBlockedReason(account);
@@ -1120,34 +1162,10 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
         });
         return;
       }
-      let launchAccount = account;
-      if (isDeepSeekAccount(account)) {
-        const presentation = buildCodexAccountPresentation(account, t);
-        try {
-          const prepared = await deepSeekStart.confirmStart(
-            account,
-            updateAccountInstanceAccess,
-            presentation.displayName || account.email || account.id,
-          );
-          if (!prepared) return;
-          launchAccount = prepared;
-        } catch (error) {
-          setMessage({
-            text: `${t("common.failed", "失败")}: ${String(error).replace(/^Error:\s*/, "")}`,
-            tone: "error",
-          });
-          return;
-        }
-      }
-      const presentation = buildCodexAccountPresentation(launchAccount, t);
-      openCodexCliLaunchModal(
-        "account",
-        launchAccount.id,
-        presentation.displayName || launchAccount.email || launchAccount.id,
-        isDeepSeekAccount(launchAccount)
-          ? resolveDeepSeekBindAccountId(launchAccount)
-          : launchAccount.id,
-      );
+      // CLI 快速启动也先走启动预览，确认后再进入 CLI 启动；DeepSeek 账号在确认时选择接入方式与模型。
+      setLaunchPreviewInstanceId(DEFAULT_CODEX_INSTANCE_ID);
+      setLaunchPreviewCliIntent(true);
+      setLaunchPreviewAccount(account);
     };
   
     const handleLaunchLocalAccessCli = () => {
@@ -2072,7 +2090,9 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
             .toLowerCase();
           return (
             normalizedTemplateBaseUrl === normalizedRequestBaseUrl ||
+            searchable.includes("apikey.fan") ||
             searchable.includes("apikey.fun") ||
+            searchable.includes("api.apikey.fan") ||
             searchable.includes("api.apikey.fun")
           );
         }) ?? null;
@@ -3209,704 +3229,39 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
       };
     }, [fetchAccounts, fetchCurrentAccount, refreshApiKeyUsageByAccountId]);
   
-    const formatApiKeyUsageMoney = useCallback(
-      (value?: number | null, unit?: string | null): string =>
-        formatModelProviderUsageMoney(value ?? undefined, unit ?? undefined),
-      [],
-    );
-  
-    const formatApiKeyUsageQuotaValue = useCallback(
-      (
-        summary: CodexModelProviderUsageSummary | undefined,
-        value?: number | null,
-      ): string => {
-        if (summary?.quotaUnlimited === true) {
-          return t("codex.modelProviders.usage.unlimitedQuota", "无限额度");
-        }
-        return formatApiKeyUsageMoney(value, summary?.unit);
-      },
-      [formatApiKeyUsageMoney, t],
-    );
-  
-    const resolveCockpitApiAccountBalanceText = useCallback(
-      (account: CodexAccount): string | null => {
-        const usage = getCockpitApiUsageRecord(account);
-        const stats = getCockpitApiStatsRecord(account);
-        const total = toCockpitApiRecord(stats?.total);
-        const profile = toCockpitApiRecord(
-          toCockpitApiRecord(account.quota?.raw_data)?.profile,
-        );
-        const records = [usage, total, profile].filter(
-          (record): record is CockpitApiJsonRecord => Boolean(record),
-        );
-        const displayKeys = [
-          "balance_display",
-          "account_balance_display",
-          "wallet_balance_display",
-        ];
-        for (const record of records) {
-          for (const key of displayKeys) {
-            const value = readCockpitApiString(record, key);
-            if (value) return value;
-          }
-        }
-        const numberKeys = ["balance", "account_balance", "wallet_balance"];
-        for (const record of records) {
-          for (const key of numberKeys) {
-            const value = readCockpitApiOptionalNumber(record, key);
-            if (value != null) return formatApiKeyUsageMoney(value, "USD");
-          }
-        }
-        return null;
-      },
-      [formatApiKeyUsageMoney],
-    );
-  
-    const formatApiKeyUsagePercent = useCallback(
-      (summary?: CodexModelProviderUsageSummary): number => {
-        if (summary?.mode === "new_api") {
-          const { granted, available } = resolveNewApiQuotaSnapshot(summary);
-          if (granted != null && available != null && granted > 0) {
-            return Math.max(
-              0,
-              Math.min(100, Math.round(((granted - available) / granted) * 100)),
-            );
-          }
-        }
-        const used = summary?.quotaUsed ?? summary?.totalCost;
-        const limit = summary?.quotaLimit;
-        if (
-          typeof used !== "number" ||
-          typeof limit !== "number" ||
-          !Number.isFinite(used) ||
-          !Number.isFinite(limit) ||
-          limit <= 0
-        ) {
-          return 0;
-        }
-        return Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
-      },
-      [],
-    );
-  
-    const formatApiKeyUsageDetailLabel = useCallback(
-      (key: string, fallback: string): string => {
-        const labels: Record<string, string> = {
-          modelName: t("codex.modelProviders.usage.fields.modelName", "Model"),
-          intervalRemaining: t(
-            "codex.modelProviders.usage.fields.intervalRemaining",
-            "Interval Remaining",
-          ),
-          intervalLimit: t(
-            "codex.modelProviders.usage.fields.intervalLimit",
-            "Interval Limit",
-          ),
-          intervalRemainingPercent: t(
-            "codex.modelProviders.usage.fields.intervalRemainingPercent",
-            "Interval Remaining %",
-          ),
-          intervalExpiresAt: t(
-            "codex.modelProviders.usage.fields.intervalExpiresAt",
-            "Interval Reset",
-          ),
-          weeklyRemaining: t(
-            "codex.modelProviders.usage.fields.weeklyRemaining",
-            "Weekly Remaining",
-          ),
-          weeklyLimit: t(
-            "codex.modelProviders.usage.fields.weeklyLimit",
-            "Weekly Limit",
-          ),
-          weeklyRemainingPercent: t(
-            "codex.modelProviders.usage.fields.weeklyRemainingPercent",
-            "Weekly Remaining %",
-          ),
-          weeklyExpiresAt: t(
-            "codex.modelProviders.usage.fields.weeklyExpiresAt",
-            "Weekly Reset",
-          ),
-          status: t("codex.modelProviders.usage.fields.status", "状态"),
-          planName: t("codex.modelProviders.usage.fields.planName", "订阅"),
-          remaining: t("codex.modelProviders.usage.fields.remaining", "剩余额度"),
-          balance: t("codex.modelProviders.usage.fields.balance", "余额"),
-          quotaUnlimited: t(
-            "codex.modelProviders.usage.fields.quotaUnlimited",
-            "无限额度",
-          ),
-          todayRequests: t(
-            "codex.modelProviders.usage.fields.todayRequests",
-            "今日请求",
-          ),
-          todayTokens: t(
-            "codex.modelProviders.usage.fields.todayTokens",
-            "今日 Token",
-          ),
-          todayCost: t("codex.modelProviders.usage.fields.todayCost", "今日消耗"),
-          totalRequests: t(
-            "codex.modelProviders.usage.fields.totalRequests",
-            "累计请求",
-          ),
-          totalTokens: t(
-            "codex.modelProviders.usage.fields.totalTokens",
-            "累计 Token",
-          ),
-          totalCost: t("codex.modelProviders.usage.fields.totalCost", "累计消耗"),
-          hardLimitUsd: t(
-            "codex.modelProviders.usage.fields.hardLimitUsd",
-            "硬额度",
-          ),
-          softLimitUsd: t(
-            "codex.modelProviders.usage.fields.softLimitUsd",
-            "软额度",
-          ),
-          systemHardLimitUsd: t(
-            "codex.modelProviders.usage.fields.systemHardLimitUsd",
-            "系统额度",
-          ),
-          accessUntil: t(
-            "codex.modelProviders.usage.fields.accessUntil",
-            "可用至",
-          ),
-          expiresAt: t("codex.modelProviders.usage.fields.expiresAt", "过期时间"),
-          totalGranted: t(
-            "codex.modelProviders.usage.fields.totalGranted",
-            "授予额度",
-          ),
-          totalAvailable: t(
-            "codex.modelProviders.usage.fields.totalAvailable",
-            "可用额度",
-          ),
-          modelLimitsEnabled: t(
-            "codex.modelProviders.usage.fields.modelLimitsEnabled",
-            "模型限制",
-          ),
-          totalUsage: t(
-            "codex.modelProviders.usage.fields.totalUsage",
-            "累计消耗",
-          ),
-          isAvailable: t(
-            "codex.modelProviders.usage.fields.isAvailable",
-            "余额可用",
-          ),
-          currency: t("codex.modelProviders.usage.fields.currency", "币种"),
-          totalBalance: t(
-            "codex.modelProviders.usage.fields.totalBalance",
-            "总余额",
-          ),
-          grantedBalance: t(
-            "codex.modelProviders.usage.fields.grantedBalance",
-            "赠金余额",
-          ),
-          toppedUpBalance: t(
-            "codex.modelProviders.usage.fields.toppedUpBalance",
-            "充值余额",
-          ),
-        };
-        return labels[key] ?? fallback;
-      },
-      [t],
-    );
-  
-    const formatApiKeyUsageDetailValue = useCallback(
-      (item: { key: string; value: string }, unit?: string | null): string => {
-        const raw = item.value.trim();
-        const numeric = Number(raw);
-        if (
-          Number.isFinite(numeric) &&
-          (item.key.includes("Tokens") ||
-            item.key === "todayTokens" ||
-            item.key === "totalTokens")
-        ) {
-          return formatCockpitApiTokenCount(numeric);
-        }
-        if (Number.isFinite(numeric) && item.key === "accessUntil") {
-          return numeric > 0 ? formatDate(numeric * 1000) : "-";
-        }
-        if (Number.isFinite(numeric) && item.key === "expiresAt") {
-          return numeric > 0 ? formatDate(numeric * 1000) : "-";
-        }
-        if (
-          Number.isFinite(numeric) &&
-          (item.key === "intervalExpiresAt" || item.key === "weeklyExpiresAt")
-        ) {
-          return numeric > 0 ? formatDate(numeric * 1000) : "-";
-        }
-        if (
-          item.key === "quotaUnlimited" ||
-          item.key === "modelLimitsEnabled" ||
-          item.key === "isAvailable"
-        ) {
-          if (raw === "true")
-            return t("codex.modelProviders.usage.booleanTrue", "是");
-          if (raw === "false")
-            return t("codex.modelProviders.usage.booleanFalse", "否");
-        }
-        if (
-          Number.isFinite(numeric) &&
-          [
-            "remaining",
-            "balance",
-            "todayCost",
-            "totalCost",
-            "hardLimitUsd",
-            "softLimitUsd",
-            "systemHardLimitUsd",
-            "totalBalance",
-            "grantedBalance",
-            "toppedUpBalance",
-          ].includes(item.key)
-        ) {
-          return formatApiKeyUsageMoney(numeric, unit);
-        }
-        if (
-          Number.isFinite(numeric) &&
-          ["totalGranted", "totalAvailable"].includes(item.key)
-        ) {
-          return formatCockpitApiInteger(numeric);
-        }
-        if (Number.isFinite(numeric) && item.key === "totalUsage") {
-          return formatApiKeyUsageMoney(numeric / 100, unit);
-        }
-        if (
-          Number.isFinite(numeric) &&
-          (item.key.includes("Requests") ||
-            item.key === "todayRequests" ||
-            item.key === "totalRequests")
-        ) {
-          return formatCockpitApiInteger(numeric);
-        }
-        return raw || "-";
-      },
-      [formatApiKeyUsageMoney, t],
-    );
-  
-    const findApiKeyUsageDetail = useCallback(
-      (summary: CodexModelProviderUsageSummary | undefined, key: string) =>
-        summary?.details?.find((item) => item.key === key),
-      [],
-    );
-  
-    const formatApiKeyUsageDetailByKey = useCallback(
-      (
-        summary: CodexModelProviderUsageSummary | undefined,
-        key: string,
-      ): string => {
-        const detail = findApiKeyUsageDetail(summary, key);
-        if (!detail) return "-";
-        return formatApiKeyUsageDetailValue(detail, summary?.unit);
-      },
-      [findApiKeyUsageDetail, formatApiKeyUsageDetailValue],
-    );
-  
+    // 额度展示格式化统一由独立 hook 提供，保持原有签名与行为。
+    const {
+      formatApiKeyUsageMoney,
+      formatApiKeyUsageQuotaValue,
+      resolveCockpitApiAccountBalanceText,
+      formatApiKeyUsagePercent,
+      formatApiKeyUsageDetailLabel,
+      formatApiKeyUsageDetailValue,
+      findApiKeyUsageDetail,
+      formatApiKeyUsageDetailByKey,
+    } = useCodexApiKeyUsageFormatting(t, formatDate);
+
+    // 额度面板渲染移到独立模块，这里只组装上下文数据。
     const renderApiKeyUsagePanel = useCallback(
       (
         account: CodexAccount,
         provider: CodexModelProvider | null,
         variant: "card" | "table" = "card",
-      ): ReactElement => {
-        if (
-          isCodexChatCompletionsApiKeyAccount(account) &&
-          !isDeepSeekAccount(account) &&
-          !isCodexTokenPlanAccount(account)
-        ) {
-          return <></>;
-        }
-        const usageState = apiKeyUsageMap[account.id];
-        const summary = usageState?.summary;
-        const loading = usageState?.loading === true;
-        const apiKey = (account.openai_api_key || "").trim();
-        const baseUrl =
-          provider?.baseUrl.trim() || (account.api_base_url || "").trim();
-        const canRefresh = Boolean(apiKey && baseUrl);
-        const usageMode = resolveApiKeyUsageMode(summary);
-        const isDeepSeekUsage =
-          isDeepSeekAccount(account) || usageMode === "deepseek";
-        const isNewApiUsage = usageMode === "new_api";
-        const isSub2ApiUsage = usageMode === "sub2api";
-        const isTokenPlanUsage = usageMode === "token_plan";
-        const usedPercent = formatApiKeyUsagePercent(summary);
-        if (isDeepSeekUsage) {
-          return (
-            <div className={`codex-api-key-usage-panel ${variant} sub2api`}>
-              <div className="codex-api-key-usage-grid">
-                <div>
-                  <span>
-                    {t(
-                      "codex.modelProviders.usage.fields.totalBalance",
-                      "总余额",
-                    )}
-                  </span>
-                  <strong>
-                    {formatApiKeyUsageMoney(summary?.balance, summary?.unit)}
-                  </strong>
-                </div>
-                <div>
-                  <span>
-                    {t(
-                      "codex.modelProviders.usage.fields.grantedBalance",
-                      "赠金余额",
-                    )}
-                  </span>
-                  <strong>
-                    {formatApiKeyUsageDetailByKey(summary, "grantedBalance")}
-                  </strong>
-                </div>
-                <div>
-                  <span>
-                    {t(
-                      "codex.modelProviders.usage.fields.toppedUpBalance",
-                      "充值余额",
-                    )}
-                  </span>
-                  <strong>
-                    {formatApiKeyUsageDetailByKey(summary, "toppedUpBalance")}
-                  </strong>
-                </div>
-              </div>
-              {!summary && usageState?.error ? (
-                <div className="codex-api-key-usage-empty">
-                  {t("common.shared.quota.queryFailed", "配额查询失败")}
-                </div>
-              ) : null}
-            </div>
-          );
-        }
-        if (variant === "card" && summary && isNewApiUsage) {
-          const quota = resolveNewApiQuotaSnapshot(summary);
-          const grantedText = formatApiKeyUsageMoney(quota.granted, summary.unit);
-          const availableText = formatApiKeyUsageMoney(
-            quota.available,
-            summary.unit,
-          );
-          const expiresText =
-            quota.expiresAt != null
-              ? formatApiKeyUsageDetailValue({
-                  key: "expiresAt",
-                  value: String(quota.expiresAt),
-                })
-              : "-";
-          const unlimitedText = t("codex.newApi.quota.unlimited", "不限量");
-          const quotaValueText =
-            summary.quotaUnlimited === true
-              ? unlimitedText
-              : `${availableText} / ${grantedText}`;
-          const quotaBarWidth =
-            summary.quotaUnlimited === true ? 100 : usedPercent;
-          return (
-            <div
-              className="quota-item codex-api-key-quota-item new-api"
-              title={`${t("codex.cockpitApi.balance", "额度")}：${quotaValueText}`}
-            >
-              <div className="quota-header">
-                <Database size={14} />
-                <span className="quota-label">
-                  {t("codex.cockpitApi.balance", "额度")}
-                </span>
-                <span className="quota-pct high">{quotaValueText}</span>
-              </div>
-              <div className="quota-bar-track">
-                <div
-                  className="quota-bar high"
-                  style={{ width: `${quotaBarWidth}%` }}
-                />
-              </div>
-              {expiresText !== "-" && (
-                <span className="quota-reset">
-                  {t("codex.modelProviders.usage.fields.expiresAt", "过期时间")}：
-                  {expiresText}
-                </span>
-              )}
-            </div>
-          );
-        }
-        if (variant === "card" && summary && isTokenPlanUsage) {
-          const resetDetail =
-            findApiKeyUsageDetail(summary, "intervalExpiresAt") ??
-            findApiKeyUsageDetail(summary, "weeklyExpiresAt") ??
-            findApiKeyUsageDetail(summary, "expiresAt");
-          return (
-            <div
-              className="quota-item codex-api-key-quota-item token-plan"
-              title={`${t(
-                "codex.modelProviders.usage.fields.remaining",
-                "Remaining",
-              )}: ${formatApiKeyUsageQuotaValue(
-                summary,
-                summary.quotaRemaining ?? summary.remaining,
-              )}`}
-            >
-              <div className="quota-header">
-                <Database size={14} />
-                <span className="quota-label">
-                  {t("codex.modelProviders.usage.fields.planName", "Token Plan")}
-                </span>
-                <span className="quota-pct high">
-                  {formatApiKeyUsageQuotaValue(
-                    summary,
-                    summary.quotaRemaining ?? summary.remaining,
-                  )}
-                </span>
-              </div>
-              <div className="quota-bar-track">
-                <div
-                  className="quota-bar high"
-                  style={{ width: `${Math.max(0, Math.min(100, usedPercent))}%` }}
-                />
-              </div>
-              {(summary.planName || resetDetail) && (
-                <span className="quota-reset">
-                  {summary.planName || "Token Plan"}
-                  {resetDetail
-                    ? ` · ${formatApiKeyUsageDetailValue(resetDetail, summary.unit)}`
-                    : ""}
-                </span>
-              )}
-            </div>
-          );
-        }
-        if (variant === "card" && summary && isSub2ApiUsage) {
-          return (
-            <div className="codex-api-key-usage-panel sub2api">
-              <div className="codex-api-key-usage-grid">
-                <div>
-                  <span>
-                    {t("codex.modelProviders.usage.accountBalance", "账户余额")}
-                  </span>
-                  <strong>
-                    {formatApiKeyUsageQuotaValue(
-                      summary,
-                      summary.remaining ??
-                        summary.balance ??
-                        summary.quotaRemaining,
-                    )}
-                  </strong>
-                </div>
-                <div>
-                  <span>
-                    {t(
-                      "codex.modelProviders.usage.fields.todayRequests",
-                      "今日请求",
-                    )}
-                  </span>
-                  <strong>
-                    {formatCockpitApiInteger(summary.todayRequests ?? 0)}
-                  </strong>
-                </div>
-                <div>
-                  <span>
-                    {t(
-                      "codex.modelProviders.usage.fields.todayTokens",
-                      "今日 Token",
-                    )}
-                  </span>
-                  <strong>
-                    {formatCockpitApiTokenCount(summary.todayTotalTokens ?? 0)}
-                  </strong>
-                </div>
-              </div>
-            </div>
-          );
-        }
-        if (summary && !usageMode) {
-          return <></>;
-        }
-        return (
-          <div
-            className={`codex-api-key-usage-panel ${variant} ${summary ? "" : "empty"}`}
-          >
-            {summary ? (
-              <>
-                <div className="codex-api-key-usage-grid">
-                  {isDeepSeekUsage ? (
-                    <>
-                      {[
-                        ["totalBalance", "总余额"],
-                        ["grantedBalance", "赠金余额"],
-                        ["toppedUpBalance", "充值余额"],
-                      ].map(([key, fallback]) => (
-                        <div key={key}>
-                          <span>
-                            {formatApiKeyUsageDetailLabel(key, fallback)}
-                          </span>
-                          <strong>
-                            {formatApiKeyUsageDetailByKey(summary, key)}
-                          </strong>
-                        </div>
-                      ))}
-                    </>
-                  ) : isNewApiUsage ? (
-                    <>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.fields.totalGranted",
-                            "授予额度",
-                          )}
-                        </span>
-                        <strong>
-                          {(() => {
-                            const raw = Number(
-                              findApiKeyUsageDetail(summary, "totalGranted")
-                                ?.value ?? NaN,
-                            );
-                            return Number.isFinite(raw)
-                              ? formatApiKeyUsageMoney(raw, summary.unit)
-                              : formatApiKeyUsageDetailByKey(
-                                  summary,
-                                  "totalGranted",
-                                );
-                          })()}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.fields.totalAvailable",
-                            "可用额度",
-                          )}
-                        </span>
-                        <strong>
-                          {(() => {
-                            const raw = Number(
-                              findApiKeyUsageDetail(summary, "totalAvailable")
-                                ?.value ?? NaN,
-                            );
-                            return Number.isFinite(raw)
-                              ? formatApiKeyUsageMoney(raw, summary.unit)
-                              : formatApiKeyUsageDetailByKey(
-                                  summary,
-                                  "totalAvailable",
-                                );
-                          })()}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.fields.expiresAt",
-                            "过期时间",
-                          )}
-                        </span>
-                        <strong>
-                          {formatApiKeyUsageDetailByKey(summary, "expiresAt")}
-                        </strong>
-                      </div>
-                    </>
-                  ) : isTokenPlanUsage ? (
-                    <>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.fields.remaining",
-                            "Remaining",
-                          )}
-                        </span>
-                        <strong>
-                          {formatApiKeyUsageQuotaValue(
-                            summary,
-                            summary.quotaRemaining ?? summary.remaining,
-                          )}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.fields.planName",
-                            "Plan",
-                          )}
-                        </span>
-                        <strong>{summary.planName || "-"}</strong>
-                      </div>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.fields.expiresAt",
-                            "Next Reset",
-                          )}
-                        </span>
-                        <strong>
-                          {formatApiKeyUsageDetailByKey(
-                            summary,
-                            findApiKeyUsageDetail(summary, "intervalExpiresAt")
-                              ? "intervalExpiresAt"
-                              : findApiKeyUsageDetail(summary, "weeklyExpiresAt")
-                                ? "weeklyExpiresAt"
-                                : "expiresAt",
-                          )}
-                        </strong>
-                      </div>
-                    </>
-                  ) : isSub2ApiUsage ? (
-                    <>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.accountBalance",
-                            "账户余额",
-                          )}
-                        </span>
-                        <strong>
-                          {formatApiKeyUsageQuotaValue(
-                            summary,
-                            summary.remaining ??
-                              summary.balance ??
-                              summary.quotaRemaining,
-                          )}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.fields.todayRequests",
-                            "今日请求",
-                          )}
-                        </span>
-                        <strong>
-                          {formatCockpitApiInteger(summary.todayRequests ?? 0)}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>
-                          {t(
-                            "codex.modelProviders.usage.fields.todayTokens",
-                            "今日 Token",
-                          )}
-                        </span>
-                        <strong>
-                          {formatCockpitApiTokenCount(
-                            summary.todayTotalTokens ?? 0,
-                          )}
-                        </strong>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-                {isNewApiUsage || isTokenPlanUsage ? (
-                  <div className="codex-api-key-usage-progress">
-                    <div className="cockpit-api-progress-track">
-                      <div
-                        className="cockpit-api-progress-bar"
-                        style={{ width: `${usedPercent}%` }}
-                      />
-                    </div>
-                    <span>{usedPercent}%</span>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="codex-api-key-usage-empty">
-                {loading
-                  ? t("codex.modelProviders.usage.loading", "正在查询额度...")
-                  : usageState?.error
-                    ? null
-                    : canRefresh
-                      ? t("codex.modelProviders.usage.pending", "等待查询额度")
-                      : t("codex.modelProviders.usage.noKey", "暂无可查询额度")}
-              </div>
-            )}
-          </div>
-        );
-      },
+      ): ReactElement =>
+        renderCodexApiKeyUsagePanel({
+          account,
+          provider,
+          variant,
+          usageState: apiKeyUsageMap[account.id],
+          t,
+          formatApiKeyUsagePercent,
+          formatApiKeyUsageMoney,
+          formatApiKeyUsageQuotaValue,
+          formatApiKeyUsageDetailLabel,
+          formatApiKeyUsageDetailValue,
+          formatApiKeyUsageDetailByKey,
+          findApiKeyUsageDetail,
+        }),
       [
         apiKeyUsageMap,
         formatApiKeyUsagePercent,
@@ -3915,6 +3270,7 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
         formatApiKeyUsageDetailLabel,
         formatApiKeyUsageDetailValue,
         formatApiKeyUsageDetailByKey,
+        findApiKeyUsageDetail,
         t,
       ],
     );

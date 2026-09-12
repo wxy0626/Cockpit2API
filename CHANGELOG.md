@@ -7,12 +7,49 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
-## [Unreleased]
+## [1.3.50] - 2026-09-13
+
+### Added
+
+- **DeepSeek can bind GPT accounts for image generation**: enable it in the launch preview and pick GPT accounts, and image requests from the built-in Codex image tool run on those accounts while the conversation stays on DeepSeek.
+- **Model providers gain the Codex launch preview**: starting a model provider now opens the same launch preview as the account overview (account, provider, models and usage, context management, and more) and binds the instance on confirm. DeepSeek picks its start mode there (gateway list / CDP injection / official direct).
+- **Context management moves into the launch preview**: the Add account, Edit API Key, and model provider edit dialogs no longer expose per-model context; it is configured per instance in the launch preview.
+- **DeepSeek auto-compaction fallback**: switching to DeepSeek writes a local fallback compaction config and switching away restores the previous values, leaving other accounts untouched.
+- **Sponsor route changes are applied automatically**: when a sponsor's base URL changes, saved providers and accounts are rewritten to the new address (APIKEY.FUN now serves apikey.fan).
+- **Per-account concurrency for the Codex API service**: limit how many sessions one account can run at once; full accounts fail over to idle ones and a timed-out wait returns a readable reason.
+
+### Changed
+
+- **More stable dialog sizing**: dialog sizes no longer depend on the CSS bundle order, and tall dialogs scroll inside the body so the title and action buttons stay reachable.
+- **Pelican testing matches the local API service**: requests use the same client fingerprint as the local API service, reducing the chance of upstream risk-control flags.
+
+### Fixed
+
+- **Fixed image requests being rewritten to the provider model in the instance gateway**: image requests executed by ChatGPT accounts are no longer renamed to the provider model and rejected upstream.
+
+## [1.3.49] - 2026-09-12
+
+### Changed
+
+- **Let DeepSeek model lists be user-defined with per-model image support**: the default models are now the official `deepseek-flash` (DeepSeek V4.1 Flash) and `deepseek-v4-pro` (legacy names keep working), and the model list comes from account data, so upstream models can be added or removed freely and image input can be toggled per model (official Flash defaults to on, custom models default to off). The model list, image support, and thinking levels flow into both the local gateway listing and the CDP-injected model list.
+- **Focus the DeepSeek provider dialog on the selected protocol**: under Responses only the model catalog and the per-model image switch remain, while the provider-level image toggle, the image model list, and the image routing model are hidden. The context column now uses the same presets as Codex (follow official / 516K / 1M / custom).
+- **Compare Pelican results side by side**: tests open a compact dedicated result dialog with one email column and canvas per account. Progress, failures and retries stay inside each cell; failed cells expose compact error, retry, and raw-reply actions, while successful cells open the HTML preview directly. Browser opening remains available from the detail dialog.
+- **Open Pelican results in the browser**: a one-off local address (random port, random path, expiring after 15 minutes, at most two at a time) serves the result page. The page injects a CSP plus a sandbox lockdown script that disables networking, WebRTC, and dialog APIs, and the listeners close when test data is cleared.
+- **Preserve OpenCode Go conversation sessions**: provider gateway requests now forward an existing `x-opencode-session` or derive it from the client's session identity, with an opaque fallback when no identity is available.
+
+### Fixed
+
+- **Preserve the selected DeepSeek thinking level**: switching accounts or starting an instance no longer resets the reasoning effort to `high`, so the `low` / `high` / `max` level chosen in Codex is preserved.
+- **Narrow the scope of CDP injection changes**: model list detection now requires real model descriptors, so queue, thread, and other generic arrays are left untouched, and the default model is written back only when the user explicitly switches models, which reduces backend writes during a running turn. The injected script also no longer throws at the end of every run because of a removed constant, restoring model-switch state reporting over CDP.
 
 ## [1.3.48] - 2026-09-11
 
 ### Changed
 
+- **Strengthen cross-platform regression checks and release gates**: PR validation now runs the TypeScript, release-script, Go sidecar, and core Rust regression suites, with platform-specific checks before Windows, Ubuntu x86_64 / ARM64, and macOS Intel / Apple Silicon / Universal builds.
+- **Improve security reporting and code scanning**: replace the placeholder vulnerability guidance with an actionable reporting policy, clarify credential redaction requirements, and include the Go sidecar in CodeQL analysis.
+- **Align release documentation with the actual workflow**: document the current multi-platform assets, Tauri updater signing, target manifests, legacy `latest.json`, `SHA256SUMS.txt`, and Homebrew Cask process.
+- **Improve release state management**: keep releases in draft until all platform assets and verification files are ready, preventing an incomplete latest release from being published after a failed build.
 - **Unify Codex API provider configuration**: API Key accounts now use their saved model provider as the canonical source for endpoints, keys, model catalogs, protocol and Responses WebSocket settings. The API Key editor displays the provider's protocol and WebSocket state, while provider configuration remains managed in the model provider editor. The Add Codex Account and Edit API Key dialogs now match the model provider dialog width.
 - **Make the bundled sidecar the sole production Codex API gateway**: remove the retired in-process legacy gateway and its rejected-field retry path from production, while keeping the shared transport helpers needed by tests. API Service requests now use one consistent routing, account selection, quota handling, and upstream error payload path.
 - **Improve Codex API transport and failover behavior**: Responses streams preserve official nested error details and sequence numbers, handle split CRLF frames, and retain WebSocket prewarm follow-ups and named tool outputs. Capacity and `model_not_found` failures can rotate accounts correctly, permanently rejected OAuth credentials stop retrying, canonical request sessions can populate custom headers, unsupported Unicode regexes are removed from Codex tool schemas, and the `gpt-image-2.5` variants are recognized. Cockpit-specific API-key scoping, instance gateways, Responses Lite, Agent Identity, and the existing `gpt-5.5` / `gpt-image-2.5` image defaults remain unchanged.

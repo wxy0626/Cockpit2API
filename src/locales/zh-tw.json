@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "測試結果",
+    "openBrowser": "瀏覽器開啟",
     "error": {
       "stateUnavailable": "工作狀態無法取得，請重試",
       "accountsRequired": "請至少選取一個帳號",
@@ -77,7 +79,8 @@
     "clearAll": "清理全部",
     "confirmClearAll": "清理全部鵜鶘測智記錄？",
     "clearAllHelp": "將永久刪除所有測試記錄與產生的檔案，且無法復原。",
-    "search": "搜尋帳號"
+    "search": "搜尋帳號",
+    "viewError": "查看錯誤"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "重新整理完成，成功 {{count}} 個帳號",
     "refreshAllPartialFailed": "重新整理完成，成功 {{success}} / {{total}} 個帳號，部分失敗",
     "launchPreview": {
+      "accessModeTitle": "啟動方式",
+      "prosLabel": "優點：",
+      "consLabel": "缺點：",
+      "accessModeDescription": "選擇 DeepSeek 的啟動方式；不同方式在模型切換、OAuth 與生圖轉發上不同。",
+      "accessModeGatewayPros": "1：支援在 codex 內切換模型\n2：支援綁定 OAuth 帳號，使用 OAuth 的功能，如遠端壓縮、控制瀏覽器等\n3：支援設定 GPT 帳號轉發生圖",
+      "accessModeGatewayCons": "1：需要實例本地閘道，速度略低於直連",
+      "accessModeDirectPros": "1：不經閘道，速度最快",
+      "accessModeDirectCons": "1：不能在 codex 內切換模型，也不支援綁定 OAuth 帳號與轉發生圖",
+      "accessModeCdpPros": "1：速度與直連一致\n2：可在 codex 官方模型列表切換 Flash / Pro",
+      "accessModeCdpCons": "1：需要注入官方用戶端，不支援綁定 OAuth 帳號與轉發生圖",
+      "imageGenPickerDesc": "當遇到生圖需求時會轉發生圖請求：先由基礎模型處理，再由生圖模型出圖，會消耗所選帳號的部分額度。",
+      "imageGenSwitchTitle": "僅閘道模式支援",
+      "imageGenSwitchDescription": "啟用 GPT 生圖需要先切換到「閘道列出」模式，是否切換並勾選？",
+      "imageGenSwitchYes": "是",
+      "imageGenSwitchNo": "否",
+      "imageGenTitle": "啟用 GPT 生圖",
       "title": "Codex 啟動預覽",
       "description": "先設定與檢查；只有點擊切換或啟動後才會修改客戶端狀態。",
       "notApplied": "尚未套用",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "API 連接埠 URL",
       "modelId": "模型 ID",
       "modelIdPlaceholder": "選擇模型 ID",
-      "imageGenerationModel": { "label": "生圖模型", "custom": "自訂", "save": "儲存模型", "placeholder": "輸入自訂模型 ID", "description": "用於 /v1/images/generations 與 /v1/images/edits 轉發；預設使用 gpt-image-2.5。", "required": "請輸入生圖模型名稱", "tooLong": "生圖模型名稱不能超過 200 個字元", "saveSuccess": "生圖模型已更新" },
+      "imageGenerationModel": {
+        "label": "生圖模型",
+        "custom": "自訂",
+        "save": "儲存模型",
+        "placeholder": "輸入自訂模型 ID",
+        "description": "用於 /v1/images/generations 與 /v1/images/edits 轉發；預設使用 gpt-image-2.5。",
+        "required": "請輸入生圖模型名稱",
+        "tooLong": "生圖模型名稱不能超過 200 個字元",
+        "saveSuccess": "生圖模型已更新"
+      },
       "modelIdViewOnly": "僅查看，無切換",
       "quotaPool": {
         "title": "額度池",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "已提交 {{count}} 個帳號的恢復操作",
         "dialog": {
           "title": "帳號異常",
-      "description": "以下狀態按帳號顯示，包含對應模型、無法使用原因及可執行的復原操作。",
+          "description": "以下狀態按帳號顯示，包含對應模型、無法使用原因及可執行的復原操作。",
           "noIssues": "目前沒有異常帳號",
           "unscopedApiKey": "目前 API Key",
           "poolUnavailable": "帳號池無可用帳號",
@@ -3460,15 +3488,32 @@
         "hint": "啟動前選擇接入方式和模型。閘道與 CDP 都可在 Codex 官方模型列表切換 Flash / Pro；直連不走閘道，每次啟動在此選擇。",
         "accessMode": "接入方式",
         "gatewayMode": "閘道列出",
-        "gatewayDesc": "走實例本機閘道，只改寫模型名。Codex 裡可看到並切換 Flash / Pro。",
+        "gatewayDesc": "需要本機閘道。支援綁定 OAuth 的 GPT 帳號並使用 OAuth 全部能力（瀏覽器操作等），可在 Codex 內切換模型，也能把生圖交給 GPT 帳號。",
         "directMode": "直連官方",
-        "directDesc": "不經閘道，直連官方 API。Codex 內不能切模型，每次啟動在此選擇。",
+        "directDesc": "不走閘道，速度更快。無法在 Codex 內切換模型，也沒有 OAuth 能力與生圖轉發。",
         "chatOnlyHint": "Chat Completions 只能走本機閘道，並在此選擇啟動模型。",
         "model": "啟動模型",
         "confirm": "確認啟動",
         "chooseAtStart": "啟動時選擇",
         "cdpMode": "CDP 注入",
-        "cdpDesc": "直連官方 API，不走閘道。以 CDP 接管 Codex 官方模型列表，互動與閘道相同，可在列表切換 Flash / Pro。"
+        "cdpDesc": "透過注入接管 Codex 官方模型清單，速度與直連相同。需要注入官方用戶端，不支援綁定 OAuth。",
+        "context": "支援上下文",
+        "imageGen": "支援 GPT 生圖",
+        "imageGenHint": "僅閘道模式支援。對話仍由該供應商的模型處理；生圖走 gpt-image 原鏈路，由所選 GPT 帳號執行並消耗其額度。",
+        "imageGenPick": "選擇 GPT 帳號",
+        "imageGenSelected": "已選 {{count}} 個帳號",
+        "imageGenEmpty": "尚未選擇帳號",
+        "imageGenLocked": "勾選後可選擇帳號",
+        "pickerTitle": "選擇生圖帳號",
+        "pickerEmpty": "沒有可用於生圖的 OAuth 帳號（Free 帳號與 API Key 帳號不支援）。",
+        "pickerSelectAll": "全選",
+        "pickerClear": "清空",
+        "protocol": "協定",
+        "accessRoute": "接入",
+        "gatewayRequired": "走實例本機閘道",
+        "directUpstream": "直連上游，不經閘道",
+        "gatewayHint": "此協定需要本機閘道轉換，可在 Codex 內切換模型；閘道也能承接生圖轉發。",
+        "directUpstreamHint": "此帳號直接存取上游，不經過本機閘道，因此不支援生圖轉發。"
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "儲存選項",
         "immediateSseResponse": "SSE 立即回傳 200",
         "maxConcurrentImageRequests": "每個帳戶的圖片請求數",
+        "maxAccountConcurrency": "帳號併發數",
+        "accountConcurrencyWait": "併發等待（秒）",
         "optionsSaved": "調度選項已儲存"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "開始時間",
       "endTime": "結束時間",
       "timeRangeHint": "應用程式保持執行時，會在這個時間段內隨機選取一個時間點完成背景自動簽到。",
-      "timeRangeError": "開始時間不能晚於結束時間"
+      "timeRangeError": "開始時間不能晚於結束時間",
+      "checkinTimeTooltip": "簽到：{{time}}",
+      "scheduleTooltip": "排程：{{time}}",
+      "scheduleBadge": "排程 {{time}}"
     }
   },
   "zcode": {

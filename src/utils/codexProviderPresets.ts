@@ -23,12 +23,16 @@ export const COCKPIT_API_BASE_URL = "https://chongcodex.cn/v1";
 export const DEEPSEEK_API_PROVIDER_ID = "deepseek";
 export const DEEPSEEK_API_BASE_URL = "https://api.deepseek.com";
 export const DEEPSEEK_CODEX_MODEL_CATALOG = [
-  "deepseek-v4-flash",
+  "deepseek-flash",
   "deepseek-v4-pro",
-  "deepseek-v4-flash-vision-exp",
 ] as const;
-/** DeepSeek's image-capable model. Text-only V4 models stay unchanged. */
+/**
+ * DeepSeek's image-capable models. `deepseek-v4-flash` 与官方新名 `deepseek-flash`
+ * 都由 V4.1 Flash 承接并支持识图，Pro 仍为纯文本。用户可在模型列表里逐条开关。
+ */
 export const DEEPSEEK_CODEX_VISION_MODEL_CATALOG = [
+  "deepseek-flash",
+  "deepseek-v4-flash",
   "deepseek-v4-flash-vision-exp",
 ] as const;
 export const OPENCODE_GO_API_PROVIDER_ID = "opencode_go";

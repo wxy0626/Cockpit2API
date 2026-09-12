@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "نتائج الاختبار",
+    "openBrowser": "فتح في المتصفح",
     "error": {
       "stateUnavailable": "حالة المهمة غير متاحة. حاول مجددًا.",
       "accountsRequired": "اختر حسابًا واحدًا على الأقل.",
@@ -77,7 +79,8 @@
     "clearAll": "تنظيف الكل",
     "confirmClearAll": "تنظيف جميع اختبارات Pelican؟",
     "clearAllHelp": "سيتم حذف سجل الاختبارات والملفات المُنشأة نهائيًا ولا يمكن التراجع عن ذلك.",
-    "search": "البحث عن حسابات"
+    "search": "البحث عن حسابات",
+    "viewError": "عرض الخطأ"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2245,6 +2248,22 @@
     "refreshAllSuccess": "اكتمل التحديث، نجح {{count}} حساب",
     "refreshAllPartialFailed": "اكتمل التحديث، نجح {{success}} / {{total}} حساب وفشل بعضها",
     "launchPreview": {
+      "accessModeTitle": "وضع التشغيل",
+      "prosLabel": "المزايا:",
+      "consLabel": "العيوب:",
+      "accessModeDescription": "اختر طريقة تشغيل DeepSeek؛ تختلف الأوضاع في تبديل النموذج وOAuth وتحويل توليد الصور.",
+      "accessModeGatewayPros": "1: تبديل النموذج داخل Codex\n2: ربط حسابات OAuth واستخدام ميزات OAuth مثل الضغط عن بُعد والتحكم بالمتصفح\n3: إعداد حسابات GPT لتحويل توليد الصور",
+      "accessModeGatewayCons": "1: يتطلب البوابة المحلية للمثيل، لذا أبطأ قليلًا من الاتصال المباشر",
+      "accessModeDirectPros": "1: بدون بوابة، وهو الأسرع",
+      "accessModeDirectCons": "1: لا يمكن تبديل النموذج داخل Codex، ولا ربط OAuth ولا تحويل الصور",
+      "accessModeCdpPros": "1: نفس سرعة الاتصال المباشر\n2: يمكن تبديل Flash / Pro من قائمة نماذج Codex الرسمية",
+      "accessModeCdpCons": "1: يتطلب حقن العميل الرسمي، ولا يدعم ربط OAuth ولا تحويل الصور",
+      "imageGenPickerDesc": "عند وصول طلب صورة يتم تحويله: يعالجه النموذج الأساسي أولًا ثم يولّد نموذج الصور الصورة، ما يستهلك جزءًا من حصة الحسابات المحددة.",
+      "imageGenSwitchTitle": "وضع البوابة فقط",
+      "imageGenSwitchDescription": "يتطلب تفعيل توليد صور GPT التبديل إلى وضع البوابة. هل تريد التبديل والتفعيل؟",
+      "imageGenSwitchYes": "نعم",
+      "imageGenSwitchNo": "لا",
+      "imageGenTitle": "تفعيل توليد صور GPT",
       "title": "معاينة تشغيل Codex",
       "description": "راجع الإعدادات أولاً؛ لن تتغير حالة العميل إلا بعد اختيار التبديل أو التشغيل.",
       "notApplied": "لم يُطبّق بعد",
@@ -2574,7 +2593,16 @@
       "apiPortUrl": "عنوان منفذ API",
       "modelId": "معرّف النموذج",
       "modelIdPlaceholder": "اختر معرّف النموذج",
-      "imageGenerationModel": { "label": "نموذج الصور", "custom": "مخصص", "save": "حفظ النموذج", "placeholder": "أدخل معرّف نموذج مخصص", "description": "يُستخدم مع /v1/images/generations و/v1/images/edits؛ الافتراضي هو gpt-image-2.5.", "required": "أدخل اسم نموذج الصور", "tooLong": "اسم نموذج الصور طويل جدًا", "saveSuccess": "تم تحديث نموذج الصور" },
+      "imageGenerationModel": {
+        "label": "نموذج الصور",
+        "custom": "مخصص",
+        "save": "حفظ النموذج",
+        "placeholder": "أدخل معرّف نموذج مخصص",
+        "description": "يُستخدم مع /v1/images/generations و/v1/images/edits؛ الافتراضي هو gpt-image-2.5.",
+        "required": "أدخل اسم نموذج الصور",
+        "tooLong": "اسم نموذج الصور طويل جدًا",
+        "saveSuccess": "تم تحديث نموذج الصور"
+      },
       "modelIdViewOnly": "عرض فقط",
       "quotaPool": {
         "title": "مجمع الحصة",
@@ -2698,7 +2726,7 @@
         "recoverSuccess": "طُلبت الاستعادة لـ {{count}} حساب",
         "dialog": {
           "title": "مشكلات الحسابات",
-      "description": "تُعرض الحالة لكل حساب مع النموذج وسبب عدم التوفر وإجراء الاستعادة المتاح.",
+          "description": "تُعرض الحالة لكل حساب مع النموذج وسبب عدم التوفر وإجراء الاستعادة المتاح.",
           "noIssues": "لا توجد مشاكل في الحسابات",
           "unscopedApiKey": "مفتاح API الحالي",
           "poolUnavailable": "لا يوجد حساب متاح في المجموعة",
@@ -3507,15 +3535,32 @@
         "hint": "اختر طريقة الاتصال والنموذج قبل التشغيل. البوابة وCDP يبدّلان Flash / Pro في قائمة نماذج Codex الرسمية؛ الاتصال المباشر يبدأ بدون بوابة بالنموذج المختار هنا.",
         "accessMode": "الاتصال",
         "gatewayMode": "قائمة البوابة",
-        "gatewayDesc": "بوابة المثيل المحلية تعيد كتابة اسم النموذج فقط. في Codex يمكنك عرض Flash / Pro والتبديل بينهما.",
+        "gatewayDesc": "يتطلب البوابة المحلية. يتيح ربط حسابات GPT عبر OAuth والاستفادة من كل قدرات OAuth (التحكم بالمتصفح وغيره)، وتبديل النماذج داخل Codex، وإسناد توليد الصور إلى حسابات GPT.",
         "directMode": "واجهة رسمية",
-        "directDesc": "بدون بوابة، اتصال مباشر بالواجهة الرسمية. لا يمكن التبديل داخل Codex؛ اختر هنا عند كل تشغيل.",
+        "directDesc": "بدون بوابة وأسرع. لا يمكن تبديل النماذج داخل Codex، ولا تتوفر قدرات OAuth أو تمرير توليد الصور.",
         "chatOnlyHint": "Chat Completions يستخدم البوابة المحلية فقط. اختر نموذج التشغيل هنا.",
         "model": "النموذج",
         "confirm": "تشغيل",
         "chooseAtStart": "عند التشغيل",
         "cdpMode": "حقن CDP",
-        "cdpDesc": "واجهة رسمية بلا بوابة. يتحكم CDP بقائمة نماذج Codex الرسمية لتبديل Flash / Pro كما في وضع البوابة."
+        "cdpDesc": "يتولى قائمة نماذج Codex الرسمية بالحقن، بسرعة الاتصال المباشر. يتطلب الحقن في العميل الرسمي؛ ولا يدعم ربط OAuth.",
+        "context": "السياق المدعوم",
+        "imageGen": "توليد الصور عبر GPT",
+        "imageGenHint": "وضع البوابة فقط. تظل المحادثة تُعالج بنماذج هذا المزود؛ ويستخدم توليد الصور مسار gpt-image الأصلي، وتنفذه حسابات GPT المحددة ويستهلك حصتها.",
+        "imageGenPick": "اختيار حسابات GPT",
+        "imageGenSelected": "تم اختيار {{count}} من الحسابات",
+        "imageGenEmpty": "لم يتم اختيار أي حساب",
+        "imageGenLocked": "حدّد الخيار لاختيار الحسابات",
+        "pickerTitle": "اختيار حسابات الصور",
+        "pickerEmpty": "لا توجد حسابات OAuth قادرة على توليد الصور (حسابات Free وAPI Key غير مدعومة).",
+        "pickerSelectAll": "تحديد الكل",
+        "pickerClear": "مسح",
+        "protocol": "البروتوكول",
+        "accessRoute": "الاتصال",
+        "gatewayRequired": "بوابة النسخة المحلية",
+        "directUpstream": "اتصال مباشر بالمزوّد",
+        "gatewayHint": "يتطلب هذا البروتوكول البوابة المحلية للتحويل، وهي تتيح أيضاً تبديل النماذج داخل Codex وتمرير الصور.",
+        "directUpstreamHint": "يتصل هذا الحساب بالمزوّد مباشرة، لذا لا يتوفر تمرير الصور."
       }
     },
     "modelProviders": {
@@ -4131,6 +4176,8 @@
         "saveOptions": "حفظ الخيارات",
         "immediateSseResponse": "SSE فوري 200",
         "maxConcurrentImageRequests": "طلبات الصور لكل حساب",
+        "maxAccountConcurrency": "تزامن الحساب",
+        "accountConcurrencyWait": "انتظار التزامن (ث)",
         "optionsSaved": "تم حفظ خيارات التوجيه"
       },
       "validation": {
@@ -5661,7 +5708,10 @@
       "startTime": "وقت البدء",
       "endTime": "وقت الانتهاء",
       "timeRangeHint": "يختار وقتًا عشوائيًا يوميًا ضمن هذا النطاق لإكمال تسجيل الوصول في الخلفية.",
-      "timeRangeError": "لا يمكن أن يكون وقت البدء متأخرًا عن وقت الانتهاء"
+      "timeRangeError": "لا يمكن أن يكون وقت البدء متأخرًا عن وقت الانتهاء",
+      "checkinTimeTooltip": "تم تسجيل الدخول في {{time}}",
+      "scheduleTooltip": "مجدول في {{time}}",
+      "scheduleBadge": "مجدول {{time}}"
     }
   },
   "zcode": {

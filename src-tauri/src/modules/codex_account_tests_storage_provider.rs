@@ -827,6 +827,49 @@ X-Custom = "keep-me"
     }
 
     #[test]
+    fn migrates_legacy_apikey_fun_provider_base_url_and_wire_api() {
+        let mut account = CodexAccount::new_api_key(
+            "legacy-apikey-account-id".to_string(),
+            "relay@example.com".to_string(),
+            "sk-test".to_string(),
+            CodexApiProviderMode::Custom,
+            Some("https://api.apikey.fun/v1".to_string()),
+            Some("apikey_fun".to_string()),
+            Some("APIKEY.FUN".to_string()),
+            vec!["gpt-5.5".to_string()],
+        );
+        account.api_wire_api = Some("chat_completions".to_string());
+
+        assert!(migrate_apikey_fun_account(&mut account));
+        assert_eq!(
+            account.api_base_url.as_deref(),
+            Some("https://api.apikey.fan/v1")
+        );
+        assert_eq!(account.api_wire_api.as_deref(), Some("responses"));
+    }
+
+    #[test]
+    fn keeps_current_apikey_fan_provider_base_url() {
+        let mut account = CodexAccount::new_api_key(
+            "current-apikey-account-id".to_string(),
+            "relay@example.com".to_string(),
+            "sk-test".to_string(),
+            CodexApiProviderMode::Custom,
+            Some("https://api.apikey.fan/v1".to_string()),
+            Some("apikey_fun".to_string()),
+            Some("APIKEY.FUN".to_string()),
+            vec!["gpt-5.5".to_string()],
+        );
+        account.api_wire_api = Some("responses".to_string());
+
+        assert!(!migrate_apikey_fun_account(&mut account));
+        assert_eq!(
+            account.api_base_url.as_deref(),
+            Some("https://api.apikey.fan/v1")
+        );
+    }
+
+    #[test]
     fn remote_api_key_imagegen_does_not_disable_hosted_chat_tool() {
         let base_dir = make_temp_dir("codex-remote-api-key-imagegen-test");
         let provider_config = resolve_api_provider_config(

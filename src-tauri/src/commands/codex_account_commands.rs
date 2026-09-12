@@ -2200,9 +2200,15 @@ pub async fn update_codex_account_instance_access(
     account_id: String,
     access_mode: Option<String>,
     startup_model: Option<String>,
+    image_generation_account_ids: Option<Vec<String>>,
 ) -> Result<CodexAccount, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        codex_account::update_account_instance_access(&account_id, access_mode, startup_model)
+        codex_account::update_account_instance_access(
+            &account_id,
+            access_mode,
+            startup_model,
+            image_generation_account_ids,
+        )
     })
     .await
     .map_err(|error| format!("保存 DeepSeek 接入方式失败: {}", error))?

@@ -449,9 +449,8 @@ fn provider_gateway_models_for_account(account: &CodexAccount) -> Vec<String> {
         .to_ascii_lowercase();
     if provider_id == "deepseek" || base_url.contains("api.deepseek.com") {
         return normalize_provider_gateway_models(vec![
-            "deepseek-v4-flash",
+            "deepseek-flash",
             "deepseek-v4-pro",
-            "deepseek-v4-flash-vision-exp",
         ]);
     }
     if provider_id == "moonshot" || base_url.contains("api.moonshot.cn") {
@@ -514,6 +513,8 @@ fn is_provider_model_shell_slug(model: &str) -> bool {
 }
 
 const DEEPSEEK_OFFICIAL_SHELL_SLOTS: &[(&str, &str)] = &[
+    ("deepseek-flash", "gpt-5.5"),
+    // 旧模型名保留同一套壳位，已存在的账号不需要迁移。
     ("deepseek-v4-flash", "gpt-5.5"),
     ("deepseek-v4-pro", "gpt-5.4"),
     ("deepseek-v4-flash-vision-exp", "gpt-5.4-mini"),
@@ -535,18 +536,27 @@ fn allocate_official_deepseek_shell_slots(
         return None;
     }
     Some(
-        DEEPSEEK_OFFICIAL_SHELL_SLOTS
-            .iter()
-            .filter(|(upstream, _)| {
-                upstream_models
-                    .iter()
-                    .any(|model| model.eq_ignore_ascii_case(upstream))
-            })
-            .map(|(upstream, shell)| ProviderGatewayModelSlot {
-                client_model: (*shell).to_string(),
-                upstream_model: (*upstream).to_string(),
-            })
-            .collect(),
+        {
+            let mut used_shells = HashSet::new();
+            DEEPSEEK_OFFICIAL_SHELL_SLOTS
+                .iter()
+                .filter(|(upstream, _)| {
+                    upstream_models
+                        .iter()
+                        .any(|model| model.eq_ignore_ascii_case(upstream))
+                })
+                .filter_map(|(upstream, shell)| {
+                    // 新名与旧名指向同一个上游模型时只占一个壳位。
+                    if !used_shells.insert(shell.to_ascii_lowercase()) {
+                        return None;
+                    }
+                    Some(ProviderGatewayModelSlot {
+                        client_model: (*shell).to_string(),
+                        upstream_model: (*upstream).to_string(),
+                    })
+                })
+                .collect()
+        },
     )
 }
 
@@ -915,6 +925,10 @@ fn apply_provider_gateway_model_slots(
             alias: slot.client_model,
             fork: false,
         }));
+    // 这些别名只用于把对话请求改写到 API Key 供应商（客户端模型名 ↔ 上游模型名），
+    // 不能写进 sidecar 的 oauth-model-alias：否则经 ChatGPT 账号执行的请求（例如生图转发
+    // 用的 gpt-5.5 基础模型）会被改写成供应商模型名，被 ChatGPT 后端拒绝。
+    collection.suppress_oauth_model_alias = true;
 }
 
 fn provider_gateway_wire_api_for_account(account: &CodexAccount) -> String {
@@ -1118,6 +1132,24 @@ fn provider_gateway_for_account(
             }
         })
         .collect::<std::collections::HashMap<_, _>>();
+    // DeepSeek 官方模型的识图默认值不在用户映射里也要生效（例如官方 Flash 默认支持识图），
+    // 否则网关会把图片当成不支持而直接省略。
+    if is_official_deepseek_account(account) {
+        for model in &upstream_models {
+            let key = model.trim().to_lowercase();
+            if key.is_empty() || model_capabilities.contains_key(&key) {
+                continue;
+            }
+            if codex_account::deepseek_model_effective_vision(account, model) {
+                model_capabilities.insert(
+                    key,
+                    CodexLocalAccessProviderGatewayModelCapability {
+                        supports_vision: true,
+                    },
+                );
+            }
+        }
+    }
     // Provider catalogs expose shell aliases to Codex while requests are
     // rewritten to the upstream model. Keep the capability on both names so
     // the /models response and request guard agree for mapped DeepSeek models.
@@ -1179,6 +1211,36 @@ fn provider_gateway_bound_oauth_account_id_for_account(account: &CodexAccount) -
         return None;
     }
     normalize_optional_account_ref(account.bound_oauth_account_id.as_deref())
+}
+
+/// 生图转发账号池：只接受仍然存在的 OAuth 账号（带 refresh_token，sidecar 自行续期）。
+pub(crate) fn image_generation_accounts_for_account(
+    account: &CodexAccount,
+) -> Vec<CodexAccount> {
+    if !account.is_api_key_auth() {
+        return Vec::new();
+    }
+    let mut resolved = Vec::new();
+    let mut seen = HashSet::new();
+    for raw_id in &account.api_image_generation_account_ids {
+        let Some(account_id) = normalize_optional_account_ref(Some(raw_id.as_str())) else {
+            continue;
+        };
+        if account_id == account.id || !seen.insert(account_id.clone()) {
+            continue;
+        }
+        let Some(candidate) = codex_account::load_account(&account_id) else {
+            continue;
+        };
+        if candidate.is_api_key_auth()
+            || candidate.is_agent_identity_auth()
+            || !codex_account::account_has_refresh_token(&candidate)
+        {
+            continue;
+        }
+        resolved.push(candidate);
+    }
+    resolved
 }
 
 fn normalize_mixed_model_namespace(namespace: &str) -> Result<String, String> {
@@ -1408,6 +1470,25 @@ fn build_provider_gateway_collection_for_profile(
     collection.api_keys.clear();
     collection.bound_oauth_account_id =
         provider_gateway_bound_oauth_account_id_for_account(account);
+    // 生图转发：对话账号自身不承接生图，生图请求只落到这里选定的 OAuth 账号。
+    let image_accounts = image_generation_accounts_for_account(account);
+    collection.image_generation_account_ids = image_accounts
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
+    collection.image_generation_account_policies.clear();
+    if !collection.image_generation_account_ids.is_empty() {
+        collection.image_generation_account_policies.insert(
+            account.id.clone(),
+            CodexLocalAccessImageGenerationPolicy::Disabled,
+        );
+        for image_account in &image_accounts {
+            collection.image_generation_account_policies.insert(
+                image_account.id.clone(),
+                CodexLocalAccessImageGenerationPolicy::Enabled,
+            );
+        }
+    }
 
     if !is_provider_gateway_eligible_account(account) {
         return Err("该供应商账号不符合本地网关使用条件".to_string());
@@ -2064,13 +2145,17 @@ fn write_local_access_profile_model_override(
     crate::modules::codex_config_format::write_codex_config_toml_atomic(&config_path, &content)
 }
 
-fn official_catalog_json_for_provider_gateway(account: &CodexAccount) -> Option<&'static str> {
+fn official_catalog_json_for_provider_gateway(
+    account: &CodexAccount,
+) -> Result<Option<String>, String> {
     if is_official_deepseek_account(account)
         && provider_gateway_wire_api_for_account(account) == "responses"
     {
-        Some(codex_account::deepseek_official_models_json())
+        Ok(Some(codex_account::deepseek_official_catalog_json_for_account(
+            account,
+        )?))
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -2339,7 +2424,7 @@ pub async fn activate_provider_gateway_for_dir(
         write_provider_gateway_model_catalog_with_templates(
             profile_dir,
             &model_slots,
-            official_catalog_json_for_provider_gateway(&account),
+            official_catalog_json_for_provider_gateway(&account)?.as_deref(),
             Some(&account),
         )?;
     }
@@ -2811,7 +2896,7 @@ pub async fn ensure_provider_gateway_for_dir(
         write_provider_gateway_model_catalog_with_templates(
             profile_dir,
             &model_slots,
-            official_catalog_json_for_provider_gateway(&account),
+            official_catalog_json_for_provider_gateway(&account)?.as_deref(),
             Some(&account),
         )?;
     }
@@ -2827,12 +2912,23 @@ pub async fn ensure_provider_gateway_for_dir(
     let default_service_tier =
         crate::modules::codex_speed::get_app_speed_config_for_dir(profile_dir)
             .map(|config| codex_app_speed_service_tier(&config.speed))?;
+    // 生图转发账号需要把凭据写进实例 sidecar，否则网关手里只有 API Key 上游。
+    let image_accounts = image_generation_accounts_for_account(&account);
+    let mut account_overrides: HashMap<String, CodexAccount> = HashMap::new();
+    account_overrides.insert(account.id.clone(), account.clone());
+    for image_account in &image_accounts {
+        account_overrides.insert(image_account.id.clone(), image_account.clone());
+    }
+    let runtime_oauth_account_ids = image_accounts
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
     let launch_config = prepare_sidecar_launch_config_in_dir(
         &collection,
         sidecar_dir,
         HashMap::new(),
         default_service_tier,
-        HashMap::new(),
+        account_overrides,
     )
     .await?;
     if probe_sidecar_ready_once(&collection, Duration::from_millis(250))
@@ -2862,7 +2958,7 @@ pub async fn ensure_provider_gateway_for_dir(
             sidecar_child: Some(child),
             sidecar_dir: Some(runtime_sidecar_dir),
             collection: Some(collection),
-            oauth_account_ids: Vec::new(),
+            oauth_account_ids: runtime_oauth_account_ids,
         },
     );
     Ok(())

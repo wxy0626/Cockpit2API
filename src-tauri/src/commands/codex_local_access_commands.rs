@@ -197,6 +197,8 @@ pub async fn codex_local_access_update_routing_options(
     disable_cooling: bool,
     immediate_sse_response: bool,
     max_concurrent_image_requests: u16,
+    max_account_concurrency: u16,
+    account_concurrency_wait_ms: u64,
 ) -> Result<CodexLocalAccessState, String> {
     codex_local_access::update_local_access_routing_options(
         session_affinity,
@@ -207,6 +209,8 @@ pub async fn codex_local_access_update_routing_options(
         disable_cooling,
         immediate_sse_response,
         max_concurrent_image_requests,
+        max_account_concurrency,
+        account_concurrency_wait_ms,
     )
     .await
 }

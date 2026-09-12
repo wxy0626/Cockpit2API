@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Výsledky testu",
+    "openBrowser": "Otevřít v prohlížeči",
     "error": {
       "stateUnavailable": "Stav úlohy není dostupný. Zkuste to znovu.",
       "accountsRequired": "Vyberte alespoň jeden účet.",
@@ -77,7 +79,8 @@
     "clearAll": "Vymazat vše",
     "confirmClearAll": "Vymazat všechny testy Pelican?",
     "clearAllHelp": "Veškerá historie testů a vygenerované soubory budou trvale smazány. Tuto akci nelze vrátit.",
-    "search": "Hledat účty"
+    "search": "Hledat účty",
+    "viewError": "Zobrazit chybu"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "Obnovení dokončeno, úspěšných účtů: {{count}}",
     "refreshAllPartialFailed": "Obnovení dokončeno, {{success}} / {{total}} účtů úspěšných, některé selhaly",
     "launchPreview": {
+      "accessModeTitle": "Režim spuštění",
+      "prosLabel": "Výhody:",
+      "consLabel": "Nevýhody:",
+      "accessModeDescription": "Zvolte, jak se DeepSeek spouští; režimy se liší v přepínání modelů, OAuth a přeposílání obrázků.",
+      "accessModeGatewayPros": "1: Přepínání modelů v Codexu\n2: Propojení OAuth účtů a funkce OAuth, jako je vzdálená komprese a ovládání prohlížeče\n3: Nastavení GPT účtů pro přeposílání generování obrázků",
+      "accessModeGatewayCons": "1: Vyžaduje lokální bránu instance, takže je o něco pomalejší než přímé",
+      "accessModeDirectPros": "1: Bez brány, nejrychlejší",
+      "accessModeDirectCons": "1: Žádné přepínání modelů v Codexu, propojení OAuth ani přeposílání obrázků",
+      "accessModeCdpPros": "1: Stejná rychlost jako přímé\n2: Flash / Pro lze přepínat v oficiálním seznamu modelů Codexu",
+      "accessModeCdpCons": "1: Vyžaduje injektáž oficiálního klienta, propojení OAuth ani přeposílání obrázků",
+      "imageGenPickerDesc": "Když přijde požadavek na obrázek, přepošle se: nejprve jej zpracuje základní model, poté obrázek vytvoří model obrázků a spotřebuje část kvóty vybraných účtů.",
+      "imageGenSwitchTitle": "Pouze v režimu brány",
+      "imageGenSwitchDescription": "Zapnutí generování obrázků GPT vyžaduje režim brány. Přepnout a zapnout?",
+      "imageGenSwitchYes": "Ano",
+      "imageGenSwitchNo": "Ne",
+      "imageGenTitle": "Zapnout generování obrázků GPT",
       "title": "Náhled spuštění Codexu",
       "description": "Nejprve zkontrolujte nastavení; klient se změní až po volbě přepnutí nebo spuštění.",
       "notApplied": "Dosud nepoužito",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "URL portu API",
       "modelId": "ID modelu",
       "modelIdPlaceholder": "Vyberte ID modelu",
-      "imageGenerationModel": { "label": "Obrazový model", "custom": "Vlastní", "save": "Uložit model", "placeholder": "Zadejte vlastní ID modelu", "description": "Používá se pro /v1/images/generations a /v1/images/edits; výchozí je gpt-image-2.5.", "required": "Zadejte název obrazového modelu", "tooLong": "Název obrazového modelu je příliš dlouhý", "saveSuccess": "Obrazový model byl aktualizován" },
+      "imageGenerationModel": {
+        "label": "Obrazový model",
+        "custom": "Vlastní",
+        "save": "Uložit model",
+        "placeholder": "Zadejte vlastní ID modelu",
+        "description": "Používá se pro /v1/images/generations a /v1/images/edits; výchozí je gpt-image-2.5.",
+        "required": "Zadejte název obrazového modelu",
+        "tooLong": "Název obrazového modelu je příliš dlouhý",
+        "saveSuccess": "Obrazový model byl aktualizován"
+      },
       "modelIdViewOnly": "Pouze zobrazení",
       "quotaPool": {
         "title": "Fond kvóty",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "Obnova vyžádána pro {{count}} účtů",
         "dialog": {
           "title": "Problémy účtů",
-      "description": "Každý účet je zobrazen s modelem, důvodem nedostupnosti a dostupnou akcí obnovení.",
+          "description": "Každý účet je zobrazen s modelem, důvodem nedostupnosti a dostupnou akcí obnovení.",
           "noIssues": "Účty jsou bez problémů",
           "unscopedApiKey": "Aktuální API Key",
           "poolUnavailable": "Ve fondu není dostupný účet",
@@ -3460,15 +3488,32 @@
         "hint": "Před spuštěním vyberte připojení a model. Brána i CDP přepínají Flash / Pro v oficiálním seznamu Codex; přímé připojení jde bez brány s modelem zvoleným zde.",
         "accessMode": "Připojení",
         "gatewayMode": "Seznam brány",
-        "gatewayDesc": "Místní brána instance jen přepisuje název modelu. V Codex můžete vidět a přepínat Flash / Pro.",
+        "gatewayDesc": "Vyžaduje místní bránu. Umožňuje propojit účty GPT OAuth a využít všechny možnosti OAuth (práce s prohlížečem atd.), přepínat modely v Codex a svěřit generování obrázků účtům GPT.",
         "directMode": "Oficiální API",
-        "directDesc": "Bez brány, přímo na oficiální API. V Codex nelze přepnout; vyberte zde při každém startu.",
+        "directDesc": "Bez brány a rychlejší. Nelze přepínat modely v Codex a chybí možnosti OAuth i předávání obrázků.",
         "chatOnlyHint": "Chat Completions jde jen přes místní bránu. Startovní model vyberte zde.",
         "model": "Startovní model",
         "confirm": "Spustit",
         "chooseAtStart": "Při startu",
         "cdpMode": "CDP injekce",
-        "cdpDesc": "Oficiální API bez brány. CDP převezme oficiální seznam modelů Codex, Flash / Pro se přepínají jako u brány."
+        "cdpDesc": "Převezme oficiální seznam modelů Codex pomocí injektáže, rychlost jako v přímém režimu. Vyžaduje injektáž oficiálního klienta; propojení OAuth není podporováno.",
+        "context": "Podporovaný kontext",
+        "imageGen": "Generování obrázků GPT",
+        "imageGenHint": "Pouze v režimu brány. Konverzaci stále zpracovávají modely tohoto poskytovatele; generování obrázků používá původní cestu gpt-image, provádějí je vybrané GPT účty a spotřebovává jejich kvótu.",
+        "imageGenPick": "Vybrat účty GPT",
+        "imageGenSelected": "Vybráno účtů: {{count}}",
+        "imageGenEmpty": "Nejsou vybrány žádné účty",
+        "imageGenLocked": "Zaškrtnutím vyberete účty",
+        "pickerTitle": "Vyberte účty pro obrázky",
+        "pickerEmpty": "Žádné účty OAuth nemohou generovat obrázky (účty Free a API Key nejsou podporovány).",
+        "pickerSelectAll": "Vybrat vše",
+        "pickerClear": "Vymazat",
+        "protocol": "Protokol",
+        "accessRoute": "Přístup",
+        "gatewayRequired": "Místní brána instance",
+        "directUpstream": "Přímo k upstreamu",
+        "gatewayHint": "Tento protokol vyžaduje místní bránu pro konverzi, která umožňuje i přepínání modelů v Codex a předávání obrázků.",
+        "directUpstreamHint": "Tento účet přistupuje k upstreamu přímo, takže předávání obrázků není dostupné."
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "Uložit volby",
         "immediateSseResponse": "Okamžitá SSE 200",
         "maxConcurrentImageRequests": "Požadavky na obrázky na účet",
+        "maxAccountConcurrency": "Souběžnost účtu",
+        "accountConcurrencyWait": "Čekání (s)",
         "optionsSaved": "Volby směrování uloženy"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "Počáteční čas",
       "endTime": "Koncový čas",
       "timeRangeHint": "Vybere denně náhodný čas v tomto rozsahu k dokončení přihlášení na pozadí.",
-      "timeRangeError": "Počáteční čas nesmí být pozdější než koncový čas"
+      "timeRangeError": "Počáteční čas nesmí být pozdější než koncový čas",
+      "checkinTimeTooltip": "Checked in v {{time}}",
+      "scheduleTooltip": "Naplánováno na {{time}}",
+      "scheduleBadge": "Naplánováno {{time}}"
     }
   },
   "zcode": {

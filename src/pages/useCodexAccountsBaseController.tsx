@@ -18,7 +18,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import type { CodexTab } from "../components/CodexOverviewTabsHeader";
-import { useDeepSeekDirectModelPrompt } from "../components/codex/DeepSeekDirectModelModal";
 import { type CodexWakeupTestOpenRequest } from "../components/codex/CodexWakeupContent";
 import { CodexSpeedSelect } from "../components/codex/CodexSpeedSelect";
 import { useProviderAccountsPage } from "../hooks/useProviderAccountsPage";
@@ -393,7 +392,6 @@ export function useCodexAccountsBaseController() {
     >(null);
     const [cliLaunchModal, setCliLaunchModal] =
       useState<CodexCliLaunchModalState | null>(null);
-    const deepSeekStart = useDeepSeekDirectModelPrompt();
     const codexCliInstanceDefaultsRef = useRef<InstanceDefaults | null>(null);
     const { terminalOptions, selectedTerminal, setSelectedTerminal } =
       useLaunchTerminalOptions(isCliLaunchSupported);
@@ -2797,7 +2795,6 @@ export function useCodexAccountsBaseController() {
     copyFormattedExportJson,
     copyFormattedExportSavedPath,
     currentAccount,
-    deepSeekStart,
     deleteConfirm,
     deleteConfirmError,
     deleteConfirmErrorScrollKey,

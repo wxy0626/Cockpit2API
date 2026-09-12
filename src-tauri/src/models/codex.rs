@@ -152,6 +152,12 @@ pub struct CodexAccount {
     /// Direct-start model for official DeepSeek Responses (`deepseek-v4-flash` / `deepseek-v4-pro`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_startup_model: Option<String>,
+    /// 网关模式下用于生图转发的 GPT(OAuth) 账号池。
+    ///
+    /// 对话仍由本账号的上游模型处理；生图请求（images 端点与对话内触发的生图）
+    /// 交给这里的账号执行，走 `gpt-5.5` 基础模型 + `gpt-image-2.5` 的原有链路。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub api_image_generation_account_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bound_oauth_account_id: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -567,6 +573,7 @@ impl CodexAccount {
             api_vision_routing_model: None,
             api_instance_access_mode: None,
             api_startup_model: None,
+            api_image_generation_account_ids: Vec::new(),
             bound_oauth_account_id: None,
             bound_oauth_use_local_gateway: false,
             user_id: None,

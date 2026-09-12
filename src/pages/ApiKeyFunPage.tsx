@@ -21,19 +21,16 @@ import {
 } from '../services/modelProviderUsageService';
 import {
   APIKEY_FUN_GLOBAL_ENDPOINT,
-  APIKEY_FUN_PROVIDER_BASE_URL,
   APIKEY_FUN_REGISTER_URL,
   APIKEY_FUN_SOURCE_TAG,
   buildApiKeyFunProviderBaseUrl,
 } from '../utils/apikeyFunLinks';
 import {
-  CLAUDE_APIKEY_FUN_BASE_URL,
-} from '../utils/claudeProviderPresets';
-import {
   dispatchApiKeyFunPrefillEvent,
   getApiKeyFunPrefillPage,
   type ApiKeyFunPrefillTarget,
 } from '../utils/apiKeyFunPrefill';
+import { useSponsorStore } from '../stores/useSponsorStore';
 import apiKeyFunIcon from '../assets/icons/apikey-fun.png';
 import './ApiKeyFunPage.css';
 
@@ -142,6 +139,7 @@ function isClaudeModelId(value: string): boolean {
 
 export function ApiKeyFunPage() {
   const { t } = useTranslation();
+  const sponsorModule = useSponsorStore((state) => state.state.sponsorModule);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [usage, setUsage] = useState<ModelProviderUsageSummary | null>(null);
@@ -166,9 +164,19 @@ export function ApiKeyFunPage() {
   // 复制状态
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const providerBaseUrl = useMemo(
-    () => buildApiKeyFunProviderBaseUrl(APIKEY_FUN_GLOBAL_ENDPOINT),
-    [],
+  const sponsorIntegration = useMemo(
+    () => sponsorModule?.sponsors.find((item) => item.id === 'apikey-fun')?.integration ?? null,
+    [sponsorModule],
+  );
+  const providerBaseUrl = useMemo(() => {
+    const remoteBaseUrl = sponsorIntegration?.enabled
+      ? sponsorIntegration.baseUrl?.trim()
+      : '';
+    return remoteBaseUrl || buildApiKeyFunProviderBaseUrl(APIKEY_FUN_GLOBAL_ENDPOINT);
+  }, [sponsorIntegration]);
+  const claudeBaseUrl = useMemo(
+    () => providerBaseUrl.replace(/\/+$/, '').replace(/\/v1$/i, ''),
+    [providerBaseUrl],
   );
   const maskedApiKey = useMemo(() => maskKey(apiKey), [apiKey]);
   const currentKey = apiKey.trim();
@@ -394,7 +402,7 @@ export function ApiKeyFunPage() {
         apiKey: key,
         apiKeyName: item.name || buildManagedKeyName(key),
         providerName: 'APIKEY.FUN',
-        baseUrl: target === 'codex' ? APIKEY_FUN_PROVIDER_BASE_URL : CLAUDE_APIKEY_FUN_BASE_URL,
+        baseUrl: target === 'codex' ? providerBaseUrl : claudeBaseUrl,
         sourceTag: APIKEY_FUN_SOURCE_TAG,
         modelCatalog: apiKeyFunModelCatalog,
       });
@@ -407,7 +415,7 @@ export function ApiKeyFunPage() {
         target: targetName,
       }),
     });
-  }, [apiKeyFunModelCatalog, setManagedKeyAction, t]);
+  }, [apiKeyFunModelCatalog, claudeBaseUrl, providerBaseUrl, setManagedKeyAction, t]);
 
   // 切换密钥
   const handleUseManagedKey = useCallback((item: ManagedApiKey) => {

@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Kết quả kiểm thử",
+    "openBrowser": "Mở trong trình duyệt",
     "error": {
       "stateUnavailable": "Không có trạng thái tác vụ. Hãy thử lại.",
       "accountsRequired": "Chọn ít nhất một tài khoản.",
@@ -77,7 +79,8 @@
     "clearAll": "Dọn dẹp tất cả",
     "confirmClearAll": "Dọn dẹp tất cả bài kiểm thử Pelican?",
     "clearAllHelp": "Toàn bộ lịch sử kiểm thử và tệp đã tạo sẽ bị xóa vĩnh viễn. Không thể hoàn tác.",
-    "search": "Tìm tài khoản"
+    "search": "Tìm tài khoản",
+    "viewError": "Xem lỗi"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "Làm mới hoàn tất, {{count}} tài khoản thành công",
     "refreshAllPartialFailed": "Làm mới hoàn tất, {{success}} / {{total}} tài khoản thành công và một số thất bại",
     "launchPreview": {
+      "accessModeTitle": "Chế độ khởi động",
+      "prosLabel": "Ưu điểm:",
+      "consLabel": "Nhược điểm:",
+      "accessModeDescription": "Chọn cách DeepSeek khởi động; các chế độ khác nhau về đổi model, OAuth và chuyển tiếp tạo ảnh.",
+      "accessModeGatewayPros": "1: Đổi model ngay trong Codex\n2: Liên kết tài khoản OAuth và dùng các tính năng OAuth như nén từ xa, điều khiển trình duyệt\n3: Cấu hình tài khoản GPT để chuyển tiếp tạo ảnh",
+      "accessModeGatewayCons": "1: Cần cổng nội bộ của instance, chậm hơn một chút so với kết nối trực tiếp",
+      "accessModeDirectPros": "1: Không qua cổng, nhanh nhất",
+      "accessModeDirectCons": "1: Không đổi được model trong Codex, không liên kết OAuth và không chuyển tiếp ảnh",
+      "accessModeCdpPros": "1: Tốc độ như kết nối trực tiếp\n2: Đổi Flash / Pro trong danh sách model chính thức của Codex",
+      "accessModeCdpCons": "1: Cần inject ứng dụng chính thức, không liên kết OAuth và không chuyển tiếp ảnh",
+      "imageGenPickerDesc": "Khi có yêu cầu tạo ảnh, yêu cầu sẽ được chuyển tiếp: model cơ bản xử lý trước, sau đó model ảnh tạo hình, tiêu tốn một phần hạn mức của các tài khoản đã chọn.",
+      "imageGenSwitchTitle": "Chỉ hỗ trợ ở chế độ cổng",
+      "imageGenSwitchDescription": "Bật tạo ảnh GPT cần chuyển sang chế độ cổng. Chuyển và bật?",
+      "imageGenSwitchYes": "Có",
+      "imageGenSwitchNo": "Không",
+      "imageGenTitle": "Bật tạo ảnh GPT",
       "title": "Xem trước khi khởi động Codex",
       "description": "Hãy cấu hình và kiểm tra trước; ứng dụng chỉ thay đổi sau khi bạn chọn Chuyển hoặc Khởi động.",
       "notApplied": "Chưa áp dụng",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "URL cổng API",
       "modelId": "ID mô hình",
       "modelIdPlaceholder": "Chọn ID mô hình",
-      "imageGenerationModel": { "label": "Mô hình hình ảnh", "custom": "Tùy chỉnh", "save": "Lưu mô hình", "placeholder": "Nhập ID mô hình tùy chỉnh", "description": "Dùng cho /v1/images/generations và /v1/images/edits; mặc định là gpt-image-2.5.", "required": "Nhập tên mô hình hình ảnh", "tooLong": "Tên mô hình hình ảnh quá dài", "saveSuccess": "Đã cập nhật mô hình hình ảnh" },
+      "imageGenerationModel": {
+        "label": "Mô hình hình ảnh",
+        "custom": "Tùy chỉnh",
+        "save": "Lưu mô hình",
+        "placeholder": "Nhập ID mô hình tùy chỉnh",
+        "description": "Dùng cho /v1/images/generations và /v1/images/edits; mặc định là gpt-image-2.5.",
+        "required": "Nhập tên mô hình hình ảnh",
+        "tooLong": "Tên mô hình hình ảnh quá dài",
+        "saveSuccess": "Đã cập nhật mô hình hình ảnh"
+      },
       "modelIdViewOnly": "Chỉ xem",
       "quotaPool": {
         "title": "Nhóm hạn mức",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "Đã yêu cầu khôi phục {{count}} tài khoản",
         "dialog": {
           "title": "Lỗi tài khoản",
-      "description": "Mỗi tài khoản được hiển thị cùng model, lý do không khả dụng và thao tác khôi phục nếu có.",
+          "description": "Mỗi tài khoản được hiển thị cùng model, lý do không khả dụng và thao tác khôi phục nếu có.",
           "noIssues": "Tài khoản không có lỗi",
           "unscopedApiKey": "API Key hiện tại",
           "poolUnavailable": "Không có tài khoản khả dụng trong nhóm",
@@ -3460,15 +3488,32 @@
         "hint": "Chọn cách kết nối và mô hình trước khi khởi động. Cổng và CDP đổi Flash / Pro trong danh sách mô hình chính thức của Codex; kết nối trực tiếp không qua cổng, dùng mô hình chọn tại đây.",
         "accessMode": "Kết nối",
         "gatewayMode": "Danh sách cổng",
-        "gatewayDesc": "Cổng cục bộ của phiên bản chỉ đổi tên mô hình. Trong Codex có thể xem và đổi Flash / Pro.",
+        "gatewayDesc": "Cần cổng cục bộ. Cho phép liên kết tài khoản GPT OAuth và dùng mọi khả năng OAuth (thao tác trình duyệt, v.v.), đổi mô hình trong Codex và giao việc tạo ảnh cho tài khoản GPT.",
         "directMode": "API chính thức",
-        "directDesc": "Không qua cổng, nối thẳng API chính thức. Codex không đổi được; chọn tại đây mỗi lần khởi động.",
+        "directDesc": "Không dùng cổng, nhanh hơn. Không đổi được mô hình trong Codex, không có khả năng OAuth hay chuyển tiếp tạo ảnh.",
         "chatOnlyHint": "Chat Completions chỉ đi cổng cục bộ. Chọn mô hình khởi động tại đây.",
         "model": "Mô hình",
         "confirm": "Khởi động",
         "chooseAtStart": "Khi khởi động",
         "cdpMode": "Tiêm CDP",
-        "cdpDesc": "API chính thức, không qua cổng. CDP nắm danh sách mô hình chính thức của Codex, đổi Flash / Pro giống chế độ cổng."
+        "cdpDesc": "Tiếp quản danh sách mô hình chính thức của Codex bằng injection, tốc độ như chế độ trực tiếp. Cần injection vào ứng dụng chính thức; không hỗ trợ liên kết OAuth.",
+        "context": "Ngữ cảnh hỗ trợ",
+        "imageGen": "Tạo ảnh GPT",
+        "imageGenHint": "Chỉ hỗ trợ ở chế độ cổng. Hội thoại vẫn do model của nhà cung cấp này xử lý; tạo ảnh đi theo luồng gpt-image gốc, do các tài khoản GPT đã chọn thực hiện và tiêu tốn hạn mức của chúng.",
+        "imageGenPick": "Chọn tài khoản GPT",
+        "imageGenSelected": "Đã chọn {{count}} tài khoản",
+        "imageGenEmpty": "Chưa chọn tài khoản",
+        "imageGenLocked": "Tích để chọn tài khoản",
+        "pickerTitle": "Chọn tài khoản tạo ảnh",
+        "pickerEmpty": "Không có tài khoản OAuth nào tạo được ảnh (tài khoản Free và API Key không được hỗ trợ).",
+        "pickerSelectAll": "Chọn tất cả",
+        "pickerClear": "Xóa",
+        "protocol": "Giao thức",
+        "accessRoute": "Kết nối",
+        "gatewayRequired": "Cổng cục bộ của instance",
+        "directUpstream": "Kết nối thẳng upstream",
+        "gatewayHint": "Giao thức này cần cổng cục bộ để chuyển đổi; cổng này cũng cho phép đổi mô hình trong Codex và chuyển tiếp ảnh.",
+        "directUpstreamHint": "Tài khoản này truy cập upstream trực tiếp nên không hỗ trợ chuyển tiếp ảnh."
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "Lưu tùy chọn",
         "immediateSseResponse": "SSE trả 200 ngay",
         "maxConcurrentImageRequests": "Yêu cầu ảnh mỗi tài khoản",
+        "maxAccountConcurrency": "Đồng thời mỗi tài khoản",
+        "accountConcurrencyWait": "Chờ (giây)",
         "optionsSaved": "Đã lưu tùy chọn định tuyến"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "Thời gian bắt đầu",
       "endTime": "Thời gian kết thúc",
       "timeRangeHint": "Tự động chọn một thời điểm ngẫu nhiên mỗi ngày trong khoảng này để điểm danh chạy ngầm.",
-      "timeRangeError": "Thời gian bắt đầu không thể sau thời gian kết thúc"
+      "timeRangeError": "Thời gian bắt đầu không thể sau thời gian kết thúc",
+      "checkinTimeTooltip": "Đã check-in lúc {{time}}",
+      "scheduleTooltip": "Đã lên lịch lúc {{time}}",
+      "scheduleBadge": "Lên lịch {{time}}"
     }
   },
   "zcode": {

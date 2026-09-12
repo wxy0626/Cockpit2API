@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "テスト結果",
+    "openBrowser": "ブラウザーで開く",
     "error": {
       "stateUnavailable": "タスクの状態を取得できません。再試行してください。",
       "accountsRequired": "アカウントを1つ以上選択してください。",
@@ -77,7 +79,8 @@
     "clearAll": "すべて削除",
     "confirmClearAll": "Pelican のテストをすべて削除しますか？",
     "clearAllHelp": "すべてのテスト履歴と生成ファイルを完全に削除します。この操作は元に戻せません。",
-    "search": "アカウント検索"
+    "search": "アカウント検索",
+    "viewError": "エラーを見る"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "更新完了、{{count}} アカウント成功",
     "refreshAllPartialFailed": "更新完了、{{success}} / {{total}} アカウント成功、一部失敗",
     "launchPreview": {
+      "accessModeTitle": "起動方式",
+      "prosLabel": "長所：",
+      "consLabel": "短所：",
+      "accessModeDescription": "DeepSeek の起動方式を選択します。モデル切り替え、OAuth、画像転送の可否が異なります。",
+      "accessModeGatewayPros": "1：Codex 内でモデルを切り替えできます\n2：OAuth アカウントを紐付け、遠端圧縮やブラウザ操作などの OAuth 機能を利用できます\n3：GPT アカウントを設定して画像生成を転送できます",
+      "accessModeGatewayCons": "1：インスタンス内蔵ゲートウェイが必要で、直連より少し遅くなります",
+      "accessModeDirectPros": "1：ゲートウェイを通らず最速です",
+      "accessModeDirectCons": "1：Codex 内でモデルを切り替えできず、OAuth の紐付けと画像転送もできません",
+      "accessModeCdpPros": "1：直連と同じ速度です\n2：Codex 公式モデル一覧で Flash / Pro を切り替えできます",
+      "accessModeCdpCons": "1：公式クライアントへの注入が必要で、OAuth の紐付けと画像転送はできません",
+      "imageGenPickerDesc": "画像生成が必要になるとリクエストを転送します：まず基礎モデルが処理し、次に画像モデルが生成します。選択したアカウントの一部の枠を消費します。",
+      "imageGenSwitchTitle": "ゲートウェイモードのみ対応",
+      "imageGenSwitchDescription": "GPT 画像生成を有効にするには「ゲートウェイ一覧」モードへ切り替える必要があります。切り替えて有効化しますか？",
+      "imageGenSwitchYes": "はい",
+      "imageGenSwitchNo": "いいえ",
+      "imageGenTitle": "GPT 画像生成を有効化",
       "title": "Codex 起動プレビュー",
       "description": "先に設定と確認を行い、「切替」または「起動」を選んだ後にだけクライアントを変更します。",
       "notApplied": "未適用",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "APIポートURL",
       "modelId": "モデル ID",
       "modelIdPlaceholder": "モデル ID を選択",
-      "imageGenerationModel": { "label": "画像モデル", "custom": "カスタム", "save": "モデルを保存", "placeholder": "カスタムモデル ID を入力", "description": "/v1/images/generations と /v1/images/edits に使用します。デフォルトは gpt-image-2.5 です。", "required": "画像モデル名を入力してください", "tooLong": "画像モデル名が長すぎます", "saveSuccess": "画像モデルを更新しました" },
+      "imageGenerationModel": {
+        "label": "画像モデル",
+        "custom": "カスタム",
+        "save": "モデルを保存",
+        "placeholder": "カスタムモデル ID を入力",
+        "description": "/v1/images/generations と /v1/images/edits に使用します。デフォルトは gpt-image-2.5 です。",
+        "required": "画像モデル名を入力してください",
+        "tooLong": "画像モデル名が長すぎます",
+        "saveSuccess": "画像モデルを更新しました"
+      },
       "modelIdViewOnly": "表示のみ",
       "quotaPool": {
         "title": "クォータプール",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "{{count}} 件のアカウントの復旧を要求しました",
         "dialog": {
           "title": "アカウントの異常",
-      "description": "各アカウントをモデル、利用不可の理由、実行可能な復旧操作とともに表示します。",
+          "description": "各アカウントをモデル、利用不可の理由、実行可能な復旧操作とともに表示します。",
           "noIssues": "アカウントに異常はありません",
           "unscopedApiKey": "現在の API Key",
           "poolUnavailable": "プールに利用可能なアカウントがありません",
@@ -3460,15 +3488,32 @@
         "hint": "起動前に接続方式とモデルを選びます。ゲートウェイと CDP は Codex 公式モデル一覧で Flash / Pro を切り替えられます。直結はゲートウェイを使わず、ここで選んだモデルで起動します。",
         "accessMode": "接続方式",
         "gatewayMode": "GW 表示",
-        "gatewayDesc": "インスタンス用ゲートウェイはモデル名だけ書き換えます。Codex で Flash / Pro を切り替えできます。",
+        "gatewayDesc": "ローカルゲートウェイが必要です。OAuth の GPT アカウントを紐付けてブラウザ操作などの OAuth 機能を使え、Codex 内でモデルを切り替えられ、画像生成も GPT アカウントに任せられます。",
         "directMode": "公式直結",
-        "directDesc": "ゲートウェイなしで公式 API に直結します。Codex 内では切り替えできず、毎回ここで選びます。",
+        "directDesc": "ゲートウェイを使わず高速です。Codex 内でモデルを切り替えられず、OAuth 機能も画像転送もありません。",
         "chatOnlyHint": "Chat Completions はローカルゲートウェイのみです。起動モデルをここで選んでください。",
         "model": "起動モデル",
         "confirm": "起動",
         "chooseAtStart": "起動時に選択",
         "cdpMode": "CDP 注入",
-        "cdpDesc": "公式 API に直結し、ゲートウェイは使いません。CDP で Codex 公式モデル一覧を制御し、ゲートウェイと同じ操作で Flash / Pro を切り替えます。"
+        "cdpDesc": "注入で公式 Codex のモデル一覧を引き継ぎ、速度は直結と同じです。公式クライアントへの注入が必要で、OAuth の紐付けはできません。",
+        "context": "対応コンテキスト",
+        "imageGen": "GPT 画像生成",
+        "imageGenHint": "ゲートウェイモードのみ対応。会話は引き続きこのプロバイダーのモデルで処理され、画像生成は元の gpt-image 経路で選択した GPT アカウントが実行し、その枠を消費します。",
+        "imageGenPick": "GPT アカウントを選択",
+        "imageGenSelected": "{{count}} 件のアカウントを選択中",
+        "imageGenEmpty": "アカウント未選択",
+        "imageGenLocked": "チェックするとアカウントを選択できます",
+        "pickerTitle": "画像生成アカウントを選択",
+        "pickerEmpty": "画像生成に使える OAuth アカウントがありません（Free と API Key は非対応）。",
+        "pickerSelectAll": "すべて選択",
+        "pickerClear": "クリア",
+        "protocol": "プロトコル",
+        "accessRoute": "接続方式",
+        "gatewayRequired": "インスタンスのローカルゲートウェイ",
+        "directUpstream": "アップストリームへ直接接続",
+        "gatewayHint": "このプロトコルはローカルゲートウェイでの変換が必要で、Codex 内のモデル切り替えや画像転送も行えます。",
+        "directUpstreamHint": "このアカウントはアップストリームへ直接接続するため、画像転送は利用できません。"
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "設定を保存",
         "immediateSseResponse": "即時 SSE 200",
         "maxConcurrentImageRequests": "アカウントごとの画像リクエスト",
+        "maxAccountConcurrency": "アカウント同時実行数",
+        "accountConcurrencyWait": "待機時間（秒）",
         "optionsSaved": "ルーティング設定を保存しました"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "開始時間",
       "endTime": "終了時間",
       "timeRangeHint": "バックグラウンドチェックインを完了するため、この時間帯から毎日ランダムな時間を自動選択します。",
-      "timeRangeError": "開始時間は終了時間より後にできません"
+      "timeRangeError": "開始時間は終了時間より後にできません",
+      "checkinTimeTooltip": "{{time}} にチェックイン済み",
+      "scheduleTooltip": "{{time}} に予定",
+      "scheduleBadge": "予定 {{time}}"
     }
   },
   "zcode": {

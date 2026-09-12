@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Test sonuçları",
+    "openBrowser": "Tarayıcıda aç",
     "error": {
       "stateUnavailable": "Görev durumu kullanılamıyor. Yeniden deneyin.",
       "accountsRequired": "En az bir hesap seçin.",
@@ -77,7 +79,8 @@
     "clearAll": "Tümünü temizle",
     "confirmClearAll": "Tüm Pelican testleri temizlensin mi?",
     "clearAllHelp": "Tüm test geçmişi ve oluşturulan dosyalar kalıcı olarak silinecek. Bu işlem geri alınamaz.",
-    "search": "Hesap ara"
+    "search": "Hesap ara",
+    "viewError": "Hatayı görüntüle"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "Yenileme tamamlandı, {{count}} hesap başarılı",
     "refreshAllPartialFailed": "Yenileme tamamlandı, {{success}} / {{total}} hesap başarılı, bazıları başarısız",
     "launchPreview": {
+      "accessModeTitle": "Başlatma modu",
+      "prosLabel": "Avantajlar:",
+      "consLabel": "Dezavantajlar:",
+      "accessModeDescription": "DeepSeek'in nasıl başlayacağını seçin; modlar model değiştirme, OAuth ve görsel aktarımında farklıdır.",
+      "accessModeGatewayPros": "1: Codex içinde model değiştirme\n2: OAuth hesaplarını bağlama ve uzaktan sıkıştırma, tarayıcı denetimi gibi OAuth özelliklerini kullanma\n3: Görsel üretimini iletmek için GPT hesaplarını yapılandırma",
+      "accessModeGatewayCons": "1: Örnek yerel ağ geçidini gerektirir ve doğrudan bağlantıdan biraz yavaştır",
+      "accessModeDirectPros": "1: Ağ geçidi yok, en hızlı seçenek",
+      "accessModeDirectCons": "1: Codex içinde model değiştirilemez, OAuth bağlama ve görsel aktarımı yok",
+      "accessModeCdpPros": "1: Doğrudan bağlantı ile aynı hız\n2: Resmi Codex model listesinden Flash / Pro değiştirilebilir",
+      "accessModeCdpCons": "1: Resmi istemciye enjeksiyon gerektirir, OAuth bağlama ve görsel aktarımı yok",
+      "imageGenPickerDesc": "Bir görsel isteği geldiğinde iletilir: önce temel model işler, ardından görsel modeli görseli üretir ve seçilen hesapların kotasının bir kısmını tüketir.",
+      "imageGenSwitchTitle": "Yalnızca ağ geçidi modunda",
+      "imageGenSwitchDescription": "GPT görsel üretimini etkinleştirmek için ağ geçidi moduna geçmek gerekir. Geçip etkinleştirilsin mi?",
+      "imageGenSwitchYes": "Evet",
+      "imageGenSwitchNo": "Hayır",
+      "imageGenTitle": "GPT görsel üretimini etkinleştir",
       "title": "Codex Başlatma Önizlemesi",
       "description": "Önce yapılandırın ve denetleyin; istemci yalnızca Değiştir veya Başlat seçildikten sonra değişir.",
       "notApplied": "Henüz uygulanmadı",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "API Port URL​",
       "modelId": "Model ID​",
       "modelIdPlaceholder": "Model ID seçin",
-      "imageGenerationModel": { "label": "Görsel modeli", "custom": "Özel", "save": "Modeli kaydet", "placeholder": "Özel model kimliği girin", "description": "/v1/images/generations ve /v1/images/edits için kullanılır; varsayılan gpt-image-2.5.", "required": "Bir görsel modeli adı girin", "tooLong": "Görsel modeli adı çok uzun", "saveSuccess": "Görsel modeli güncellendi" },
+      "imageGenerationModel": {
+        "label": "Görsel modeli",
+        "custom": "Özel",
+        "save": "Modeli kaydet",
+        "placeholder": "Özel model kimliği girin",
+        "description": "/v1/images/generations ve /v1/images/edits için kullanılır; varsayılan gpt-image-2.5.",
+        "required": "Bir görsel modeli adı girin",
+        "tooLong": "Görsel modeli adı çok uzun",
+        "saveSuccess": "Görsel modeli güncellendi"
+      },
       "modelIdViewOnly": "Yalnızca görüntüle",
       "quotaPool": {
         "title": "Kota havuzu",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "{{count}} hesap için kurtarma istendi",
         "dialog": {
           "title": "Hesap Sorunları",
-      "description": "Her hesap model, kullanılamama nedeni ve varsa kurtarma işlemiyle birlikte gösterilir.",
+          "description": "Her hesap model, kullanılamama nedeni ve varsa kurtarma işlemiyle birlikte gösterilir.",
           "noIssues": "Hesaplarda sorun yok",
           "unscopedApiKey": "Geçerli API Key",
           "poolUnavailable": "Havuzda kullanılabilir hesap yok",
@@ -3460,15 +3488,32 @@
         "hint": "Başlamadan önce bağlantıyı ve modeli seçin. Ağ geçidi ve CDP, resmi Codex listesinde Flash / Pro değiştirir; doğrudan bağlantı ağ geçidi olmadan burada seçilen modelle başlar.",
         "accessMode": "Bağlantı",
         "gatewayMode": "Ağ geçidi",
-        "gatewayDesc": "Örnek yerel ağ geçidi yalnızca model adını yeniden yazar. Codex’te Flash / Pro görüp değiştirebilirsiniz.",
+        "gatewayDesc": "Yerel ağ geçidi gerekir. OAuth GPT hesabı bağlayıp tüm OAuth yeteneklerini (tarayıcı işlemleri vb.) kullanmanızı, Codex içinde model değiştirmenizi ve görsel üretimini GPT hesaplarına devretmenizi sağlar.",
         "directMode": "Resmi API",
-        "directDesc": "Ağ geçidi yok, resmi API’ye doğrudan. Codex içinde değişmez; her başlangıçta burada seçin.",
+        "directDesc": "Ağ geçidi yok ve daha hızlı. Codex içinde model değiştirilemez, OAuth yetenekleri ve görsel aktarımı yok.",
         "chatOnlyHint": "Chat Completions yalnızca yerel ağ geçidini kullanır. Başlangıç modelini burada seçin.",
         "model": "Başlangıç modeli",
         "confirm": "Başlat",
         "chooseAtStart": "Başlarken",
         "cdpMode": "CDP enjeksiyonu",
-        "cdpDesc": "Ağ geçidi olmadan resmi API. CDP, resmi Codex model listesini alır; Flash / Pro geçidi gibi değiştirilir."
+        "cdpDesc": "Enjeksiyonla resmi Codex model listesini devralır, hız doğrudan modla aynıdır. Resmi istemciye enjeksiyon gerekir; OAuth bağlama desteklenmez.",
+        "context": "Desteklenen bağlam",
+        "imageGen": "GPT görsel üretimi",
+        "imageGenHint": "Yalnızca ağ geçidi modunda. Sohbet yine bu sağlayıcının modelleriyle yürütülür; görsel üretimi özgün gpt-image hattını kullanır, seçilen GPT hesapları tarafından yürütülür ve kotalarını tüketir.",
+        "imageGenPick": "GPT hesabı seç",
+        "imageGenSelected": "{{count}} hesap seçildi",
+        "imageGenEmpty": "Hesap seçilmedi",
+        "imageGenLocked": "Hesap seçmek için işaretleyin",
+        "pickerTitle": "Görsel hesaplarını seç",
+        "pickerEmpty": "Görsel üretebilecek OAuth hesabı yok (Free ve API Key hesapları desteklenmez).",
+        "pickerSelectAll": "Tümünü seç",
+        "pickerClear": "Temizle",
+        "protocol": "Protokol",
+        "accessRoute": "Erişim",
+        "gatewayRequired": "Örnek yerel ağ geçidi",
+        "directUpstream": "Doğrudan üst sağlayıcı",
+        "gatewayHint": "Bu protokol dönüştürme için yerel ağ geçidini gerektirir; ağ geçidi Codex içinde model değiştirmeyi ve görsel aktarımını da sağlar.",
+        "directUpstreamHint": "Bu hesap üst sağlayıcıya doğrudan erişir, bu nedenle görsel aktarımı kullanılamaz."
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "Seçenekleri kaydet",
         "immediateSseResponse": "Anında SSE 200",
         "maxConcurrentImageRequests": "Hesap başına görsel isteği",
+        "maxAccountConcurrency": "Hesap eşzamanlılığı",
+        "accountConcurrencyWait": "Bekleme (sn)",
         "optionsSaved": "Yönlendirme seçenekleri kaydedildi"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "Başlangıç Zamanı",
       "endTime": "Bitiş Zamanı",
       "timeRangeHint": "Arka planda girişi tamamlamak için her gün bu aralıkta rastgele bir zaman seçer.",
-      "timeRangeError": "Başlangıç zamanı bitiş zamanından sonra olamaz"
+      "timeRangeError": "Başlangıç zamanı bitiş zamanından sonra olamaz",
+      "checkinTimeTooltip": "{{time}} saatinde giriş yapıldı",
+      "scheduleTooltip": "{{time}} saatinde planlandı",
+      "scheduleBadge": "Planlandı {{time}}"
     }
   },
   "zcode": {

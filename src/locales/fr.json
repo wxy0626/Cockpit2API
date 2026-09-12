@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Résultats du test",
+    "openBrowser": "Ouvrir dans le navigateur",
     "error": {
       "stateUnavailable": "État de la tâche indisponible. Réessayez.",
       "accountsRequired": "Sélectionnez au moins un compte.",
@@ -77,7 +79,8 @@
     "clearAll": "Tout nettoyer",
     "confirmClearAll": "Nettoyer tous les tests Pelican ?",
     "clearAllHelp": "Tout l’historique des tests et les fichiers générés seront définitivement supprimés. Cette action est irréversible.",
-    "search": "Rechercher un compte"
+    "search": "Rechercher un compte",
+    "viewError": "Voir l’erreur"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "Actualisation terminée, {{count}} compte(s) réussi(s)",
     "refreshAllPartialFailed": "Actualisation terminée, {{success}} / {{total}} compte(s) réussi(s), certains ont échoué",
     "launchPreview": {
+      "accessModeTitle": "Mode de démarrage",
+      "prosLabel": "Avantages :",
+      "consLabel": "Inconvénients :",
+      "accessModeDescription": "Choisissez le mode de démarrage de DeepSeek ; les modes diffèrent sur le changement de modèle, OAuth et la redirection d'images.",
+      "accessModeGatewayPros": "1 : Changer de modèle directement dans Codex\n2 : Lier des comptes OAuth et utiliser les fonctions OAuth comme la compaction distante et le pilotage du navigateur\n3 : Configurer des comptes GPT pour rediriger la génération d'images",
+      "accessModeGatewayCons": "1 : Nécessite la passerelle locale de l'instance, donc un peu plus lent que le direct",
+      "accessModeDirectPros": "1 : Sans passerelle, le plus rapide",
+      "accessModeDirectCons": "1 : Pas de changement de modèle dans Codex, ni liaison OAuth ni redirection d'images",
+      "accessModeCdpPros": "1 : Même vitesse que le direct\n2 : Flash / Pro commutables dans la liste officielle des modèles Codex",
+      "accessModeCdpCons": "1 : Nécessite l'injection du client officiel, sans liaison OAuth ni redirection d'images",
+      "imageGenPickerDesc": "Lorsqu'une demande d'image arrive, elle est redirigée : le modèle de base la traite d'abord, puis le modèle d'image génère le visuel, ce qui consomme une partie du quota des comptes sélectionnés.",
+      "imageGenSwitchTitle": "Uniquement en mode passerelle",
+      "imageGenSwitchDescription": "L'activation de la génération d'images GPT nécessite le mode passerelle. Passer à ce mode et l'activer ?",
+      "imageGenSwitchYes": "Oui",
+      "imageGenSwitchNo": "Non",
+      "imageGenTitle": "Activer la génération d'images GPT",
       "title": "Aperçu du lancement de Codex",
       "description": "Configurez et vérifiez d’abord ; le client ne change qu’après avoir choisi Basculer ou Démarrer.",
       "notApplied": "Pas encore appliqué",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "URL du port API",
       "modelId": "ID du modèle",
       "modelIdPlaceholder": "Sélectionner l'ID du modèle",
-      "imageGenerationModel": { "label": "Modèle d’image", "custom": "Personnalisé", "save": "Enregistrer le modèle", "placeholder": "Saisir un ID de modèle personnalisé", "description": "Utilisé pour /v1/images/generations et /v1/images/edits ; la valeur par défaut est gpt-image-2.5.", "required": "Saisissez un nom de modèle d’image", "tooLong": "Le nom du modèle d’image est trop long", "saveSuccess": "Modèle d’image mis à jour" },
+      "imageGenerationModel": {
+        "label": "Modèle d’image",
+        "custom": "Personnalisé",
+        "save": "Enregistrer le modèle",
+        "placeholder": "Saisir un ID de modèle personnalisé",
+        "description": "Utilisé pour /v1/images/generations et /v1/images/edits ; la valeur par défaut est gpt-image-2.5.",
+        "required": "Saisissez un nom de modèle d’image",
+        "tooLong": "Le nom du modèle d’image est trop long",
+        "saveSuccess": "Modèle d’image mis à jour"
+      },
       "modelIdViewOnly": "Lecture seule",
       "quotaPool": {
         "title": "Pool de quotas",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "Rétablissement demandé pour {{count}} compte(s)",
         "dialog": {
           "title": "Problèmes de comptes",
-      "description": "Chaque compte affiche son modèle, la raison de son indisponibilité et l’action de récupération disponible.",
+          "description": "Chaque compte affiche son modèle, la raison de son indisponibilité et l’action de récupération disponible.",
           "noIssues": "Aucun problème de comptes",
           "unscopedApiKey": "API Key actuelle",
           "poolUnavailable": "Aucun compte disponible dans le pool",
@@ -3460,15 +3488,32 @@
         "hint": "Choisissez le mode et le modèle avant de lancer. Passerelle et CDP permettent de changer Flash / Pro dans la liste officielle Codex ; Direct lance sans passerelle avec le modèle choisi ici.",
         "accessMode": "Connexion",
         "gatewayMode": "Liste passerelle",
-        "gatewayDesc": "La passerelle d’instance ne réécrit que le nom du modèle. Codex peut afficher et changer Flash / Pro.",
+        "gatewayDesc": "Nécessite la passerelle locale. Permet de lier des comptes GPT OAuth et d'utiliser toutes les capacités OAuth (actions du navigateur, etc.), de changer de modèle dans Codex et de confier la génération d'images aux comptes GPT.",
         "directMode": "API officielle",
-        "directDesc": "Sans passerelle, API officielle directe. Pas de changement dans Codex ; choisissez ici à chaque démarrage.",
+        "directDesc": "Sans passerelle, plus rapide. Impossible de changer de modèle dans Codex, et aucune capacité OAuth ni transfert d'images.",
         "chatOnlyHint": "Chat Completions passe uniquement par la passerelle locale. Choisissez le modèle ici.",
         "model": "Modèle",
         "confirm": "Démarrer",
         "chooseAtStart": "Au démarrage",
         "cdpMode": "Injection CDP",
-        "cdpDesc": "API officielle sans passerelle. Le CDP reprend la liste officielle Codex pour changer Flash / Pro comme en mode passerelle."
+        "cdpDesc": "Prend le contrôle de la liste de modèles officielle de Codex par injection, à la même vitesse que le mode direct. Nécessite d'injecter le client officiel ; la liaison OAuth n'est pas prise en charge.",
+        "context": "Contexte pris en charge",
+        "imageGen": "Génération d'images GPT",
+        "imageGenHint": "Uniquement en mode passerelle. Le chat reste traité par les modèles de ce fournisseur ; la génération d'images utilise le pipeline gpt-image d'origine, exécuté par les comptes GPT sélectionnés et consomme leur quota.",
+        "imageGenPick": "Choisir des comptes GPT",
+        "imageGenSelected": "{{count}} compte(s) sélectionné(s)",
+        "imageGenEmpty": "Aucun compte sélectionné",
+        "imageGenLocked": "Cochez pour choisir des comptes",
+        "pickerTitle": "Choisir les comptes d'images",
+        "pickerEmpty": "Aucun compte OAuth ne peut générer d'images (comptes Free et API Key non pris en charge).",
+        "pickerSelectAll": "Tout sélectionner",
+        "pickerClear": "Effacer",
+        "protocol": "Protocole",
+        "accessRoute": "Accès",
+        "gatewayRequired": "Passerelle locale de l'instance",
+        "directUpstream": "Direct vers l'amont",
+        "gatewayHint": "Ce protocole nécessite la passerelle locale pour la conversion, qui permet aussi de changer de modèle dans Codex et d'effectuer le transfert d'images.",
+        "directUpstreamHint": "Ce compte accède directement à l'amont, le transfert d'images n'est donc pas disponible."
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "Enregistrer",
         "immediateSseResponse": "SSE 200 immédiat",
         "maxConcurrentImageRequests": "Requêtes d'images par compte",
+        "maxAccountConcurrency": "Concurrence par compte",
+        "accountConcurrencyWait": "Attente (s)",
         "optionsSaved": "Options de routage enregistrées"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "Heure de début",
       "endTime": "Heure de fin",
       "timeRangeHint": "Sélectionne quotidiennement une heure aléatoire dans cette plage pour effectuer le pointage.",
-      "timeRangeError": "L'heure de début ne peut pas être postérieure à l'heure de fin"
+      "timeRangeError": "L'heure de début ne peut pas être postérieure à l'heure de fin",
+      "checkinTimeTooltip": "Pointé à {{time}}",
+      "scheduleTooltip": "Prévu à {{time}}",
+      "scheduleBadge": "Prévu {{time}}"
     }
   },
   "zcode": {

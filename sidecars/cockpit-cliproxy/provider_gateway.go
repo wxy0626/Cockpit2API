@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 
 	"encoding/json"
 
@@ -26,6 +27,7 @@ import (
 	responsesconverter "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/openai/openai/responses"
 
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
+	cliproxysession "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/session"
 
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
 )
@@ -238,6 +240,9 @@ func (s *relayServer) handleProviderGatewayRequest(c *gin.Context, gateway *prov
 		req.Header.Set("Accept", "text/event-stream")
 	}
 	copyProviderGatewayDiagnosticHeaders(req.Header, c.Request.Header)
+	if isOpenCodeGoGateway(gateway.BaseURL) {
+		applyOpenCodeSessionHeader(req.Header, c.Request.Header, body)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -303,6 +308,35 @@ func (s *relayServer) handleProviderGatewayRequest(c *gin.Context, gateway *prov
 		contentType = "application/json"
 	}
 	c.Data(http.StatusOK, contentType, payload)
+}
+
+func isOpenCodeGoGateway(rawURL string) bool {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	return host == "opencode.ai" || strings.HasSuffix(host, ".opencode.ai")
+}
+
+func applyOpenCodeSessionHeader(dst, src http.Header, payload []byte) {
+	if dst.Get("x-opencode-session") != "" {
+		return
+	}
+	if value := strings.TrimSpace(src.Get("x-opencode-session")); value != "" {
+		dst.Set("x-opencode-session", value)
+		return
+	}
+	if info, ok := cliproxysession.ExtractSessionInfo(src, payload, nil); ok && info.SessionID != "" {
+		dst.Set("x-opencode-session", info.SessionID)
+		return
+	}
+	// A request-scoped opaque fallback is preferable to dropping the required
+	// header. Clients that expose a conversation identity are handled above.
+	var randomID [16]byte
+	if _, err := rand.Read(randomID[:]); err == nil {
+		dst.Set("x-opencode-session", fmt.Sprintf("cockpit-%x", randomID[:]))
+	}
 }
 
 func rewriteProviderGatewayBodyModel(body []byte, model string) []byte {

@@ -589,6 +589,38 @@ fn desktop_login_component_cleanup_removes_only_owned_cache_dirs() {
     }
 
     #[test]
+    fn migrates_legacy_apikey_fun_urls_on_claude_accounts() {
+        let mut account = test_desktop_account(
+            "claude-legacy-apikey",
+            "relay@example.com",
+            None,
+            None,
+            1,
+            1,
+        );
+        account.api_base_url = Some("https://api.apikey.fun".to_string());
+        account.api_provider_website = Some("https://apikey.fun".to_string());
+        account.api_provider_api_key_url =
+            Some("https://apikey.fun/register?aff=cockpit".to_string());
+
+        assert!(migrate_legacy_apikey_fun_urls(&mut account));
+        assert_eq!(
+            account.api_base_url.as_deref(),
+            Some("https://api.apikey.fan")
+        );
+        assert_eq!(
+            account.api_provider_website.as_deref(),
+            Some("https://apikey.fan")
+        );
+        assert_eq!(
+            account.api_provider_api_key_url.as_deref(),
+            Some("https://apikey.fan/register?aff=cockpit")
+        );
+
+        assert!(!migrate_legacy_apikey_fun_urls(&mut account));
+    }
+
+    #[test]
     fn merges_same_desktop_identity_without_touching_non_desktop_accounts() {
         let mut base = test_desktop_account(
             "claude_desktop_old",

@@ -2346,7 +2346,8 @@ fn write_deepseek_official_responses_runtime_to_dir(
 
     doc["model"] = value(selected_model.as_str());
     let _ = doc.remove(CODEX_CONFIG_MODEL_CATALOG_JSON_KEY);
-    doc["model_reasoning_effort"] = value("high");
+    crate::modules::codex_account::apply_deepseek_reasoning_effort(&mut doc);
+    crate::modules::codex_account::apply_deepseek_compaction_fallback(&mut doc, base_dir);
     if doc
         .get("model_reasoning_summary")
         .and_then(|item| item.as_str())

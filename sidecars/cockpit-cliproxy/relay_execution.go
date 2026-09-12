@@ -198,7 +198,11 @@ func (s *relayServer) bodyWithValidatedModel(c *gin.Context, spec *apiKeySpec, b
 		writeAPIError(c, http.StatusBadRequest, err.Error(), "invalid_request")
 		return nil, "", false
 	}
-	nextBody, requestedModel, err := rewriteBodyModel(s.manifest, spec, body)
+	requestKind := ""
+	if c != nil && c.Request != nil && c.Request.URL != nil {
+		requestKind = requestKindFromPath(c.Request.URL.Path)
+	}
+	nextBody, requestedModel, err := rewriteBodyModel(s.manifest, spec, requestKind, body)
 	if requestedModel != "" && c != nil && c.Request != nil {
 		ctx := context.WithValue(c.Request.Context(), requestModelContextKey, requestedModel)
 		c.Request = c.Request.WithContext(ctx)

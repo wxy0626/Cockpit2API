@@ -1,5 +1,7 @@
 {
   "pelican": {
+    "results": "Wyniki testu",
+    "openBrowser": "Otwórz w przeglądarce",
     "error": {
       "stateUnavailable": "Stan zadania jest niedostępny. Spróbuj ponownie.",
       "accountsRequired": "Wybierz co najmniej jedno konto.",
@@ -77,7 +79,8 @@
     "clearAll": "Wyczyść wszystko",
     "confirmClearAll": "Wyczyścić wszystkie testy Pelican?",
     "clearAllHelp": "Cała historia testów i wygenerowane pliki zostaną trwale usunięte. Tej operacji nie można cofnąć.",
-    "search": "Szukaj kont"
+    "search": "Szukaj kont",
+    "viewError": "Pokaż błąd"
   },
   "common": {
     "quotaRefreshScheduler": {
@@ -2198,6 +2201,22 @@
     "refreshAllSuccess": "Odświeżanie zakończone, {{count}} kont(a) pomyślnie",
     "refreshAllPartialFailed": "Odświeżanie zakończone, {{success}} / {{total}} kont pomyślnie, część nieudana",
     "launchPreview": {
+      "accessModeTitle": "Tryb uruchamiania",
+      "prosLabel": "Zalety:",
+      "consLabel": "Wady:",
+      "accessModeDescription": "Wybierz sposób uruchamiania DeepSeek; tryby różnią się zmianą modelu, OAuth i przekazywaniem obrazów.",
+      "accessModeGatewayPros": "1: Zmiana modelu w Codex\n2: Wiązanie kont OAuth i korzystanie z funkcji OAuth, takich jak zdalna kompresja i sterowanie przeglądarką\n3: Konfiguracja kont GPT do przekazywania generowania obrazów",
+      "accessModeGatewayCons": "1: Wymaga lokalnej bramy instancji, więc jest nieco wolniejszy niż bezpośredni",
+      "accessModeDirectPros": "1: Bez bramy, najszybszy wariant",
+      "accessModeDirectCons": "1: Brak zmiany modelu w Codex, brak wiązania OAuth i przekazywania obrazów",
+      "accessModeCdpPros": "1: Prędkość jak przy bezpośrednim\n2: Flash / Pro przełączane na oficjalnej liście modeli Codex",
+      "accessModeCdpCons": "1: Wymaga wstrzyknięcia oficjalnego klienta, brak wiązania OAuth i przekazywania obrazów",
+      "imageGenPickerDesc": "Gdy pojawi się żądanie obrazu, jest przekazywane: najpierw obsługuje je model podstawowy, potem model obrazu generuje obraz, zużywając część limitu wybranych kont.",
+      "imageGenSwitchTitle": "Tylko w trybie bramy",
+      "imageGenSwitchDescription": "Włączenie generowania obrazów GPT wymaga trybu bramy. Przełączyć i włączyć?",
+      "imageGenSwitchYes": "Tak",
+      "imageGenSwitchNo": "Nie",
+      "imageGenTitle": "Włącz generowanie obrazów GPT",
       "title": "Podgląd uruchomienia Codex",
       "description": "Najpierw sprawdź ustawienia; klient zmieni się dopiero po wybraniu przełączenia lub uruchomienia.",
       "notApplied": "Jeszcze nie zastosowano",
@@ -2527,7 +2546,16 @@
       "apiPortUrl": "URL portu API",
       "modelId": "ID modelu",
       "modelIdPlaceholder": "Wybierz ID modelu",
-      "imageGenerationModel": { "label": "Model obrazu", "custom": "Niestandardowy", "save": "Zapisz model", "placeholder": "Wpisz niestandardowe ID modelu", "description": "Używany dla /v1/images/generations i /v1/images/edits; domyślnie gpt-image-2.5.", "required": "Wpisz nazwę modelu obrazu", "tooLong": "Nazwa modelu obrazu jest za długa", "saveSuccess": "Zaktualizowano model obrazu" },
+      "imageGenerationModel": {
+        "label": "Model obrazu",
+        "custom": "Niestandardowy",
+        "save": "Zapisz model",
+        "placeholder": "Wpisz niestandardowe ID modelu",
+        "description": "Używany dla /v1/images/generations i /v1/images/edits; domyślnie gpt-image-2.5.",
+        "required": "Wpisz nazwę modelu obrazu",
+        "tooLong": "Nazwa modelu obrazu jest za długa",
+        "saveSuccess": "Zaktualizowano model obrazu"
+      },
       "modelIdViewOnly": "Tylko podgląd",
       "quotaPool": {
         "title": "Pula limitów",
@@ -2651,7 +2679,7 @@
         "recoverSuccess": "Zażądano przywrócenia {{count}} kont(a)",
         "dialog": {
           "title": "Problemy kont",
-      "description": "Każde konto jest pokazane z modelem, powodem niedostępności i dostępną opcją przywrócenia.",
+          "description": "Każde konto jest pokazane z modelem, powodem niedostępności i dostępną opcją przywrócenia.",
           "noIssues": "Brak problemów z kontami",
           "unscopedApiKey": "Bieżący API Key",
           "poolUnavailable": "Brak dostępnego konta w puli",
@@ -3460,15 +3488,32 @@
         "hint": "Przed startem wybierz połączenie i model. Brama i CDP przełączają Flash / Pro na oficjalnej liście Codex; bezpośrednie łącze startuje bez bramy z modelem wybranym tutaj.",
         "accessMode": "Połączenie",
         "gatewayMode": "Lista bramy",
-        "gatewayDesc": "Lokalna brama instancji tylko przepisuje nazwę modelu. W Codex możesz widzieć i zmieniać Flash / Pro.",
+        "gatewayDesc": "Wymaga lokalnej bramy. Umożliwia powiązanie kont GPT OAuth i korzystanie ze wszystkich możliwości OAuth (obsługa przeglądarki itp.), przełączanie modeli w Codex oraz przekazanie generowania obrazów kontom GPT.",
         "directMode": "Oficjalne API",
-        "directDesc": "Bez bramy, bezpośrednio do oficjalnego API. W Codex nie zmienisz; wybieraj tutaj przy każdym starcie.",
+        "directDesc": "Bez bramy i szybciej. Brak przełączania modeli w Codex oraz możliwości OAuth i przekazywania obrazów.",
         "chatOnlyHint": "Chat Completions korzysta tylko z lokalnej bramy. Wybierz model startowy tutaj.",
         "model": "Model startowy",
         "confirm": "Uruchom",
         "chooseAtStart": "Przy starcie",
         "cdpMode": "Wstrzyknięcie CDP",
-        "cdpDesc": "Oficjalne API bez bramy. CDP przejmuje oficjalną listę modeli Codex, Flash / Pro zmienia się tak jak w bramie."
+        "cdpDesc": "Przejmuje oficjalną listę modeli Codex przez wstrzyknięcie, z prędkością jak w trybie bezpośrednim. Wymaga wstrzyknięcia do oficjalnego klienta; powiązanie OAuth nie jest obsługiwane.",
+        "context": "Obsługiwany kontekst",
+        "imageGen": "Generowanie obrazów GPT",
+        "imageGenHint": "Tylko w trybie bramy. Rozmowa nadal jest obsługiwana przez modele tego dostawcy; generowanie obrazów korzysta z pierwotnego potoku gpt-image, jest wykonywane przez wybrane konta GPT i zużywa ich limit.",
+        "imageGenPick": "Wybierz konta GPT",
+        "imageGenSelected": "Wybrano konta: {{count}}",
+        "imageGenEmpty": "Nie wybrano kont",
+        "imageGenLocked": "Zaznacz, aby wybrać konta",
+        "pickerTitle": "Wybierz konta do obrazów",
+        "pickerEmpty": "Brak kont OAuth mogących generować obrazy (konta Free i API Key nie są obsługiwane).",
+        "pickerSelectAll": "Wybierz wszystko",
+        "pickerClear": "Wyczyść",
+        "protocol": "Protokół",
+        "accessRoute": "Dostęp",
+        "gatewayRequired": "Lokalna brama instancji",
+        "directUpstream": "Bezpośrednio do upstreamu",
+        "gatewayHint": "Ten protokół wymaga lokalnej bramy do konwersji, która umożliwia też przełączanie modeli w Codex i przekazywanie obrazów.",
+        "directUpstreamHint": "To konto łączy się z upstreamem bezpośrednio, więc przekazywanie obrazów nie jest dostępne."
       }
     },
     "modelProviders": {
@@ -4084,6 +4129,8 @@
         "saveOptions": "Zapisz opcje",
         "immediateSseResponse": "Natychmiastowe SSE 200",
         "maxConcurrentImageRequests": "Żądania obrazów na konto",
+        "maxAccountConcurrency": "Współbieżność konta",
+        "accountConcurrencyWait": "Oczekiwanie (s)",
         "optionsSaved": "Opcje routingu zapisane"
       },
       "validation": {
@@ -5614,7 +5661,10 @@
       "startTime": "Czas rozpoczęcia",
       "endTime": "Czas zakończenia",
       "timeRangeHint": "Wybiera codziennie losową godzinę w tym przedziale, aby dokończyć meldowanie w tle.",
-      "timeRangeError": "Czas rozpoczęcia nie może być późniejszy niż czas zakończenia"
+      "timeRangeError": "Czas rozpoczęcia nie może być późniejszy niż czas zakończenia",
+      "checkinTimeTooltip": "Zameldowano o {{time}}",
+      "scheduleTooltip": "Zaplanowano na {{time}}",
+      "scheduleBadge": "Zaplanowano {{time}}"
     }
   },
   "zcode": {

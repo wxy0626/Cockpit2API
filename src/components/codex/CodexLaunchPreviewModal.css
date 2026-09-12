@@ -1112,3 +1112,177 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 启动方式 / 启用 GPT 生图 行 */
+.codex-launch-preview-tool-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.codex-launch-preview-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.codex-launch-preview-checkbox input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: 0;
+  border: 2px solid color-mix(in srgb, var(--text-muted) 72%, transparent);
+  border-radius: 5px;
+  background: var(--bg-tertiary);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.codex-launch-preview-checkbox input[type="checkbox"]:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 58%, transparent);
+}
+
+.codex-launch-preview-checkbox input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.codex-launch-preview-checkbox input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 2px 4px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.codex-launch-preview-checkbox input[type="checkbox"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.codex-launch-preview-checkbox:has(input[type="checkbox"]:disabled) {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.codex-launch-preview-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.codex-launch-preview-dropdown-trigger > svg {
+  color: var(--primary);
+}
+
+.codex-launch-preview-mode-modal {
+  width: min(620px, calc(100vw - 40px));
+  max-width: 620px;
+  border-color: var(--border-light);
+  box-shadow: 0 28px 72px rgb(15 23 42 / 34%);
+}
+
+.codex-launch-preview-mode-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 22px 22px;
+  overflow-y: auto;
+}
+
+.codex-launch-preview-mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.codex-launch-preview-mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-card, var(--bg-surface));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.codex-launch-preview-mode-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border-light));
+}
+
+.codex-launch-preview-mode-card.active {
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--border-light));
+  background: color-mix(
+    in srgb,
+    var(--primary) 7%,
+    var(--bg-card, var(--bg-surface))
+  );
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.codex-launch-preview-mode-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--primary);
+}
+
+.codex-launch-preview-mode-card-title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.codex-launch-preview-mode-card-pros {
+  color: color-mix(in srgb, var(--success, #22c55e) 78%, var(--text-primary));
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.codex-launch-preview-mode-card-cons {
+  color: color-mix(in srgb, #f59e0b 78%, var(--text-primary));
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.codex-launch-preview-mode-card-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.codex-launch-preview-mode-card-label {
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: 0.01em;
+}
+
+.codex-launch-preview-mode-card-label.is-pros {
+  color: var(--success, #22c55e);
+}
+
+.codex-launch-preview-mode-card-label.is-cons {
+  color: #f59e0b;
+}

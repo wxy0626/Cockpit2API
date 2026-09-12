@@ -604,6 +604,9 @@ fn sidecar_api_key_manifest_values(collection: &CodexLocalAccessCollection) -> V
             "providerGateway": item.provider_gateway.clone(),
             "modelRouting": item.model_routing.clone(),
             "boundOAuth": bound_oauth,
+            "imageGenerationAccountIds": normalize_account_id_list(
+                collection.image_generation_account_ids.clone(),
+            ),
             "responsesWebsockets": collection.responses_websockets_enabled
                 && item.provider_gateway.is_none()
                 && item.model_routing.is_none(),
@@ -765,6 +768,12 @@ fn effective_api_key_account_ids(
 fn effective_sidecar_account_ids(collection: &CodexLocalAccessCollection) -> Vec<String> {
     let mut account_ids = collection.account_ids.clone();
     let mut seen: HashSet<String> = account_ids.iter().cloned().collect();
+    // 生图转发账号不参与对话路由，但必须进入 sidecar 账号清单才能拿到凭据。
+    for account_id in &collection.image_generation_account_ids {
+        if seen.insert(account_id.clone()) {
+            account_ids.push(account_id.clone());
+        }
+    }
     for api_key in &collection.api_keys {
         for account_id in &api_key.account_ids {
             if seen.insert(account_id.clone()) {
@@ -2146,6 +2155,8 @@ fn prepare_sidecar_launch_config_in_dir_sync(
         "debugLogs": collection.debug_logs,
         "immediateSseResponse": collection.immediate_sse_response,
         "maxConcurrentImageRequests": collection.max_concurrent_image_requests,
+        "maxAccountConcurrency": collection.max_account_concurrency,
+        "accountConcurrencyWaitMs": collection.account_concurrency_wait_ms,
     });
 
     let mut config = Map::new();
@@ -2243,7 +2254,7 @@ fn prepare_sidecar_launch_config_in_dir_sync(
             json!({ "codex": collection.excluded_models.clone() }),
         );
     }
-    if !collection.model_aliases.is_empty() {
+    if !collection.model_aliases.is_empty() && !collection.suppress_oauth_model_alias {
         config.insert(
             "oauth-model-alias".to_string(),
             json!({ "codex": sidecar_model_alias_values(collection) }),
