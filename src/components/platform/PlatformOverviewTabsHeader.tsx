@@ -216,7 +216,7 @@ export function PlatformOverviewTabsHeader({
     },
     providers: {
       key: 'providers',
-      label: t('codex.modelProviders.tab', '模型供应商'),
+      label: platform === 'workbuddy' ? 'API 网关' : t('codex.modelProviders.tab', '模型供应商'),
       icon: <Server className="tab-icon" />,
     },
   };
@@ -258,3 +258,4 @@ export function PlatformOverviewTabsHeader({
     </>
   );
 }
+

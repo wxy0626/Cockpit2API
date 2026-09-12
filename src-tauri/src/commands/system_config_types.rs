@@ -154,6 +154,12 @@ pub struct GeneralConfig {
     pub app_auto_launch_enabled: bool,
     /// 是否启用后台账号授权保活
     pub token_keeper_enabled: bool,
+    /// 是否启用 WorkBuddy 自动旅行服务
+    pub workbuddy_auto_travel_enabled: bool,
+    /// 是否启用 WorkBuddy wb2api 自动保活网关
+    pub workbuddy_auto_keepalive_enabled: bool,
+    /// WorkBuddy 自动保活间隔（天）
+    pub workbuddy_auto_keepalive_days: i64,
     /// 是否启用本机账号变更后自动导入
     pub auto_import_from_local_enabled: bool,
     /// 是否在应用启动后触发 Antigravity IDE 唤醒
@@ -1166,6 +1172,9 @@ fn is_general_config_patch_field(key: &str) -> bool {
             | "floating_card_always_on_top"
             | "app_auto_launch_enabled"
             | "token_keeper_enabled"
+            | "workbuddy_auto_travel_enabled"
+            | "workbuddy_auto_keepalive_enabled"
+            | "workbuddy_auto_keepalive_days"
             | "auto_import_from_local_enabled"
             | "antigravity_startup_wakeup_enabled"
             | "antigravity_startup_wakeup_delay_seconds"
@@ -1328,6 +1337,10 @@ fn apply_general_config_updates(
         next.menu_bar_quota_platform = modules::tray::PlatformId::from_str(platform)
             .map(|value| value.as_str().to_string())
             .unwrap_or_else(|| "codex".to_string());
+    }
+    if updates.contains_key("workbuddy_auto_keepalive_days") {
+        // 保活间隔限制在 1~365 天，避免误填 0 或超大值
+        next.workbuddy_auto_keepalive_days = next.workbuddy_auto_keepalive_days.clamp(1, 365);
     }
     if updates.contains_key("webdav_allowed_domains") {
         next.webdav_allowed_domains = next

@@ -261,10 +261,19 @@
   transform: translateY(-2px);
 }
 
+/* 当前登录账号卡片：绿色加粗边框（1px 边框 + 1px 外圈等效 2px，不引起布局位移） */
 .ghcp-account-card.current {
-  border-color: var(--primary);
+  border-color: var(--success);
   box-shadow:
-    0 0 0 2px var(--primary-light),
+    0 0 0 1px var(--success),
+    var(--shadow-md);
+}
+
+/* 当前账号同时被勾选时仍保持绿色边框，避免被 selected 样式覆盖 */
+.ghcp-account-card.current.selected {
+  border-color: var(--success);
+  box-shadow:
+    0 0 0 1px var(--success),
     var(--shadow-md);
 }
 
@@ -3303,7 +3312,8 @@ html[data-reduced-motion="true"] .ghcp-accounts-page .ghcp-accounts-grid .ghcp-a
 }
 
 html[data-reduced-motion="true"] .ghcp-accounts-page .ghcp-accounts-grid .ghcp-account-card.current {
-  box-shadow: 0 0 0 2px var(--primary-light);
+  border-color: var(--success);
+  box-shadow: 0 0 0 1px var(--success);
 }
 
 html[data-reduced-motion="true"] .ghcp-accounts-page .ghcp-accounts-grid .ghcp-account-card.selected {

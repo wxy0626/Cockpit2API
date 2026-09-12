@@ -11,6 +11,8 @@ use crate::modules::account;
 use crate::modules::atomic_write::write_string_atomic;
 
 const UI_PREFERENCES_FILE: &str = "ui_preferences.json";
+/// 平台布局在偏好文件中的键名（load 兜底迁移与修订号保护共用）
+const PLATFORM_LAYOUT_KEY: &str = "agtools.platform_layout.v1";
 
 static PREFERENCES_LOCK: Mutex<()> = Mutex::new(());
 
@@ -47,7 +49,35 @@ pub fn load_ui_preferences() -> Result<UiPreferences, String> {
     let _guard = PREFERENCES_LOCK
         .try_lock()
         .map_err(|_| "界面偏好正在读写，请重试".to_string())?;
-    read_preferences_from_path(&preferences_path()?)
+    let mut preferences = read_preferences_from_path(&preferences_path()?);
+    if let Ok(prefs) = preferences.as_mut() {
+        // 兼容迁移：老版本把平台布局存在 config.json 的 platform_layout_config，
+        // 重构后布局改存 ui_preferences.json。老用户升级后偏好文件里还没有布局键，
+        // 这里把旧数据原样透传给前端水合，避免用户定制布局被重置为默认列表。
+        // 只读不落盘：前端水合确认后会按新修订号正式写入偏好文件。
+        if !prefs.values.contains_key(PLATFORM_LAYOUT_KEY) {
+            if let Some(legacy) = legacy_platform_layout_value() {
+                prefs
+                    .values
+                    .insert(PLATFORM_LAYOUT_KEY.to_string(), legacy);
+            }
+        }
+    }
+    preferences
+}
+
+/// 从 config.json 读取旧版平台布局数据（重构前存储位置，现为兼容遗留键）。
+/// 不存在、解析失败或内容为空时返回 None，均不视为错误。
+fn legacy_platform_layout_value() -> Option<String> {
+    let path = crate::modules::config::get_user_config_path().ok()?;
+    let raw = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let legacy = value.get("platform_layout_config")?;
+    match legacy {
+        serde_json::Value::Null => None,
+        serde_json::Value::Object(map) if map.is_empty() => None,
+        _ => Some(legacy.to_string()),
+    }
 }
 
 fn apply_values(preferences: &mut UiPreferences, values: BTreeMap<String, String>) -> bool {
@@ -65,7 +95,7 @@ fn check_layout_revision(
     preferences: &UiPreferences,
     values: &BTreeMap<String, String>,
 ) -> Result<(), String> {
-    const KEY: &str = "agtools.platform_layout.v1";
+    const KEY: &str = PLATFORM_LAYOUT_KEY;
     let revision = |raw: Option<&String>| -> u64 {
         raw.and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
             .and_then(|value| {

@@ -64,6 +64,11 @@ pub struct WorkbuddyAccount {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkin_rewards: Option<serde_json::Value>,
 
+    // 自动保活相关字段
+    /// 上次自动保活（强制刷新 Token）时间，毫秒时间戳
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_keepalive_at: Option<i64>,
+
     pub created_at: i64,
     pub last_used: i64,
 

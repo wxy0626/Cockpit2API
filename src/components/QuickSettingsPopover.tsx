@@ -12,6 +12,7 @@ import {
   Zap,
   X,
   EyeOff,
+  PlaneTakeoff,
 } from 'lucide-react';
 import { useEscClose } from '../hooks/useEscClose';
 import * as accountService from '../services/accountService';
@@ -102,6 +103,10 @@ interface GeneralConfig {
   trae_cn_auto_refresh_minutes: number;
   trae_solo_cn_auto_refresh_minutes: number;
   workbuddy_auto_refresh_minutes: number;
+  workbuddy_auto_travel_enabled?: boolean;
+  workbuddy_auto_keepalive_enabled?: boolean;
+  /** WorkBuddy 自动保活间隔（天），默认 5 */
+  workbuddy_auto_keepalive_days?: number;
   zed_auto_refresh_minutes: number;
   close_behavior: string;
   minimize_behavior?: 'dock_and_tray' | 'tray_only';
@@ -2563,6 +2568,73 @@ export function QuickSettingsPopover({ type }: QuickSettingsPopoverProps) {
 
             {type === 'workbuddy' && (
               <div className="qs-section">
+                <div className="qs-row qs-row--top">
+                  <div className="qs-row-label">
+                    <PlaneTakeoff size={15} />
+                    <span>自动旅行</span>
+                  </div>
+                  <div className="qs-row-control">
+                    <label className="qs-switch">
+                      <input
+                        type="checkbox"
+                        checked={config.workbuddy_auto_travel_enabled ?? true}
+                        onChange={(event) => saveConfig({ workbuddy_auto_travel_enabled: event.target.checked })}
+                      />
+                      <span className="qs-switch-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div className="qs-hint">自动为账号派发派猫猫旅行并领取到达奖励，每 30 分钟检查一轮。</div>
+                <div className="qs-row qs-row--top">
+                  <div className="qs-row-label">
+                    <Zap size={15} />
+                    <span>自动保活</span>
+                  </div>
+                  <div className="qs-row-control">
+                    <label className="qs-switch">
+                      <input
+                        type="checkbox"
+                        checked={config.workbuddy_auto_keepalive_enabled ?? true}
+                        onChange={(event) => saveConfig({ workbuddy_auto_keepalive_enabled: event.target.checked })}
+                      />
+                      <span className="qs-switch-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div className="qs-hint">启动 wb2api 网关，并每隔设定天数自动刷新账号 Token，防止长期未用导致会话失效。</div>
+                {(config.workbuddy_auto_keepalive_enabled ?? true) && (
+                  <>
+                    <div className="qs-row qs-row--top">
+                      <div className="qs-row-label">
+                        <RefreshCw size={15} />
+                        <span>保活间隔</span>
+                      </div>
+                      <div className="qs-row-control">
+                        <div className="qs-inline-input">
+                          <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            className="qs-select qs-select--input-mode qs-select--with-unit"
+                            value={config.workbuddy_auto_keepalive_days ?? 5}
+                            onChange={(e) => {
+                              const days = Math.floor(Number(e.target.value));
+                              if (!Number.isNaN(days) && days >= 1) {
+                                saveConfig({ workbuddy_auto_keepalive_days: days });
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const days = Math.min(365, Math.max(1, Math.floor(Number(e.target.value) || 5)));
+                              saveConfig({ workbuddy_auto_keepalive_days: days });
+                            }}
+                          />
+                          <span className="qs-input-unit">天</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="qs-hint">每隔该天数强制刷新一次全部账号 Token（默认 5 天）。</div>
+                  </>
+                )}
                 <div className="qs-row qs-row--top">
                   <div className="qs-row-label">
                     <Zap size={15} />

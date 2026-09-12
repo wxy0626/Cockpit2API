@@ -206,6 +206,15 @@ pub struct UserConfig {
     /// 是否启用后台账号授权保活
     #[serde(default = "default_token_keeper_enabled")]
     pub token_keeper_enabled: bool,
+    /// 是否启用 WorkBuddy 自动旅行服务
+    #[serde(default = "default_workbuddy_auto_travel_enabled")]
+    pub workbuddy_auto_travel_enabled: bool,
+    /// 是否启用 WorkBuddy wb2api 自动保活网关
+    #[serde(default = "default_workbuddy_auto_keepalive_enabled")]
+    pub workbuddy_auto_keepalive_enabled: bool,
+    /// WorkBuddy 自动保活间隔（天）：每隔 N 天强制刷新一次账号 Token
+    #[serde(default = "default_workbuddy_auto_keepalive_days")]
+    pub workbuddy_auto_keepalive_days: i64,
     /// 是否启用本机账号变更后自动导入
     #[serde(default = "default_auto_import_from_local_enabled")]
     pub auto_import_from_local_enabled: bool,
@@ -844,6 +853,16 @@ fn default_app_auto_launch_enabled() -> bool {
 fn default_token_keeper_enabled() -> bool {
     true
 }
+fn default_workbuddy_auto_travel_enabled() -> bool {
+    true
+}
+fn default_workbuddy_auto_keepalive_enabled() -> bool {
+    true
+}
+/// WorkBuddy 自动保活间隔默认 5 天
+fn default_workbuddy_auto_keepalive_days() -> i64 {
+    5
+}
 fn default_auto_import_from_local_enabled() -> bool {
     false
 }
@@ -1221,6 +1240,9 @@ impl Default for UserConfig {
             floating_card_always_on_top: default_floating_card_always_on_top(),
             app_auto_launch_enabled: default_app_auto_launch_enabled(),
             token_keeper_enabled: default_token_keeper_enabled(),
+            workbuddy_auto_travel_enabled: default_workbuddy_auto_travel_enabled(),
+            workbuddy_auto_keepalive_enabled: default_workbuddy_auto_keepalive_enabled(),
+            workbuddy_auto_keepalive_days: default_workbuddy_auto_keepalive_days(),
             auto_import_from_local_enabled: default_auto_import_from_local_enabled(),
             antigravity_startup_wakeup_enabled: default_antigravity_startup_wakeup_enabled(),
             antigravity_startup_wakeup_delay_seconds:
@@ -1803,6 +1825,24 @@ pub fn load_user_config() -> Result<UserConfig, String> {
             obj.insert(
                 "token_keeper_enabled".to_string(),
                 json!(default_token_keeper_enabled()),
+            );
+        }
+        if !obj.contains_key("workbuddy_auto_travel_enabled") {
+            obj.insert(
+                "workbuddy_auto_travel_enabled".to_string(),
+                json!(default_workbuddy_auto_travel_enabled()),
+            );
+        }
+        if !obj.contains_key("workbuddy_auto_keepalive_enabled") {
+            obj.insert(
+                "workbuddy_auto_keepalive_enabled".to_string(),
+                json!(default_workbuddy_auto_keepalive_enabled()),
+            );
+        }
+        if !obj.contains_key("workbuddy_auto_keepalive_days") {
+            obj.insert(
+                "workbuddy_auto_keepalive_days".to_string(),
+                json!(default_workbuddy_auto_keepalive_days()),
             );
         }
         if !obj.contains_key("auto_import_from_local_enabled") {

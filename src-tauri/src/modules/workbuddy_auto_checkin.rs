@@ -513,6 +513,16 @@ pub async fn run_workbuddy_auto_checkin_cycle_if_needed(
         {
             Ok(status) if status.today_checked_in => {
                 already_checked_count += 1;
+                // 官方确认今日已签到：把签到时间/连签同步落盘，
+                // 否则账号卡片会一直显示「未签到」（签到可能发生在官网或其他工具）。
+                let streak = i32::try_from(status.streak_days)
+                    .unwrap_or_else(|_| account.checkin_streak.unwrap_or(0));
+                let _ = workbuddy_account::update_checkin_info(
+                    &account.id,
+                    Some(Local::now().timestamp()),
+                    streak,
+                    account.checkin_rewards.clone(),
+                );
                 details.push(WorkbuddyAutoCheckinAccountDetail {
                     account_id: account.id.clone(),
                     email: email_display,
@@ -822,6 +832,7 @@ mod tests {
                 quota_query_last_error_at: None,
                 usage_updated_at: None,
                 last_checkin_time: None,
+                last_keepalive_at: None,
                 checkin_streak: None,
                 checkin_rewards: None,
                 created_at: 0,
@@ -856,6 +867,7 @@ mod tests {
                 quota_query_last_error_at: None,
                 usage_updated_at: None,
                 last_checkin_time: None,
+                last_keepalive_at: None,
                 checkin_streak: None,
                 checkin_rewards: None,
                 created_at: 0,

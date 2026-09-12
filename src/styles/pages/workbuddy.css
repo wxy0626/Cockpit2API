@@ -229,3 +229,22 @@
     grid-template-columns: 1fr;
   }
 }
+.workbuddy-api-gateway-panel{padding:28px 32px;color:var(--text-primary);max-width:1080px}.workbuddy-api-gateway-panel header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}.workbuddy-api-gateway-panel h2{font-size:28px;margin:0}.wb-status{font-size:12px;background:#075e54;color:#56e0b0;border-radius:16px;padding:6px 10px;vertical-align:middle}.wb-gateway-card{background:var(--surface-secondary);border:1px solid var(--border-subtle);border-radius:14px;padding:0 22px}.wb-row{display:flex;align-items:center;gap:16px;padding:18px 0;border-bottom:1px solid var(--border-subtle)}.wb-row strong{width:90px}.wb-row code{flex:1;color:var(--text-secondary);font-size:14px}.wb-row button,.workbuddy-api-gateway-panel header button{display:flex;align-items:center;gap:6px;background:var(--surface-tertiary);border:0;color:var(--text-primary);padding:9px 12px;border-radius:8px;cursor:pointer}.wb-meta{display:flex;justify-content:space-between;padding:18px 0;color:var(--text-secondary)}.wb-meta b{color:#f5c451}.wb-chat{display:flex;gap:10px;padding:18px 0}.wb-chat input{background:var(--surface-tertiary);border:1px solid var(--border-subtle);color:var(--text-primary);padding:11px;border-radius:9px;flex:1}.wb-chat button{display:flex;align-items:center;gap:6px;background:#00c48c;color:#041b16;border:0;border-radius:9px;padding:0 18px;font-weight:600}.wb-result{white-space:pre-wrap;padding:12px;background:var(--surface-tertiary);border-radius:8px}
+
+/* 账号卡片上的签到/旅行状态徽标（第二行布局 card-badge-row 内，位于套餐等级标签左侧）：
+   is-on=绿（可签到/可旅行） is-blue=蓝（旅行中） is-off=灰（已签到/旅行结束） */
+.wb-card-status{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;flex-shrink:0;white-space:nowrap}.wb-card-status.is-on{background:rgba(0,196,140,.16);color:#18d6a0}.wb-card-status.is-blue{background:rgba(59,130,246,.16);color:#3b82f6}.wb-card-status.is-off{background:var(--surface-tertiary);color:var(--text-secondary)}
+
+/* 卡片头部两行布局：账户名+套餐标签独占首行（card-top），签到/旅行徽标在第二行
+   左对齐、紧贴首行（小间距），避免徽标过多挤压截断账户名；下方配额区随文档流自然下移 */
+.ghcp-account-card .card-badge-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:4px}
+.ghcp-account-card .card-badge-row:empty{display:none}
+
+/* 自定义模型下拉（ModelSelect）：自绘弹层替代原生 select，保证深浅主题下选项均清晰可读 */
+.wb-model-select{position:relative;width:220px;flex-shrink:0}
+.wb-model-trigger{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;background:var(--surface-tertiary);border:1px solid var(--border-subtle);color:var(--text-primary);padding:10px 12px;border-radius:9px;cursor:pointer;font-size:13px}
+.wb-model-trigger:hover{border-color:var(--border)}
+.wb-model-list{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;max-height:300px;overflow-y:auto;margin:0;padding:6px;list-style:none;background:var(--surface-secondary);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.35)}
+.wb-model-option{display:block;width:100%;text-align:left;background:transparent;border:0;color:var(--text-primary);padding:9px 10px;border-radius:7px;cursor:pointer;font-size:13px;line-height:1.4}
+.wb-model-option:hover{background:var(--surface-tertiary)}
+.wb-model-option.is-active{background:var(--primary);color:#fff}

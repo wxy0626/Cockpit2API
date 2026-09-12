@@ -1705,6 +1705,424 @@ pub async fn perform_checkin(
     })
 }
 
+// ==================== 派猫猫旅行状态查询 ====================
+// 参照 wb-switch-app：GET /activity/growth/buddy/travel/status。
+// 官方以 data.state（idle/traveling/arrived）+ data.daily_limit_reached 表达旅行进度。
+// 展示三态（tone 决定徽标颜色）：可旅行=绿（含旅行完成后的空闲）/ 旅行中=蓝（traveling
+// 与 arrived 都算在路上，领奖前不算完）/ 旅行结束=灰（今天不能再旅行）。
+
+/// 旅行状态响应：state 为上游原始状态，label 为卡片短文案，tone 为徽标颜色色调
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TravelStatusResponse {
+    // 原始状态：idle / traveling / arrived
+    pub state: String,
+    // 卡片短标签：可旅行 / 旅行中 / 旅行结束
+    pub label: String,
+    // 徽标颜色色调：green=可旅行 / blue=旅行中 / gray=旅行结束
+    pub tone: String,
+    // 今日旅行次数已达上限（idle + true 即「旅行结束」）
+    pub daily_limit_reached: bool,
+    // 当前/最近一次旅行的地点名
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location_name: Option<String>,
+    // 预计或已获得的奖励积分（原样透传，可能为数字或字符串）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reward_credit: Option<Value>,
+    // 预计到达时间（秒级时间戳，0 表示未知）
+    pub arrive_at: i64,
+    // 行程记录 ID（arrived 状态领取奖励时需要）
+    pub record_id: i64,
+}
+
+impl TravelStatusResponse {
+    /// 按 state + daily_limit_reached 推导展示标签（与官网文案对齐，保持简短）。
+    /// 「可旅行」即当前无行程且今天还能派——也涵盖上一趟已完成；
+    /// 「旅行中」涵盖 traveling 与 arrived（奖励领取前行程未闭环）。
+    pub fn travel_label(state: &str, daily_limit_reached: bool) -> &'static str {
+        match state {
+            "traveling" | "arrived" => "旅行中",
+            "idle" if daily_limit_reached => "旅行结束",
+            _ => "可旅行",
+        }
+    }
+
+    /// 与 travel_label 配套的徽标色调：green=可旅行 / blue=旅行中 / gray=旅行结束
+    pub fn travel_tone(state: &str, daily_limit_reached: bool) -> &'static str {
+        match state {
+            "traveling" | "arrived" => "blue",
+            "idle" if daily_limit_reached => "gray",
+            _ => "green",
+        }
+    }
+}
+
+/// 为旅行接口请求附加公共头（鉴权 + 旅行活动专用头）。
+/// 只负责挂头，不决定 HTTP 方法与 URL，便于 GET / POST 复用。
+fn apply_travel_headers(
+    req: reqwest::RequestBuilder,
+    access_token: &str,
+    uid: Option<&str>,
+    enterprise_id: Option<&str>,
+    domain: Option<&str>,
+) -> reqwest::RequestBuilder {
+    let mut req = req
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Accept", "application/json")
+        .header("x-client-platform", "web")
+        .header("Origin", CODEBUDDY_API_ENDPOINT)
+        .header(
+            "Referer",
+            format!("{}/profile/growth-center", CODEBUDDY_API_ENDPOINT),
+        );
+    if let Some(u) = uid {
+        req = req.header("X-User-Id", u);
+    }
+    if let Some(eid) = enterprise_id {
+        req = req.header("X-Enterprise-Id", eid);
+        req = req.header("X-Tenant-Id", eid);
+    }
+    if let Some(d) = domain {
+        req = req.header("X-Domain", d);
+    }
+    req
+}
+
+/// 组装旅行接口 GET 请求（状态查询 / 配置读取）
+fn build_travel_request(
+    client: &reqwest::Client,
+    url: &str,
+    access_token: &str,
+    uid: Option<&str>,
+    enterprise_id: Option<&str>,
+    domain: Option<&str>,
+) -> reqwest::RequestBuilder {
+    apply_travel_headers(
+        client.get(url),
+        access_token,
+        uid,
+        enterprise_id,
+        domain,
+    )
+}
+
+/// 组装旅行接口 POST 请求（派发 / 领奖）。
+///
+/// 注意：reqwest 的 `RequestBuilder` **没有** `.method()` 设置器，HTTP 方法只能在
+/// 创建时通过 `client.post(...)` 决定；且 `.json()` 只写 body 与 Content-Type，
+/// 不会把 GET 改写为 POST。此处必须用 `client.post(url)`，
+/// 否则会以 GET 携带 JSON body 发出，上游只注册 POST 路由 → 返回纯文本
+/// `404 page not found`，进而表现为 `error decoding response body`。
+#[allow(clippy::too_many_arguments)]
+fn build_travel_request_post(
+    client: &reqwest::Client,
+    url: &str,
+    body: Value,
+    access_token: &str,
+    uid: Option<&str>,
+    enterprise_id: Option<&str>,
+    domain: Option<&str>,
+) -> reqwest::RequestBuilder {
+    apply_travel_headers(
+        client.post(url),
+        access_token,
+        uid,
+        enterprise_id,
+        domain,
+    )
+    .header("Content-Type", "application/json")
+    .json(&body)
+}
+
+/// 查询某账号的派猫猫旅行状态（上游官方接口）
+pub async fn get_travel_status(
+    access_token: &str,
+    uid: Option<&str>,
+    enterprise_id: Option<&str>,
+    domain: Option<&str>,
+) -> Result<TravelStatusResponse, String> {
+    let client = build_client()?;
+    let url = format!(
+        "{}/activity/growth/buddy/travel/status",
+        CODEBUDDY_API_ENDPOINT
+    );
+    let req = build_travel_request(&client, &url, access_token, uid, enterprise_id, domain);
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("请求旅行状态失败: {}", e))?;
+    let status_code = resp.status();
+    // 先读原始文本再解析，解析失败时保留真实响应内容供诊断
+    let raw_text = resp
+        .text()
+        .await
+        .map_err(|e| format!("请求旅行状态失败: 读取响应正文失败: {}", e))?;
+    let body: Value = serde_json::from_str(&raw_text).map_err(|e| {
+        logger::log_warn(&format!(
+            "[WorkBuddyTravel] 解析旅行状态响应失败: {} | http={} | body前500字={}",
+            e,
+            status_code.as_u16(),
+            truncate_for_log(&raw_text, 500)
+        ));
+        format!("解析旅行状态响应失败: {}", e)
+    })?;
+
+    if !status_code.is_success() {
+        let message = body
+            .get("message")
+            .or_else(|| body.get("msg"))
+            .and_then(Value::as_str)
+            .unwrap_or("unknown error");
+        return Err(format!(
+            "请求旅行状态失败 (http={}): {}",
+            status_code.as_u16(),
+            message
+        ));
+    }
+
+    // 与官方一致：仅 code === 0 视为成功
+    let code = body.get("code").and_then(Value::as_i64).unwrap_or(-1);
+    if code != 0 {
+        let message = body
+            .get("message")
+            .or_else(|| body.get("msg"))
+            .and_then(Value::as_str)
+            .unwrap_or("unknown error");
+        return Err(format!("请求旅行状态失败 (code={}): {}", code, message));
+    }
+
+    let data = body
+        .get("data")
+        .ok_or_else(|| "旅行状态响应缺少 data 字段".to_string())?;
+
+    // 缺 state / 未知 state 视为查询失败，避免被误判成「未旅行」
+    let raw_state = data
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    if !matches!(raw_state.as_str(), "idle" | "traveling" | "arrived") {
+        return Err(format!("未知的旅行状态: {}", raw_state));
+    }
+
+    let daily_limit_reached =
+        json_bool(data, "daily_limit_reached", "dailyLimitReached").unwrap_or(false);
+    let location_name = data
+        .pointer("/location/name")
+        .or_else(|| data.pointer("/locationName"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .filter(|s| !s.trim().is_empty());
+    let reward_credit = data
+        .get("reward_credit")
+        .or_else(|| data.get("rewardCredit"))
+        .cloned()
+        .filter(|v| !v.is_null());
+    // arrive_at 兼容秒/毫秒时间戳，统一转为秒
+    let arrive_at = json_i64(data, "arrive_at", "arriveAt").unwrap_or(0);
+    let arrive_at = if arrive_at > 1_000_000_000_000 {
+        arrive_at / 1000
+    } else {
+        arrive_at
+    };
+
+    Ok(TravelStatusResponse {
+        // 先算 label/tone（借用 raw_state），再移动 raw_state 进 state 字段
+        label: TravelStatusResponse::travel_label(&raw_state, daily_limit_reached).to_string(),
+        tone: TravelStatusResponse::travel_tone(&raw_state, daily_limit_reached).to_string(),
+        state: raw_state,
+        daily_limit_reached,
+        location_name,
+        reward_credit,
+        arrive_at,
+        record_id: json_i64(data, "record_id", "recordId").unwrap_or(0),
+    })
+}
+
+/// 旅行地点：{ id, name }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TravelLocation {
+    pub id: Value,
+    pub name: String,
+}
+
+/// 判断错误是否为 token 失效类（401/403/登录/失效/过期），需要刷新 token 后重试
+pub fn is_token_error(err: &str) -> bool {
+    let lower = err.to_lowercase();
+    lower.contains("401")
+        || lower.contains("403")
+        || lower.contains("unauthorized")
+        || lower.contains("登录")
+        || lower.contains("失效")
+        || lower.contains("过期")
+        || lower.contains("token")
+}
+
+/// 读取旅行配置（可选地点列表）。地点为空或接口不可用视为无地点可派。
+pub async fn get_travel_config(
+    access_token: &str,
+    uid: Option<&str>,
+    enterprise_id: Option<&str>,
+    domain: Option<&str>,
+) -> Result<Vec<TravelLocation>, String> {
+    let client = build_client()?;
+    let url = format!(
+        "{}/activity/growth/buddy/travel/config",
+        CODEBUDDY_API_ENDPOINT
+    );
+    let req = build_travel_request(&client, &url, access_token, uid, enterprise_id, domain);
+    let body = send_travel_request(req, "请求旅行配置失败").await?;
+    let data = body.get("data").ok_or_else(|| "旅行配置响应缺少 data 字段".to_string())?;
+    let mut locations = Vec::new();
+    if let Some(list) = data.get("locations").and_then(Value::as_array) {
+        for item in list {
+            let name = item
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let id = item.get("id").cloned().unwrap_or(Value::Null);
+            if id.is_null() || name.trim().is_empty() {
+                continue;
+            }
+            locations.push(TravelLocation { id, name });
+        }
+    }
+    Ok(locations)
+}
+
+/// 派猫猫旅行（depart）。成功返回上游 state（通常 traveling）。
+pub async fn depart_travel(
+    access_token: &str,
+    uid: Option<&str>,
+    enterprise_id: Option<&str>,
+    domain: Option<&str>,
+    location_id: &Value,
+) -> Result<String, String> {
+    let client = build_client()?;
+    let url = format!(
+        "{}/activity/growth/buddy/travel/depart",
+        CODEBUDDY_API_ENDPOINT
+    );
+    let req = build_travel_request_post(
+        &client,
+        &url,
+        json!({ "location_id": location_id }),
+        access_token,
+        uid,
+        enterprise_id,
+        domain,
+    );
+    let body = send_travel_request(req, "派发旅行失败").await?;
+    let data = body.get("data").cloned().unwrap_or_else(|| json!({}));
+    Ok(data
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("traveling")
+        .to_string())
+}
+
+/// 领取旅行奖励（arrived 时调用）。成功返回奖励积分（可能为空）。
+pub async fn claim_travel(
+    access_token: &str,
+    uid: Option<&str>,
+    enterprise_id: Option<&str>,
+    domain: Option<&str>,
+    record_id: i64,
+) -> Result<Option<Value>, String> {
+    let client = build_client()?;
+    let url = format!(
+        "{}/activity/growth/buddy/travel/claim",
+        CODEBUDDY_API_ENDPOINT
+    );
+    let payload = if record_id > 0 {
+        json!({ "record_id": record_id })
+    } else {
+        json!({})
+    };
+    let req = build_travel_request_post(
+        &client,
+        &url,
+        payload,
+        access_token,
+        uid,
+        enterprise_id,
+        domain,
+    );
+    let body = send_travel_request(req, "领取旅行奖励失败").await?;
+    let data = body.get("data").cloned().unwrap_or_else(|| json!({}));
+    let reward = data
+        .get("reward_credit")
+        .or_else(|| data.get("rewardCredit"))
+        .cloned()
+        .filter(|v| !v.is_null());
+    Ok(reward)
+}
+
+/// 截断字符串用于日志输出（避免超长响应体污染日志文件）
+fn truncate_for_log(text: &str, max_chars: usize) -> String {
+    let trimmed = text.trim();
+    if trimmed.chars().count() <= max_chars {
+        return trimmed.to_string();
+    }
+    let head: String = trimmed.chars().take(max_chars).collect();
+    format!("{}...（共 {} 字，已截断）", head, trimmed.chars().count())
+}
+
+/// 发送旅行接口请求并做统一的 code==0 校验，返回完整响应 JSON。
+///
+/// 解析采用「先读原始文本、再手动 parse」而非 `resp.json()`：
+/// 前者在解析失败时能把真实响应体写进日志，便于定位上游契约变更
+/// （`resp.json()` 只会抛出 `error decoding response body`，原始内容被丢弃）。
+async fn send_travel_request(req: reqwest::RequestBuilder, err_prefix: &str) -> Result<Value, String> {
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("{}: {}", err_prefix, e))?;
+    let status_code = resp.status();
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    // 读取原始响应文本（诊断用：解析失败时可把真实内容打出来）
+    let raw_text = resp
+        .text()
+        .await
+        .map_err(|e| format!("{}: 读取响应正文失败: {}", err_prefix, e))?;
+    let body: Value = serde_json::from_str(&raw_text).map_err(|e| {
+        logger::log_warn(&format!(
+            "{}: 解析响应正文失败: {} | http={} | content_type={} | body前500字={}",
+            err_prefix,
+            e,
+            status_code.as_u16(),
+            content_type,
+            truncate_for_log(&raw_text, 500)
+        ));
+        format!("解析旅行接口响应失败: {}", e)
+    })?;
+    if !status_code.is_success() {
+        let message = body
+            .get("message")
+            .or_else(|| body.get("msg"))
+            .and_then(Value::as_str)
+            .unwrap_or("unknown error");
+        return Err(format!("{} (http={}): {}", err_prefix, status_code.as_u16(), message));
+    }
+    let code = body.get("code").and_then(Value::as_i64).unwrap_or(-1);
+    if code != 0 {
+        let message = body
+            .get("message")
+            .or_else(|| body.get("msg"))
+            .and_then(Value::as_str)
+            .unwrap_or("unknown error");
+        return Err(format!("{} (code={}): {}", err_prefix, code, message));
+    }
+    Ok(body)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1712,6 +2130,39 @@ mod tests {
     #[test]
     fn billing_client_uses_required_user_agent() {
         assert!(CODEBUDDY_HTTP_USER_AGENT.starts_with("Mozilla/5.0"));
+    }
+
+    /// 回归测试：旅行 POST 接口必须真的以 POST 发出。
+    /// 历史 bug —— `build_travel_request_post` 复用了内部写死 `client.get()` 的构造器，
+    /// 而 reqwest 的 `.json()` 不会把 GET 改写为 POST，导致服务端返回纯文本
+    /// `404 page not found`，前端只看到 `error decoding response body`。
+    #[test]
+    fn travel_post_endpoints_really_use_post_method() {
+        let client = reqwest::Client::new();
+        for path in ["/travel/depart", "/travel/claim"] {
+            let url = format!("{}{}", CODEBUDDY_API_ENDPOINT, path);
+            let req = build_travel_request_post(&client, &url, json!({"location_id": 1}), "t", None, None, None)
+                .build()
+                .expect("构建旅行 POST 请求应成功");
+            assert_eq!(
+                req.method(),
+                reqwest::Method::POST,
+                "{} 必须使用 POST 方法",
+                path
+            );
+        }
+    }
+
+    /// 回归测试：旅行 GET 接口（状态/配置）保持 GET，不带 body。
+    #[test]
+    fn travel_get_endpoints_stay_get() {
+        let client = reqwest::Client::new();
+        let url = format!("{}/activity/growth/buddy/travel/status", CODEBUDDY_API_ENDPOINT);
+        let req = build_travel_request(&client, &url, "t", None, None, None)
+            .build()
+            .expect("构建旅行 GET 请求应成功");
+        assert_eq!(req.method(), reqwest::Method::GET);
+        assert!(req.body().is_none(), "GET 请求不应携带 body");
     }
 
     #[test]

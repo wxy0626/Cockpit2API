@@ -114,8 +114,14 @@ export function hydrateUiPreferences(): Promise<void> {
       const edited = pending !== pendingBefore || readLocal() !== localBefore || pendingBefore != null;
       // Legacy conflicts have no timestamp evidence. Preserve the user's
       // existing WebView layout and establish a revision on the first migration.
-      const chosen = edited && usableLocal != null ? usableLocal :
-        raw != null && (usableLocal == null || revision(raw) > revision(usableLocal)) ? raw : usableLocal;
+      // 修订号证据保护：本地从未与后端同步过（修订号为 0）而后端存有带修订号的
+      // 用户数据时，一律以后端为准。否则应用启动水合完成前的任何写入（例如组件
+      // 在默认布局上触发的保存）都会被当作"用户编辑"，用默认列表覆盖后端布局。
+      const localSynced = usableLocal != null && revision(usableLocal) > 0;
+      const backendHasData = raw != null && revision(raw) > 0;
+      const chosen =
+        edited && usableLocal != null && (localSynced || !backendHasData) ? usableLocal :
+          raw != null && (usableLocal == null || revision(raw) > revision(usableLocal)) ? raw : usableLocal;
       if (chosen != null) {
         const next = chosen !== raw && (revision(chosen) === 0 || (edited && revision(chosen) <= revision(raw)))
           ? withRevision(chosen) : chosen;

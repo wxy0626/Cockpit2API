@@ -48,3 +48,12 @@ rsa = "0.9"
 serde_urlencoded = "0.7"
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
 junction = "2.0"
+
+[profile.release]
+# 构建提速（关键项）：release 默认关闭增量编译。开启后，前端 dist 变化触发
+# tauri-build 重跑时，src-tauri 大部分 CGU（代码生成单元）可复用缓存，
+# 只有嵌入了新资源的模块重编，显著缩短「纯前端改动后的构建」耗时。
+incremental = true
+# 剥离符号表：显著减小 exe 体积（86MB 起），链接写入更快，分发更小。
+# 代价：release 崩溃时拿不到符号名（日常使用无影响）。
+strip = "symbols"

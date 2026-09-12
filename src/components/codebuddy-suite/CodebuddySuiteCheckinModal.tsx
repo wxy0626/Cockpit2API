@@ -34,8 +34,13 @@ import { WorkbuddyAutoCheckinConfigModal } from './WorkbuddyAutoCheckinConfigMod
 import {
   getWorkbuddyAutoCheckinConfig,
   getWorkbuddyAutoCheckinConfigAsync,
+  getWorkbuddyAutoCheckinLogsAsync,
   saveWorkbuddyAutoCheckinConfigAsync,
+  getLocalTodayStr,
+  formatMinuteOfDay,
+  formatTodayTimestamp,
   WORKBUDDY_AUTO_CHECKIN_CONFIG_CHANGED_EVENT,
+  WORKBUDDY_AUTO_CHECKIN_LOGS_CHANGED_EVENT,
   WorkbuddyAutoCheckinConfig,
 } from '../../services/workbuddyAutoCheckinService';
 
@@ -130,6 +135,51 @@ export function CodebuddySuiteCheckinModal<TAccount extends CodebuddySuiteAccoun
       disposed = true;
       unlisten?.();
       window.removeEventListener(WORKBUDDY_AUTO_CHECKIN_CONFIG_CHANGED_EVENT, handleConfigChange);
+    };
+  }, []);
+
+  // 今日自动签到执行时间表：accountId → "HH:mm:ss"（用于已签到状态的悬停提示）
+  const [autoCheckinLogTimes, setAutoCheckinLogTimes] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const load = () => {
+      void getWorkbuddyAutoCheckinLogsAsync()
+        .then((logs) => {
+          if (disposed) {
+            return;
+          }
+          const today = getLocalTodayStr();
+          const todayLog = logs.find((record) => record.date === today);
+          const times: Record<string, string> = {};
+          for (const detail of todayLog?.details ?? []) {
+            if (
+              detail.time &&
+              (detail.status === 'success' || detail.status === 'already_checked')
+            ) {
+              times[detail.accountId] = detail.time;
+            }
+          }
+          setAutoCheckinLogTimes(times);
+        })
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener(WORKBUDDY_AUTO_CHECKIN_LOGS_CHANGED_EVENT, load);
+    listen(WORKBUDDY_AUTO_CHECKIN_LOGS_CHANGED_EVENT, load)
+      .then((stop) => {
+        if (disposed) {
+          stop();
+        } else {
+          unlisten = stop;
+        }
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      unlisten?.();
+      window.removeEventListener(WORKBUDDY_AUTO_CHECKIN_LOGS_CHANGED_EVENT, load);
     };
   }, []);
 
@@ -339,6 +389,8 @@ export function CodebuddySuiteCheckinModal<TAccount extends CodebuddySuiteAccoun
     (s) => s.uiState === 'inactive',
   ).length;
   const platformLabel = 'WorkBuddy';
+  // 当天日期：判断排期是否属于今天
+  const todayStr = getLocalTodayStr();
 
   return (
     <div className="modal-overlay">
@@ -467,6 +519,23 @@ export function CodebuddySuiteCheckinModal<TAccount extends CodebuddySuiteAccoun
                 // 仅 active 状态展示连续/奖励信息（与官方一致）
                 const showMeta = !!state?.status?.active;
 
+                // 排期信息：仅自动签到开启且该账号今天的排期已生成时展示
+                const accountSchedule = autoCheckinConfig.enabled
+                  ? autoCheckinConfig.accountSchedules?.[account.id]
+                  : undefined;
+                const scheduleToday =
+                  accountSchedule && accountSchedule.scheduledDate === todayStr
+                    ? accountSchedule
+                    : undefined;
+                const scheduledTimeText = scheduleToday
+                  ? formatMinuteOfDay(scheduleToday.scheduledMinute)
+                  : undefined;
+                // 签到时间：优先今日自动签到日志（精确到秒），其次账号最近一次签到落盘时间
+                const manualCheckinTime = formatTodayTimestamp(
+                  (account as { last_checkin_time?: number | null }).last_checkin_time,
+                );
+                const checkinTimeText = autoCheckinLogTimes[account.id] ?? manualCheckinTime;
+
                 return (
                   <div
                     key={account.id}
@@ -491,12 +560,30 @@ export function CodebuddySuiteCheckinModal<TAccount extends CodebuddySuiteAccoun
                           {t('workbuddy.checkin.queryFailed', '状态查询失败')}
                         </span>
                       ) : isClaimed ? (
-                        <span className="checkin-status-yes">
+                        <span
+                          className="checkin-status-yes"
+                          title={
+                            checkinTimeText
+                              ? t('workbuddy.checkin.checkinTimeTooltip', '签到：{{time}}', {
+                                  time: checkinTimeText,
+                                })
+                              : undefined
+                          }
+                        >
                           <CheckCircle size={16} />
                           {t('workbuddy.checkin.checkedIn', '已签到')}
                         </span>
                       ) : isAvailable ? (
-                        <span className="checkin-status-no">
+                        <span
+                          className="checkin-status-no"
+                          title={
+                            scheduledTimeText
+                              ? t('workbuddy.checkin.scheduleTooltip', '排期：{{time}}', {
+                                  time: scheduledTimeText,
+                                })
+                              : undefined
+                          }
+                        >
                           <XCircle size={16} />
                           {t('workbuddy.checkin.notCheckedIn', '未签到')}
                         </span>
@@ -504,6 +591,21 @@ export function CodebuddySuiteCheckinModal<TAccount extends CodebuddySuiteAccoun
                         <span className="checkin-status-unknown">
                           <Ban size={16} />
                           {t('workbuddy.checkin.inactive', '不可用')}
+                        </span>
+                      )}
+
+                      {/* 待签到且今日排期已生成：列表内直接展示排期时间 */}
+                      {isAvailable && scheduledTimeText && (
+                        <span
+                          className="checkin-schedule-badge"
+                          title={t('workbuddy.checkin.scheduleTooltip', '排期：{{time}}', {
+                            time: scheduledTimeText,
+                          })}
+                        >
+                          <Clock size={12} />
+                          {t('workbuddy.checkin.scheduleBadge', '排期 {{time}}', {
+                            time: scheduledTimeText,
+                          })}
                         </span>
                       )}
 

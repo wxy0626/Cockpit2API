@@ -70,6 +70,23 @@ test('edits during hydrate are never overwritten', async () => {
   assert.equal(local['agtools.platform_layout.v1'], edited);
 });
 
+test('default layout written before hydrate cannot erase a revised durable layout', async () => {
+  const durable = JSON.stringify({ orderedPlatformIds: ['codex'], _layoutUpdatedAt: 500 });
+  // 模拟新 WebView 水合完成前，某个组件把默认布局（无修订号）写进了本地缓存
+  const defaults = JSON.stringify({ orderedPlatformIds: ['claude_manager', 'codex'] });
+  const { local, durable: durableStore, writes } = setup(
+    {},
+    { 'agtools.platform_layout.v1': durable },
+    { editDuringLoad: defaults },
+  );
+  const mod = await loadFresh();
+  await mod.hydrateUiPreferences();
+  // 后端带修订号的用户数据必须胜出，默认列表不允许覆盖它
+  assert.equal(JSON.parse(local['agtools.platform_layout.v1']).orderedPlatformIds[0], 'codex');
+  assert.equal(JSON.parse(durableStore['agtools.platform_layout.v1'])._layoutUpdatedAt, 500);
+  assert.equal(writes.length, 0);
+});
+
 test('load failure leaves local cache and unknown durable file intact', async () => {
   const localValue = JSON.stringify({ orderedPlatformIds: ['grok'] });
   const { local, writes } = setup({ 'agtools.platform_layout.v1': localValue }, {}, { failLoad: true });

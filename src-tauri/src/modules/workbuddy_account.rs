@@ -696,6 +696,7 @@ pub fn upsert_account(payload: WorkbuddyOAuthCompletePayload) -> Result<Workbudd
         last_checkin_time: None,
         checkin_streak: None,
         checkin_rewards: None,
+        last_keepalive_at: None,
         created_at,
         last_used: now,
         web_session_enabled: None,
@@ -941,6 +942,7 @@ fn upsert_account_record_from_payload(
         last_checkin_time: None,
         checkin_streak: None,
         checkin_rewards: None,
+        last_keepalive_at: None,
         created_at: now,
         last_used: now,
         web_session_enabled: None,
@@ -1879,6 +1881,17 @@ pub fn update_checkin_info(
     ));
 
     Ok(updated)
+}
+
+/// 更新账号上次自动保活时间（毫秒时间戳），供按天保活间隔判断使用
+pub fn update_last_keepalive_at(
+    account_id: &str,
+    timestamp_ms: i64,
+) -> Result<WorkbuddyAccount, String> {
+    let mut account = load_account(account_id).ok_or_else(|| "账号不存在".to_string())?;
+    account.last_keepalive_at = Some(timestamp_ms);
+    save_account_file(&account)?;
+    Ok(account)
 }
 
 #[cfg(test)]

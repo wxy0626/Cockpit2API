@@ -1,5 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 
+/**
+ * WorkBuddy 自动签到服务（前端封装层）。
+ * 调度与执行全部在 Rust 后端（workbuddy_auto_checkin.rs），
+ * 本文件只负责配置读写、日志读取与手动触发，不再包含任何前端调度逻辑。
+ */
+
 export interface WorkbuddyAccountScheduleState {
   scheduledDate: string;        // "YYYY-MM-DD"
   scheduledMinute: number;      // Minutes from midnight (0..1439)
@@ -23,11 +29,10 @@ export const DEFAULT_WORKBUDDY_AUTO_CHECKIN_CONFIG: WorkbuddyAutoCheckinConfig =
 const CONFIG_KEY = 'agtools.workbuddy.auto_checkin_config';
 const LEGACY_LOGS_KEY = 'agtools.workbuddy.auto_checkin_logs';
 export const WORKBUDDY_AUTO_CHECKIN_CONFIG_CHANGED_EVENT = 'workbuddy-auto-checkin-config-changed';
-const AUTO_CHECKIN_RETRY_DELAY_MS = 5 * 60 * 1000;
-const AUTO_CHECKIN_IDLE_RECHECK_DELAY_MS = 60 * 60 * 1000;
 
 export type WorkbuddyAutoCheckinCycleResult = 'disabled' | 'waiting' | 'completed' | 'retry';
 
+/** 清理旧版本遗留在 WebView localStorage 中的自动签到日志缓存 */
 export function clearLegacyWorkbuddyAutoCheckinLogs(): void {
   if (typeof window === 'undefined') {
     return;
@@ -49,6 +54,7 @@ function isValidTime(time: unknown): time is string {
   return typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
 }
 
+/** 更新内存缓存并写入 localStorage（可选派发配置变更事件） */
 function cacheConfigLocally(config: WorkbuddyAutoCheckinConfig, emitChange = false): void {
   cachedConfig = config;
   if (typeof window === 'undefined') {
@@ -64,6 +70,7 @@ function cacheConfigLocally(config: WorkbuddyAutoCheckinConfig, emitChange = fal
   }
 }
 
+/** 从 Rust 后端读取自动签到配置，失败时回退到本地缓存或默认值 */
 export async function getWorkbuddyAutoCheckinConfigAsync(): Promise<WorkbuddyAutoCheckinConfig> {
   try {
     const config = await invoke<WorkbuddyAutoCheckinConfig>('get_workbuddy_auto_checkin_config');
@@ -75,6 +82,7 @@ export async function getWorkbuddyAutoCheckinConfigAsync(): Promise<WorkbuddyAut
   }
 }
 
+/** 同步读取配置：优先内存缓存，其次 localStorage，最后默认值 */
 export function getWorkbuddyAutoCheckinConfig(): WorkbuddyAutoCheckinConfig {
   if (cachedConfig) {
     return cachedConfig;
@@ -102,6 +110,7 @@ export function getWorkbuddyAutoCheckinConfig(): WorkbuddyAutoCheckinConfig {
   }
 }
 
+/** 一次性迁移：把旧版 localStorage 配置交给 Rust 后端托管 */
 export async function migrateWorkbuddyAutoCheckinConfigAsync(
   legacyConfig: WorkbuddyAutoCheckinConfig,
 ): Promise<WorkbuddyAutoCheckinConfig> {
@@ -113,6 +122,7 @@ export async function migrateWorkbuddyAutoCheckinConfigAsync(
   return config;
 }
 
+/** 保存配置到 Rust 后端（并同步本地缓存与变更事件） */
 export async function saveWorkbuddyAutoCheckinConfigAsync(config: WorkbuddyAutoCheckinConfig): Promise<void> {
   if (typeof window === 'undefined') {
     cacheConfigLocally(config);
@@ -122,12 +132,7 @@ export async function saveWorkbuddyAutoCheckinConfigAsync(config: WorkbuddyAutoC
   cacheConfigLocally(config, true);
 }
 
-export function saveWorkbuddyAutoCheckinConfig(config: WorkbuddyAutoCheckinConfig): void {
-  void saveWorkbuddyAutoCheckinConfigAsync(config).catch((err) => {
-    console.warn('[WorkbuddyAutoCheckin] 保存配置到 Rust 后端失败:', err);
-  });
-}
-
+/** 时间字符串转分钟数（"06:30" → 390），供设置弹窗校验使用 */
 export function parseTimeToMinutes(timeStr: string): number {
   const parts = timeStr.split(':').map(Number);
   const h = parts[0] ?? 0;
@@ -135,121 +140,34 @@ export function parseTimeToMinutes(timeStr: string): number {
   return h * 60 + m;
 }
 
-export function formatMinutesToTime(minutes: number): string {
-  const h = Math.floor(minutes / 60) % 24;
-  const m = minutes % 60;
+/** 本地日期字符串（YYYY-MM-DD），用于判断排期/签到时间是否属于今天 */
+export function getLocalTodayStr(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/** 分钟数（0..1439）转 "HH:mm"（如 551 → "09:11"） */
+export function formatMinuteOfDay(minute: number): string {
+  const h = Math.floor(minute / 60) % 24;
+  const m = minute % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-export function getTodayDateString(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
-export function formatTimeOnly(date: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
-
-export function ensureAccountSchedules(
-  config: WorkbuddyAutoCheckinConfig,
-  accounts: Array<{ id: string; email?: string }>,
-): WorkbuddyAutoCheckinConfig {
-  const todayStr = getTodayDateString();
-  const startMin = parseTimeToMinutes(config.startTime);
-  let endMin = parseTimeToMinutes(config.endTime);
-  if (endMin < startMin) {
-    endMin = startMin;
+/** Unix 秒时间戳转 "HH:mm:ss"，仅当属于今天时返回（旧时间不展示） */
+export function formatTodayTimestamp(ts?: number | null): string | undefined {
+  if (!ts || ts <= 0) {
+    return undefined;
   }
-  const minRange = Math.max(0, endMin - startMin);
-
-  const existingSchedules = config.accountSchedules || {};
-  let changed = false;
-  const updatedSchedules: Record<string, WorkbuddyAccountScheduleState> = { ...existingSchedules };
-
-  for (const account of accounts) {
-    const existing = existingSchedules[account.id];
-    if (
-      existing &&
-      existing.scheduledDate === todayStr &&
-      existing.scheduledMinute >= startMin &&
-      existing.scheduledMinute <= endMin
-    ) {
-      continue;
-    }
-
-    const randomOffset = minRange > 0 ? Math.floor(Math.random() * (minRange + 1)) : 0;
-    const scheduledMinute = startMin + randomOffset;
-
-    updatedSchedules[account.id] = {
-      scheduledDate: todayStr,
-      scheduledMinute,
-      lastCheckedDate: existing?.lastCheckedDate === todayStr ? todayStr : undefined,
-    };
-    changed = true;
+  const date = new Date(ts * 1000);
+  if (date.toDateString() !== new Date().toDateString()) {
+    return undefined;
   }
-
-  if (changed) {
-    const updatedConfig: WorkbuddyAutoCheckinConfig = {
-      ...config,
-      accountSchedules: updatedSchedules,
-    };
-    saveWorkbuddyAutoCheckinConfig(updatedConfig);
-    return updatedConfig;
-  }
-
-  return config;
-}
-
-function getMillisecondsUntilNextLocalDay(now: Date): number {
-  const nextDay = new Date(now);
-  nextDay.setHours(24, 0, 1, 0);
-  return Math.max(1_000, nextDay.getTime() - now.getTime());
-}
-
-export function getWorkbuddyAutoCheckinNextDelayMs(
-  result?: WorkbuddyAutoCheckinCycleResult,
-  accounts: Array<{ id: string }> = [],
-): number {
-  const config = getWorkbuddyAutoCheckinConfig();
-  if (!config.enabled) {
-    return AUTO_CHECKIN_IDLE_RECHECK_DELAY_MS;
-  }
-
-  if (result === 'retry') {
-    return AUTO_CHECKIN_RETRY_DELAY_MS;
-  }
-
-  const now = new Date();
-  const todayStr = getTodayDateString();
-  const updatedConfig = ensureAccountSchedules(config, accounts);
-  const schedules = updatedConfig.accountSchedules || {};
-
-  const currentMinute = now.getHours() * 60 + now.getMinutes();
-  let nextScheduledMinute: number | null = null;
-
-  for (const accId of Object.keys(schedules)) {
-    const sch = schedules[accId];
-    if (!sch) continue;
-    if (sch.lastCheckedDate !== todayStr) {
-      if (nextScheduledMinute === null || sch.scheduledMinute < nextScheduledMinute) {
-        nextScheduledMinute = sch.scheduledMinute;
-      }
-    }
-  }
-
-  if (nextScheduledMinute === null) {
-    return getMillisecondsUntilNextLocalDay(now);
-  }
-
-  if (currentMinute >= nextScheduledMinute) {
-    return 1000;
-  }
-
-  const scheduledAt = new Date(now);
-  scheduledAt.setHours(Math.floor(nextScheduledMinute / 60), nextScheduledMinute % 60, 0, 0);
-  return Math.max(1_000, scheduledAt.getTime() - now.getTime());
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  const s = String(date.getSeconds()).padStart(2, '0');
+  return `${h}:${m}:${s}`;
 }
 
 export interface WorkbuddyAutoCheckinAccountDetail {
@@ -276,21 +194,17 @@ export interface WorkbuddyAutoCheckinLogRecord {
 
 export const WORKBUDDY_AUTO_CHECKIN_LOGS_CHANGED_EVENT = 'workbuddy-auto-checkin-logs-changed';
 
+/** 读取近 30 天自动签到记录（数据源在 Rust 后端） */
 export async function getWorkbuddyAutoCheckinLogsAsync(): Promise<WorkbuddyAutoCheckinLogRecord[]> {
   return await invoke<WorkbuddyAutoCheckinLogRecord[]>('get_workbuddy_auto_checkin_logs');
 }
 
+/** 清空自动签到记录 */
 export async function clearWorkbuddyAutoCheckinLogs(): Promise<void> {
   await invoke('clear_workbuddy_auto_checkin_logs');
 }
 
-export function formatFormattedTimestamp(date: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
-
+/** 手动触发一次自动签到流程（force=true 时忽略当日已签限制） */
 export async function runWorkbuddyAutoCheckinCycleIfNeeded(
   force = false,
 ): Promise<WorkbuddyAutoCheckinCycleResult> {

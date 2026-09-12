@@ -170,6 +170,14 @@ export interface CodebuddySuiteAccountsPlatformConfig<
   usagePrefix: string;
   quotaPrefix: string;
   tableUsageClassName: string;
+  /** 卡片头部额外状态徽标（如 wb2api 签到/旅行状态），渲染在套餐等级标签左侧 */
+  renderCardStatusBadges?: (account: TAccount) => ReactNode;
+  /**
+   * 卡片头部两行布局：账户名独占首行，状态徽标 + 套餐标签整体移到
+   * 账户名下方的独立一行，避免徽标过多时挤压截断账户名。
+   * 未开启时保持原状（徽标与账户名同行）。
+   */
+  cardBadgesOnSecondRow?: boolean;
   oauthProviderControl?: ReactNode;
   showMfaQuickCode?: boolean;
   CheckinModal?: ComponentType<CheckinModalProps<TAccount>>;
@@ -509,6 +517,8 @@ export function CodebuddySuiteAccountsSharedView<
           groups={groups}
           formatNumber={formatLocalizedQuotaNumber}
           formatDateTime={formatQuotaDateTime}
+          updatedAtMs={getAccountQuotaUpdatedAtMs(account)}
+          accountLabel={maskAccountText(platformConfig.getDisplayEmail(account))}
         />
       );
     },
@@ -695,11 +705,8 @@ export function CodebuddySuiteAccountsSharedView<
             >
               {maskAccountText(displayEmail)}
             </span>
-            {isCurrent && (
-              <span className="current-tag">
-                {t("accounts.status.current", "当前")}
-              </span>
-            )}
+            {!platformConfig.cardBadgesOnSecondRow &&
+              platformConfig.renderCardStatusBadges?.(account)}
             <span
               className={`tier-badge ${tierBadgeClass}`}
               title={planBadgeTitle}
@@ -707,6 +714,11 @@ export function CodebuddySuiteAccountsSharedView<
               {planBadge}
             </span>
           </div>
+          {platformConfig.cardBadgesOnSecondRow && (
+            <div className="card-badge-row">
+              {platformConfig.renderCardStatusBadges?.(account)}
+            </div>
+          )}
           {accountTags.length > 0 && (
             <div className="card-tags">
               {visibleTags.map((tag, idx) => (

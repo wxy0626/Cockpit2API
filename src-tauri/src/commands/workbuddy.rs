@@ -375,6 +375,114 @@ pub async fn get_checkin_status_workbuddy(
     .await
 }
 
+/// 账号卡片实时状态（签到 + 旅行），供卡片徽标按账号展示与刷新联动
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WorkbuddyAccountLiveStatus {
+    // 今日是否已签到（实时查询结果）
+    checked_in: bool,
+    // 签到状态是否查询成功（失败时前端回退本地 last_checkin_time）
+    checked_in_ok: bool,
+    // 旅行状态（查询失败时为 None，前端按「未旅行」兜底）
+    travel: Option<codebuddy_cn_oauth::TravelStatusResponse>,
+}
+
+/// 判断错误是否为 token 失效类（401/403/登录/失效/过期），需要刷新 token 后重试
+fn is_workbuddy_token_error(err: &str) -> bool {
+    codebuddy_cn_oauth::is_token_error(err)
+}
+
+/// 刷新一次账号 token（失败时返回 None，调用方沿用旧 token 继续查询）
+async fn refresh_workbuddy_token_or_keep(account_id: &str) -> Option<WorkbuddyAccount> {
+    match workbuddy_account::refresh_account_token(account_id).await {
+        Ok(fresh) => Some(fresh),
+        Err(e) => {
+            logger::log_warn(&format!(
+                "[WorkBuddy LiveStatus] 刷新 token 失败，沿用旧 token：account_id={}, error={}",
+                account_id, e
+            ));
+            None
+        }
+    }
+}
+
+/// 按账号查询实时状态（签到 + 旅行）；确认已签到时同步落盘 last_checkin_time，
+/// 这样无论签到动作发生在本工具、官网还是其他工具，卡片都能显示正确状态。
+#[tauri::command]
+pub async fn get_workbuddy_account_live_status(
+    account_id: String,
+) -> Result<WorkbuddyAccountLiveStatus, String> {
+    let account = workbuddy_account::load_account(&account_id)
+        .ok_or_else(|| format!("账号不存在: {}", account_id))?;
+
+    // 查询签到状态；token 失效时刷新一次并重试
+    let mut account = account;
+    let mut checked = codebuddy_cn_oauth::get_checkin_status(
+        &account.access_token,
+        account.uid.as_deref(),
+        account.enterprise_id.as_deref(),
+        account.domain.as_deref(),
+    )
+    .await;
+    if let Err(err) = &checked {
+        if is_workbuddy_token_error(err) {
+            if let Some(fresh) = refresh_workbuddy_token_or_keep(&account_id).await {
+                checked = codebuddy_cn_oauth::get_checkin_status(
+                    &fresh.access_token,
+                    fresh.uid.as_deref(),
+                    fresh.enterprise_id.as_deref(),
+                    fresh.domain.as_deref(),
+                )
+                .await;
+                account = fresh;
+            }
+        }
+    }
+
+    // 查询旅行状态（复用上面可能已刷新的 token，失败不再单独重试）
+    let travel = codebuddy_cn_oauth::get_travel_status(
+        &account.access_token,
+        account.uid.as_deref(),
+        account.enterprise_id.as_deref(),
+        account.domain.as_deref(),
+    )
+    .await;
+    if let Err(err) = &travel {
+        logger::log_warn(&format!(
+            "[WorkBuddy LiveStatus] 查询旅行状态失败：account_id={}, error={}",
+            account_id, err
+        ));
+    }
+
+    // 实时确认已签到 → 同步落盘，保证本地账号库与官方状态一致
+    let mut checked_in = false;
+    let mut checked_in_ok = false;
+    if let Ok(status) = &checked {
+        checked_in_ok = true;
+        checked_in = status.today_checked_in;
+        if status.today_checked_in {
+            let streak = i32::try_from(status.streak_days)
+                .unwrap_or_else(|_| account.checkin_streak.unwrap_or(0));
+            let _ = workbuddy_account::update_checkin_info(
+                &account_id,
+                Some(chrono::Local::now().timestamp()),
+                streak,
+                account.checkin_rewards.clone(),
+            );
+        }
+    } else if let Err(err) = &checked {
+        logger::log_warn(&format!(
+            "[WorkBuddy LiveStatus] 查询签到状态失败：account_id={}, error={}",
+            account_id, err
+        ));
+    }
+
+    Ok(WorkbuddyAccountLiveStatus {
+        checked_in,
+        checked_in_ok,
+        travel: travel.ok(),
+    })
+}
+
 #[tauri::command]
 pub async fn checkin_workbuddy(
     app: AppHandle,

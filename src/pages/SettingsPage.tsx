@@ -161,6 +161,7 @@ interface GeneralConfig {
   floating_card_always_on_top?: boolean;
   app_auto_launch_enabled?: boolean;
   token_keeper_enabled?: boolean;
+  workbuddy_auto_keepalive_enabled?: boolean;
   auto_import_from_local_enabled?: boolean;
   opencode_app_path: string;
   antigravity_app_path: string;
@@ -554,6 +555,7 @@ export function useSettingsPageController() {
   const [floatingCardAlwaysOnTop, setFloatingCardAlwaysOnTop] = useState(false);
   const [appAutoLaunchEnabled, setAppAutoLaunchEnabled] = useState(false);
   const [tokenKeeperEnabled, setTokenKeeperEnabled] = useState(true);
+  const [workbuddyAutoKeepaliveEnabled, setWorkbuddyAutoKeepaliveEnabled] = useState(true);
   const [autoImportFromLocalEnabled, setAutoImportFromLocalEnabled] = useState(false);
   const [autoImportScanStatus, setAutoImportScanStatus] = useState('');
   const [autoImportScanBusy, setAutoImportScanBusy] = useState(false);
@@ -1107,6 +1109,7 @@ export function useSettingsPageController() {
       floating_card_always_on_top: floatingCardAlwaysOnTop,
       app_auto_launch_enabled: appAutoLaunchEnabled,
       token_keeper_enabled: tokenKeeperEnabled,
+      workbuddy_auto_keepalive_enabled: workbuddyAutoKeepaliveEnabled,
       auto_import_from_local_enabled: autoImportFromLocalEnabled,
       opencode_app_path: opencodeAppPath,
       antigravity_app_path: antigravityAppPath,
@@ -1336,6 +1339,7 @@ export function useSettingsPageController() {
     floatingCardAlwaysOnTop,
     appAutoLaunchEnabled,
     tokenKeeperEnabled,
+    workbuddyAutoKeepaliveEnabled,
     autoImportFromLocalEnabled,
     generalLoaded,
     generalConfigHydrationRevision,
@@ -1694,6 +1698,7 @@ export function useSettingsPageController() {
       setFloatingCardAlwaysOnTop(config.floating_card_always_on_top ?? false);
       setAppAutoLaunchEnabled(config.app_auto_launch_enabled ?? false);
       setTokenKeeperEnabled(config.token_keeper_enabled ?? true);
+      setWorkbuddyAutoKeepaliveEnabled(config.workbuddy_auto_keepalive_enabled ?? true);
       setAutoImportFromLocalEnabled(config.auto_import_from_local_enabled ?? false);
       setOpencodeAppPath(config.opencode_app_path || '');
       setAntigravityAppPath(config.antigravity_app_path || '');
@@ -3573,6 +3578,7 @@ export function useSettingsPageController() {
     setWorkbuddyAppPath,
     setWorkbuddyAutoRefresh,
     setWorkbuddyAutoRefreshCustomMode,
+    setWorkbuddyAutoKeepaliveEnabled,
     setWorkbuddyQuotaAlertEnabled,
     setWorkbuddyQuotaAlertThreshold,
     setWorkbuddyQuotaAlertThresholdCustomMode,
@@ -3649,6 +3655,7 @@ export function useSettingsPageController() {
     windsurfQuotaAlertThresholdCustomMode,
     windsurfQuotaAlertThresholdIsPreset,
     workbuddyAppPath,
+    workbuddyAutoKeepaliveEnabled,
     workbuddyAutoRefresh,
     workbuddyAutoRefreshCustomMode,
     workbuddyAutoRefreshIsPreset,

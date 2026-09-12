@@ -6,6 +6,11 @@ authors = ["jlcodes"]
 license = "CC-BY-NC-SA-4.0"
 edition = "2021"
 
+# 直构（cargo build --release）也必须带 --features custom-protocol 才会内嵌前端资源；
+# 否则窗口加载 devUrl(http://localhost:1420)，vite 不在跑就显示 ERR_CONNECTION_REFUSED。
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
 [lib]
 name = "antigravity_cockpit_tools_lib"
 crate-type = ["staticlib", "rlib"]

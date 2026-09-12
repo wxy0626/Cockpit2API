@@ -13,14 +13,14 @@ import { MfaQuickCodeSelect } from '../components/MfaQuickCodeSelect';
 import { PaginationControls } from '../components/PaginationControls';
 import { AccountSelectionToolbar } from '../components/AccountSelectionToolbar';
 import {
-  CB_PACKAGE_CODE,
   CodebuddyAccount,
-  CodebuddyOfficialQuotaResource,
   getCodebuddyAccountDisplayEmail,
   getCodebuddyOfficialQuotaModel,
   getCodebuddyPlanBadge,
+  getCodebuddyQuotaCategoryGroups,
   getCodebuddyUsage,
 } from '../types/codebuddy';
+import { CodeBuddyQuotaCategoryList } from '../components/codebuddy/CodeBuddyQuotaCategoryList';
 import { QuickSettingsPopover } from '../components/QuickSettingsPopover';
 import { useProviderAccountsPage } from '../hooks/useProviderAccountsPage';
 import { PlatformOverviewTabsHeader, PlatformOverviewTab } from '../components/platform/PlatformOverviewTabsHeader';
@@ -60,19 +60,6 @@ const QUOTA_NUMBER_FORMATTER = new Intl.NumberFormat('en-US', {
 function formatQuotaNumber(value: number): string {
   if (!Number.isFinite(value)) return '0';
   return QUOTA_NUMBER_FORMATTER.format(Math.max(0, value));
-}
-
-function clampPercent(value: number | null | undefined): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, value));
-}
-
-function getQuotaClassByRemainPercent(remainPercent: number | null): string {
-  if (remainPercent == null || !Number.isFinite(remainPercent)) return 'high';
-  if (remainPercent <= 10) return 'critical';
-  if (remainPercent <= 30) return 'low';
-  if (remainPercent <= 60) return 'medium';
-  return 'high';
 }
 
 export function CodebuddyAccountsPage() {
@@ -339,93 +326,27 @@ export function CodebuddyAccountsPage() {
     });
   }, [locale]);
 
-  const resolveResourceTimeText = useCallback((resource: CodebuddyOfficialQuotaResource, isExtra: boolean) => {
-    if (isExtra) return null;
-    const isBase = resource.isBasePackage;
-    const primaryTimeText = formatQuotaDateTime(isBase ? resource.refreshAt : resource.expireAt);
-    if (primaryTimeText) {
-      return isBase
-        ? t('codebuddy.quotaQuery.updatedAt', '下次刷新时间：{{time}}', { time: primaryTimeText })
-        : t('codebuddy.quotaQuery.expireAt', '到期时间：{{time}}', { time: primaryTimeText });
-    }
-    const fallbackTimeText = formatQuotaDateTime(isBase ? resource.expireAt : resource.refreshAt);
-    if (fallbackTimeText) {
-      return isBase
-        ? t('codebuddy.quotaQuery.expireAt', '到期时间：{{time}}', { time: fallbackTimeText })
-        : t('codebuddy.quotaQuery.updatedAt', '下次刷新时间：{{time}}', { time: fallbackTimeText });
-    }
-    return null;
-  }, [formatQuotaDateTime, t]);
-
-  const resolveResourcePackageTitle = useCallback((resource: CodebuddyOfficialQuotaResource, isExtra: boolean) => {
-    if (isExtra || resource.packageCode === CB_PACKAGE_CODE.extra) {
-      return t('codebuddy.extraCredit.title', '加量包');
-    }
-    if (resource.packageCode === CB_PACKAGE_CODE.activity) {
-      return t('codebuddy.quotaQuery.packageTitle.activity', '活动赠送包');
-    }
-    if (
-      resource.packageCode === CB_PACKAGE_CODE.free ||
-      resource.packageCode === CB_PACKAGE_CODE.gift ||
-      resource.packageCode === CB_PACKAGE_CODE.freeMon
-    ) {
-      return t('codebuddy.quotaQuery.packageTitle.base', '基础体验包');
-    }
-    if (
-      resource.packageCode === CB_PACKAGE_CODE.proMon ||
-      resource.packageCode === CB_PACKAGE_CODE.proYear
-    ) {
-      return t('codebuddy.quotaQuery.packageTitle.pro', '专业版订阅');
-    }
-    return resource.packageName || t('codebuddy.quotaQuery.packageUnknown', '套餐信息未知');
-  }, [t]);
-
-  const renderResourceQuotaItems = useCallback((account: CodebuddyAccount, variant: 'card' | 'table') => {
-    const model = getCodebuddyOfficialQuotaModel(account);
-    const extraResource: CodebuddyOfficialQuotaResource = {
-      ...model.extra,
-      packageName: t('codebuddy.extraCredit.title', '加量包'),
-    };
-    const allResources = [...model.resources, extraResource];
-
-    return (
-      <div className="codebuddy-official-quota-list">
-        {allResources.map((resource, idx) => {
-          const isExtra = idx === allResources.length - 1;
-          const quotaClass = getQuotaClassByRemainPercent(resource.remainPercent);
-          const usedPercent = clampPercent(resource.usedPercent);
-          const quotaValueText = resource.unlimited
-            ? t('common.shared.quota.unlimited', '无限额度')
-            : `${formatQuotaNumber(resource.used)} / ${formatQuotaNumber(resource.total)}`;
-          const timeText = resolveResourceTimeText(resource, isExtra);
-          const packageName = resolveResourcePackageTitle(resource, isExtra);
-
-          return (
-            <div key={`${account.id}-${resource.packageCode || 'pkg'}-${idx}`} className="codebuddy-official-quota-row">
-              <div className="quota-header">
-                <span className="quota-label" title={packageName}>{packageName}</span>
-                <span className={`quota-pct ${quotaClass}`}>{quotaValueText}</span>
-              </div>
-              {variant === 'card' ? (
-                <div className="quota-bar-track">
-                  <div className={`quota-bar ${quotaClass}`} style={{ width: `${usedPercent}%` }} />
-                </div>
-              ) : (
-                <div className="quota-progress-track">
-                  <div className={`quota-progress-bar ${quotaClass}`} style={{ width: `${usedPercent}%` }} />
-                </div>
-              )}
-              {timeText ? (
-                <div className="codebuddy-official-quota-meta-wrap">
-                  <span className="codebuddy-official-quota-meta">{timeText}</span>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }, [resolveResourcePackageTitle, resolveResourceTimeText, t]);
+  // 配额进度条：wb2api 风格（顶部可用/总积分汇总 + 近期到期列表，已用完的包自动隐藏）
+  const renderResourceQuotaItems = useCallback(
+    (account: CodebuddyAccount, _variant: 'card' | 'table') => {
+      const model = getCodebuddyOfficialQuotaModel(account);
+      const groups = getCodebuddyQuotaCategoryGroups(
+        account,
+        t as (key: string, defaultValue?: string) => string,
+      );
+      return (
+        <CodeBuddyQuotaCategoryList
+          groups={groups}
+          formatNumber={formatQuotaNumber}
+          // 页内的 formatQuotaDateTime 可能返回 null，组件要求返回空串
+          formatDateTime={(timeMs) => formatQuotaDateTime(timeMs) ?? ''}
+          updatedAtMs={model.updatedAt}
+          accountLabel={maskAccountText(getCodebuddyAccountDisplayEmail(account))}
+        />
+      );
+    },
+    [formatQuotaDateTime, t],
+  );
 
   const renderUsageInfo = useCallback((account: CodebuddyAccount) => {
     const usage = getCodebuddyUsage(account);

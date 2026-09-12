@@ -273,6 +273,14 @@ pub fn run() {
             }
         }))
         .setup(|app| {
+            // 单实例互斥（跨 dev/release 配置）：已有实例运行时立即终止本次启动
+            if let Err(lock_error) = modules::instance_lock::acquire() {
+                logger::log_warn(&format!("[SingleInstance] {lock_error}，本次启动终止"));
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    lock_error,
+                )) as Box<dyn std::error::Error>);
+            }
             info!("Cockpit Tools 启动...");
             let current_exe = std::env::current_exe()
                 .map(|path| path.display().to_string())
@@ -396,6 +404,9 @@ pub fn run() {
 
             modules::provider_token_keeper::ensure_started(app.handle().clone());
             modules::auto_local_import::ensure_started(app.handle().clone());
+            modules::workbuddy_gateway::ensure_started();
+            modules::workbuddy_keepalive::ensure_started();
+            modules::workbuddy_auto_travel::ensure_started();
 
             // Wakeup restore/start and Deep Link registration/read can hit disk or OS
             // APIs — never block setup (window + skeleton tray first).
@@ -744,6 +755,7 @@ pub fn run() {
             commands::system::get_general_config,
             commands::system::get_available_terminals,
             commands::system::patch_general_config,
+            commands::system::workbuddy_gateway_chat,
             commands::system::scan_auto_local_import,
             commands::system::codex_ssh_list_servers,
             commands::system::codex_ssh_upsert_server,
@@ -1084,6 +1096,7 @@ pub fn run() {
             commands::workbuddy::inject_workbuddy_to_vscode,
             commands::workbuddy::sync_workbuddy_to_codebuddy_cn,
             commands::workbuddy::get_checkin_status_workbuddy,
+            commands::workbuddy::get_workbuddy_account_live_status,
             commands::workbuddy::checkin_workbuddy,
             // WorkBuddy WebView (网页会话) Commands
             modules::workbuddy_webview::is_workbuddy_webview_supported,

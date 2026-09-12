@@ -307,6 +307,9 @@ pub fn get_general_config(app: tauri::AppHandle) -> Result<GeneralConfig, String
         floating_card_always_on_top: user_config.floating_card_always_on_top,
         app_auto_launch_enabled,
         token_keeper_enabled: user_config.token_keeper_enabled,
+        workbuddy_auto_travel_enabled: user_config.workbuddy_auto_travel_enabled,
+        workbuddy_auto_keepalive_enabled: user_config.workbuddy_auto_keepalive_enabled,
+        workbuddy_auto_keepalive_days: user_config.workbuddy_auto_keepalive_days,
         auto_import_from_local_enabled: user_config.auto_import_from_local_enabled,
         antigravity_startup_wakeup_enabled: user_config.antigravity_startup_wakeup_enabled,
         antigravity_startup_wakeup_delay_seconds: sanitize_startup_wakeup_delay_seconds(
@@ -586,6 +589,7 @@ pub fn patch_general_config(
             new_config.token_keeper_enabled,
         );
     }
+
 
     if auto_import_from_local_enabled_changed {
         modules::auto_local_import::notify_config_changed(
