@@ -16,8 +16,17 @@ export interface CodexPelicanItem {
   hasHtml: boolean;
   error?: string;
   usage?: unknown;
+  quota?: CodexPelicanQuotaUsage;
   responseModel?: string;
   responseId?: string;
+}
+
+export interface CodexPelicanQuotaUsage {
+  consumedPercent?: number;
+  beforeRemainingPercent?: number;
+  remainingPercent?: number;
+  windowMinutes?: number;
+  resetAt?: number;
 }
 
 export interface CodexPelicanBatch {

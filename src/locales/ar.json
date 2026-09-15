@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "نتائج الاختبار",
+    "usageTokens": "{{tokens}} رمز",
+    "quotaUsed": "5h مستخدم {{percent}}%",
+    "quotaLeft": "5h متبقٍ {{percent}}%",
     "openBrowser": "فتح في المتصفح",
     "error": {
       "stateUnavailable": "حالة المهمة غير متاحة. حاول مجددًا.",
@@ -897,7 +900,7 @@
       "codexSyncWsl": "مزامنة Codex مع WSL",
       "codexSyncWslDesc": "بعد تبديل حساب Codex الافتراضي، تتم كتابة auth.json و config.toml أيضًا إلى مجلد إعدادات Codex في WSL.",
       "codexAppUiInjection": "عرض حصة خدمة API",
-      "codexAppUiInjectionDesc": "بعد إعادة تشغيل مثيل Codex، اعرض عدد حسابات خدمة API في Cockpit Tools وحصتي الأسبوع و5 ساعات أسفل منطقة الكتابة. يجب إبقاء Cockpit Tools قيد التشغيل في الخلفية؛ يتوقف التحديث عند إغلاقه تمامًا أو عند عدم توفر الشبكة.",
+      "codexAppUiInjectionDesc": "بعد إعادة تشغيل مثيل Codex، اعرض عدد حسابات خدمة API في Cockpit Tools وحصتي الأسبوع و5 ساعات أسفل منطقة الكتابة؛ تعرض المثيلات المرتبطة بحساب DeepSeek رصيد ذلك الحساب بدلاً من ذلك. يجب إبقاء Cockpit Tools قيد التشغيل في الخلفية؛ يتوقف التحديث عند إغلاقه تمامًا أو عند عدم توفر الشبكة.",
       "codexAppUiInjectionPoolLabel": "الحسابات",
       "codexAppUiInjectionWeeklyLabel": "أسبوع",
       "codexAppUiInjectionFiveHourLabel": "5 س",
@@ -2144,6 +2147,7 @@
       "manage": "إدارة النماذج",
       "disabledDescription": "متوقفة افتراضيًا. عند إيقافها تتبع النماذج وترتيبها والنموذج الافتراضي ومستويات الاستدلال الدليل الرسمي.",
       "enabledDescription": "دليل النماذج المُعدّ نشط. يمكنك إضافة النماذج أو حذفها، ولن تتحدث القائمة تلقائيًا مع الدليل الرسمي.",
+      "routingManagedHint": "يستخدم التوجيه المختلط كتالوج النماذج هذا مؤقتًا أثناء تشغيل النسخة فقط، ويُستعاد بعد الإيقاف. لا تتغير حالة المفتاح هنا.",
       "enableConfirmTitle": "تفعيل إدارة النماذج؟",
       "enableConfirmDescription": "بعد التفعيل، سيستخدم Codex دليل النماذج المُعدّ هنا. يمكنك إضافة النماذج وحذفها وضبطها، لكن القائمة لن تتحدث تلقائيًا مع الدليل الرسمي.",
       "enableConfirmAction": "تفعيل وإعداد"
@@ -2264,6 +2268,8 @@
       "imageGenSwitchYes": "نعم",
       "imageGenSwitchNo": "لا",
       "imageGenTitle": "تفعيل توليد صور GPT",
+      "oauthBindingHint": "بعد الربط يكون التشغيل مطابقًا تمامًا للحساب العادي وتتوفر كل قدرات OAuth (الضغط عن بُعد، والتحكم بالمتصفح، والإضافات المتنوعة وغيرها)؛ وتبقى المحادثات على مزوّد مفتاح API الحالي.",
+      "oauthBindingChange": "تغيير",
       "title": "معاينة تشغيل Codex",
       "description": "راجع الإعدادات أولاً؛ لن تتغير حالة العميل إلا بعد اختيار التبديل أو التشغيل.",
       "notApplied": "لم يُطبّق بعد",
@@ -3133,7 +3139,13 @@
         "syncNeedTwo": "يلزم وجود مثيلين على الأقل لمزامنة الجلسات",
         "pickRestoreOne": "يرجى تحديد جلسة واحدة على الأقل لاستعادتها",
         "repairVisibilitySkippedOnly": "لم يتم العثور على اختلافات provider قابلة للكتابة؛ تم تخطي {{count}} ملف state_5.sqlite غير صالح أو تالف. يجب أن يعيد Codex إنشاءها قبل إصلاح سجلات SQLite فيها.",
-        "repairVisibilitySkippedWithBase": "{{message}}؛ تم تخطي {{count}} ملف state_5.sqlite غير صالح أو تالف. يجب أن يعيد Codex إنشاءها قبل إصلاح سجلات SQLite فيها."
+        "repairVisibilitySkippedWithBase": "{{message}}؛ تم تخطي {{count}} ملف state_5.sqlite غير صالح أو تالف. يجب أن يعيد Codex إنشاءها قبل إصلاح سجلات SQLite فيها.",
+        "trashSummary": "تم نقل {{count}} محادثة إلى سلة المحذوفات وحذفها في Codex الرسمي",
+        "trashSummaryFallback": "تم نقل {{count}} محادثة إلى سلة المحذوفات وبدء إعادة بناء فهرس الجلسات في Codex الرسمي",
+        "trashSummaryRunningHint": "قد تحتاج النسخ قيد التشغيل إلى تحديث أو إعادة تشغيل لظهور التغيير",
+        "trashSummaryFallbackHint": "لم يكتمل الحذف الرسمي في {{count}} نسخة؛ أُزيلت الملفات مباشرة وسيتزامن Codex بعد إعادة التشغيل",
+        "trashSummaryRebuildFailedHint": "لم تكتمل إعادة بناء فهرس الشريط الجانبي الرسمي في {{count}} نسخة؛ سيعيد Codex تحميله بعد إعادة التشغيل",
+        "trashSummaryEmpty": "المحادثات المحددة غير موجودة في مجموعة النسخ الحالية، لا يلزم أي إجراء"
       },
       "groupCount": "{{count}} جلسة",
       "updatedAt": "تم التحديث",
@@ -3320,7 +3332,12 @@
         "subagent": "وكيل فرعي",
         "all": "كل الأنواع"
       },
-      "pickInstancePrompt": "الجلسة موجودة في عدة مثيلات. أدخل معرّف المثيل:"
+      "locationPicker": {
+        "title": "اختر المثيل",
+        "hint": "هذه الجلسة موجودة في عدة مثيلات. اختر المثيل الذي تريد فتح موقع الملف فيه:",
+        "rolloutHint": "هذه الجلسة موجودة في عدة مثيلات. اختر المثيل الذي تريد فتح ملف الجلسة فيه:",
+        "running": "قيد التشغيل"
+      }
     },
     "sessionUsage": {
       "tab": "الاستخدام",
@@ -3805,6 +3822,9 @@
           "planName": "الخطة",
           "remaining": "المتبقي",
           "balance": "الرصيد",
+          "totalBalance": "الرصيد الإجمالي",
+          "grantedBalance": "الرصيد الممنوح",
+          "toppedUpBalance": "الرصيد المشحون",
           "todayRequests": "طلبات اليوم",
           "todayTokens": "Token اليوم",
           "todayCost": "تكلفة اليوم",
@@ -4030,6 +4050,8 @@
       "standardDesc": "السرعة الافتراضية، استخدام عادي",
       "fast": "سريع",
       "fastDesc": "سرعة 1.5x، استخدام أعلى",
+      "ultrafast": "فائق السرعة",
+      "ultrafastDesc": "أسرع الاستجابات، استخدام أعلى",
       "saveSuccess": "تم تحديث السرعة",
       "saveFailed": "فشل حفظ السرعة: {{error}}"
     },
@@ -4489,6 +4511,33 @@
     "accounts": {
       "showRelayQuota": "إظهار حصة الترحيل",
       "hideRelayQuota": "إخفاء حصة الترحيل"
+    },
+    "instanceGateways": {
+      "entry": "بوابات النسخ",
+      "entryCount": "بوابات النسخ {{count}}",
+      "issueCount": "{{count}} بها خلل",
+      "title": "بوابات النسخ",
+      "subtitle": "بوابات محلية تبدأ مع نسخ Codex",
+      "summary": "الإجمالي {{total}} · قيد التشغيل {{running}} · بها خلل {{issues}}",
+      "empty": "لا توجد بوابات على مستوى النسخة",
+      "emptyHint": "تظهر تلقائيًا بعد ربط حساب مفتاح API ببروتوكول Chat أو تمكين توجيه النماذج المختلطة.",
+      "kindProviderGateway": "بوابة المزوّد",
+      "kindMixedModel": "توجيه النماذج المختلطة",
+      "kindBoundOauth": "بوابة OAuth المحلية",
+      "statusUnreachable": "تعمل لكن يتعذر الوصول إليها",
+      "statusPortConflict": "المنفذ مستخدم",
+      "statusNotStarted": "لم تبدأ",
+      "fieldAccount": "الحساب",
+      "fieldAddress": "العنوان المحلي",
+      "fieldProtocol": "البروتوكول",
+      "fieldModels": "النماذج المصدرية",
+      "loadFailed": "تعذّر تحميل بوابات النسخ",
+      "stop": "إيقاف",
+      "restart": "إعادة التشغيل",
+      "stopConfirmTitle": "إيقاف بوابة هذه النسخة؟",
+      "stopConfirmDescription": "إيقاف بوابة التوجيه المختلط يوقف أيضًا التوجيه المختلط لهذه النسخة (يبقى إعداد القنوات محفوظًا)، ويمكن تشغيل البوابات الأخرى بزر «إعادة التشغيل».",
+      "stopFailed": "تعذّر إيقاف البوابة: {{error}}",
+      "restartFailed": "تعذّر إعادة تشغيل البوابة: {{error}}"
     }
   },
   "githubCopilot": {

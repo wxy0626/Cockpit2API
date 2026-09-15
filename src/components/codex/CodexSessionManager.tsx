@@ -15,6 +15,7 @@ import type {
   CodexSessionTokenStats,
   CodexSessionTransferOperation,
   CodexSessionTransferProgress,
+  CodexSessionTrashSummary,
   CodexTrashedSessionRecord,
 } from '../../types/codex';
 import type { InstanceProfile } from '../../types/instance';
@@ -36,6 +37,8 @@ type SessionTokenStatsMap = Record<string, CodexSessionTokenStats>;
 
 type SessionGroup = {
   cwd: string;
+  /** 官方客户端项目名（可重命名），优先用作分组标题。 */
+  projectName?: string | null;
   sessions: CodexSessionRecord[];
   latestUpdatedAt: number;
 };
@@ -94,13 +97,17 @@ function buildGroups(sessions: CodexSessionRecord[]): SessionGroup[] {
   });
 
   return Array.from(groups.entries())
-    .map(([cwd, groupSessions]) => ({
-      cwd,
-      sessions: [...groupSessions].sort(
-        (left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0) || left.title.localeCompare(right.title),
-      ),
-      latestUpdatedAt: Math.max(...groupSessions.map((item) => item.updatedAt ?? 0), 0),
-    }))
+    .map(([cwd, groupSessions]) => {
+      const projectName = groupSessions.find((session) => session.projectName?.trim())?.projectName ?? null;
+      return {
+        cwd,
+        projectName,
+        sessions: [...groupSessions].sort(
+          (left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0) || left.title.localeCompare(right.title),
+        ),
+        latestUpdatedAt: Math.max(...groupSessions.map((item) => item.updatedAt ?? 0), 0),
+      };
+    })
     .sort(
       (left, right) =>
         right.latestUpdatedAt - left.latestUpdatedAt || left.cwd.localeCompare(right.cwd, 'zh-CN'),
@@ -135,7 +142,9 @@ function formatRelativeTime(value: number | null | undefined, isZh: boolean): st
   return isZh ? `${weeks} 周` : `${weeks}w`;
 }
 
-function resolveGroupLabel(cwd: string): string {
+function resolveGroupLabel(cwd: string, projectName?: string | null): string {
+  const trimmedProjectName = projectName?.trim();
+  if (trimmedProjectName) return trimmedProjectName;
   const normalized = cwd.replace(/\\/g, '/').replace(/\/$/, '');
   const parts = normalized.split('/').filter(Boolean);
   return parts[parts.length - 1] || cwd;
@@ -303,6 +312,11 @@ export function CodexSessionManager() {
   const [appliedTitleSearch, setAppliedTitleSearch] = useState('');
   const [sessionKindFilter, setSessionKindFilter] = useState<CodexSessionKindFilter>('conversation');
   const [sessionView, setSessionView] = useState<SessionManagerView>('list');
+  const [sessionLocationTarget, setSessionLocationTarget] = useState<{
+    session: CodexSessionRecord;
+    action: 'location' | 'rollout';
+  } | null>(null);
+  const [openingSessionLocation, setOpeningSessionLocation] = useState(false);
   const {
     message: restoreModalError,
     scrollKey: restoreModalErrorScrollKey,
@@ -322,6 +336,11 @@ export function CodexSessionManager() {
     message: exportModalError,
     scrollKey: exportModalErrorScrollKey,
     set: setExportModalError,
+  } = useModalErrorState();
+  const {
+    message: sessionLocationError,
+    scrollKey: sessionLocationErrorScrollKey,
+    set: setSessionLocationError,
   } = useModalErrorState();
   const hasInitializedExpandedGroupsRef = useRef(false);
   const loadSessionsPromiseRef = useRef<Promise<void> | null>(null);
@@ -922,6 +941,59 @@ export function CodexSessionManager() {
     setShowRepairVisibilityModal(true);
   };
 
+  /** 用翻译键组装“移到废纸篓”结果提示；后端未返回结构化计数时回退到后端文案。 */
+  const buildTrashSummaryText = (summary: CodexSessionTrashSummary): string => {
+    const hasStructuredCounts =
+      summary.runningInstanceCount !== undefined
+      || summary.officialDeleteFallbackInstanceCount !== undefined
+      || summary.metadataRebuildFailedInstanceCount !== undefined;
+    if (!hasStructuredCounts && summary.message.trim()) {
+      return summary.message;
+    }
+    if (summary.trashedSessionCount === 0) {
+      return t('codex.sessionManager.messages.trashSummaryEmpty', '所选会话在当前实例集合中不存在，无需处理');
+    }
+
+    const separator = isZh ? '；' : '; ';
+    const fallbackInstanceCount = summary.officialDeleteFallbackInstanceCount ?? 0;
+    const rebuildFailedInstanceCount = summary.metadataRebuildFailedInstanceCount ?? 0;
+    const runningInstanceCount = summary.runningInstanceCount ?? 0;
+    const parts = [
+      fallbackInstanceCount > 0
+        ? t(
+          'codex.sessionManager.messages.trashSummaryFallback',
+          '已将 {{count}} 条会话移到废纸篓，并已触发官方 Codex 重建会话索引',
+          { count: summary.trashedSessionCount },
+        )
+        : t(
+          'codex.sessionManager.messages.trashSummary',
+          '已将 {{count}} 条会话移到废纸篓，并已在官方 Codex 中删除',
+          { count: summary.trashedSessionCount },
+        ),
+    ];
+    if (runningInstanceCount > 0) {
+      parts.push(t(
+        'codex.sessionManager.messages.trashSummaryRunningHint',
+        '运行中的实例可能需要刷新或重启后显示',
+      ));
+    }
+    if (fallbackInstanceCount > 0) {
+      parts.push(t(
+        'codex.sessionManager.messages.trashSummaryFallbackHint',
+        '{{count}} 个实例的官方删除未完成，已按文件方式移除，Codex 重启后会同步',
+        { count: fallbackInstanceCount },
+      ));
+    }
+    if (rebuildFailedInstanceCount > 0) {
+      parts.push(t(
+        'codex.sessionManager.messages.trashSummaryRebuildFailedHint',
+        '{{count}} 个实例的官方侧边栏索引重建未完成，重启 Codex 后会重新加载',
+        { count: rebuildFailedInstanceCount },
+      ));
+    }
+    return parts.join(separator);
+  };
+
   const handleMoveToTrash = async () => {
     if (selectedIds.length === 0) {
       setMessage({ text: t('codex.sessionManager.messages.pickOne', '请至少选择一条会话'), tone: 'error' });
@@ -946,7 +1018,7 @@ export function CodexSessionManager() {
     setMessage(null);
     try {
       const summary = await moveSessionsToTrashAcrossInstances(selectedIds);
-      setMessage({ text: summary.message });
+      setMessage({ text: buildTrashSummaryText(summary) });
       setSelectedIds([]);
       await loadSessions();
       if (showRestoreModal) {
@@ -1425,65 +1497,78 @@ export function CodexSessionManager() {
     return null;
   };
 
-  const handleOpenSessionLocation = async (
-    event: MouseEvent<HTMLButtonElement>,
+  const openSessionAtInstance = async (
     session: CodexSessionRecord,
+    action: 'location' | 'rollout',
+    instanceId: string | null,
+    insidePicker: boolean,
   ) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setMessage(null);
+    setOpeningSessionLocation(true);
+    if (insidePicker) {
+      setSessionLocationError(null);
+    }
     try {
-      if (session.locations.length > 1) {
-        // Require explicit choice when ambiguous (#1510).
-        const chosen = window.prompt(
-          t(
-            'codex.sessionManager.pickInstancePrompt',
-            '该会话存在于多个实例，请输入实例 ID（可在位置列查看）：',
-          ),
-          session.locations[0]?.instanceId ?? '',
-        );
-        if (!chosen?.trim()) {
-          return;
-        }
-        await openSessionLocation(session.sessionId, chosen.trim());
+      if (action === 'location') {
+        await openSessionLocation(session.sessionId, instanceId);
       } else {
-        await openSessionLocation(
-          session.sessionId,
-          pickSessionInstanceId(session),
-        );
+        await openSessionRollout(session.sessionId, instanceId);
       }
+      setSessionLocationTarget(null);
+      setSessionLocationError(null);
     } catch (error) {
-      setMessage({ text: String(error), tone: 'error' });
+      const errorText = String(error);
+      if (insidePicker) {
+        setSessionLocationError(errorText);
+        return;
+      }
+      setMessage({ text: errorText, tone: 'error' });
+    } finally {
+      setOpeningSessionLocation(false);
     }
   };
 
-  const handleOpenSessionRollout = async (
+  const handleOpenSessionTarget = (
     event: MouseEvent<HTMLButtonElement>,
     session: CodexSessionRecord,
+    action: 'location' | 'rollout',
   ) => {
     event.preventDefault();
     event.stopPropagation();
     setMessage(null);
-    try {
-      let instanceId = pickSessionInstanceId(session);
-      if (session.locations.length > 1) {
-        const chosen = window.prompt(
-          t(
-            'codex.sessionManager.pickInstancePrompt',
-            '该会话存在于多个实例，请输入实例 ID（可在位置列查看）：',
-          ),
-          session.locations[0]?.instanceId ?? '',
-        );
-        if (!chosen?.trim()) {
-          return;
-        }
-        instanceId = chosen.trim();
-      }
-      await openSessionRollout(session.sessionId, instanceId);
-    } catch (error) {
-      setMessage({ text: String(error), tone: 'error' });
+    if (session.locations.length > 1) {
+      // Require explicit choice when ambiguous (#1510); use an in-app picker so the
+      // instance name shown in the location column is directly selectable (#2129).
+      setSessionLocationError(null);
+      setSessionLocationTarget({ session, action });
+      return;
     }
+    void openSessionAtInstance(session, action, pickSessionInstanceId(session), false);
   };
+
+  const handleOpenSessionLocation = (
+    event: MouseEvent<HTMLButtonElement>,
+    session: CodexSessionRecord,
+  ) => {
+    handleOpenSessionTarget(event, session, 'location');
+  };
+
+  const handleOpenSessionRollout = (
+    event: MouseEvent<HTMLButtonElement>,
+    session: CodexSessionRecord,
+  ) => {
+    handleOpenSessionTarget(event, session, 'rollout');
+  };
+
+  const handleCloseSessionLocationPicker = () => {
+    if (openingSessionLocation) return;
+    setSessionLocationTarget(null);
+    setSessionLocationError(null);
+  };
+
+  useEscClose(
+    Boolean(sessionLocationTarget) && !openingSessionLocation,
+    handleCloseSessionLocationPicker,
+  );
 
   const getImportStatusLabel = (item: CodexSessionImportPreviewItem): string => {
     if (item.status === 'ready') {
@@ -1765,7 +1850,7 @@ export function CodexSessionManager() {
                       onClick={() => toggleGroupExpanded(group.cwd)}
                       title={group.cwd}
                     >
-                      {resolveGroupLabel(group.cwd)}
+                      {resolveGroupLabel(group.cwd, group.projectName)}
                     </button>
                   </div>
                   <span className="codex-session-folder__time">
@@ -2561,6 +2646,81 @@ export function CodexSessionManager() {
               >
                 <RotateCcw size={14} className={restoring ? 'icon-spin' : undefined} />
                 {t('codex.sessionManager.restoreModal.restoreAction', '恢复选中会话')} ({selectedTrashIds.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {sessionLocationTarget ? (
+        <div className="modal-overlay">
+          <div
+            className="modal codex-session-location-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>{t('codex.sessionManager.locationPicker.title', '选择实例')}</h2>
+              <button
+                className="modal-close"
+                type="button"
+                onClick={handleCloseSessionLocationPicker}
+                disabled={openingSessionLocation}
+                aria-label={t('common.close', '关闭')}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <ModalErrorMessage
+                message={sessionLocationError}
+                scrollKey={sessionLocationErrorScrollKey}
+              />
+              <p className="codex-session-location-modal__hint">
+                {sessionLocationTarget.action === 'rollout'
+                  ? t(
+                      'codex.sessionManager.locationPicker.rolloutHint',
+                      '该会话存在于多个实例，请选择要打开会话文件的实例：',
+                    )
+                  : t(
+                      'codex.sessionManager.locationPicker.hint',
+                      '该会话存在于多个实例，请选择要打开文件所在位置的实例：',
+                    )}
+              </p>
+              <div className="codex-session-location-modal__list">
+                {sessionLocationTarget.session.locations.map((location) => (
+                  <button
+                    key={location.instanceId}
+                    className="codex-session-location-modal__option"
+                    type="button"
+                    onClick={() =>
+                      void openSessionAtInstance(
+                        sessionLocationTarget.session,
+                        sessionLocationTarget.action,
+                        location.instanceId,
+                        true,
+                      )
+                    }
+                    disabled={openingSessionLocation}
+                  >
+                    <span className="codex-session-location-modal__option-name">
+                      {location.instanceName}
+                    </span>
+                    {location.running ? (
+                      <span className="codex-session-location-modal__option-badge">
+                        {t('codex.sessionManager.locationPicker.running', '运行中')}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={handleCloseSessionLocationPicker}
+                disabled={openingSessionLocation}
+              >
+                {t('common.cancel', '取消')}
               </button>
             </div>
           </div>

@@ -294,6 +294,164 @@ enum CodexJsonImportCandidate {
     },
 }
 
+static CODEX_IMPORTED_GROUP_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Cockpit Tools 导出格式附带的可迁移元数据（社区 #2213）。
+///
+/// 标签/账号名/账号结构写回账号本身；分组名称用于恢复分组（文件夹）归类。
+/// 旧版本导出的文件没有这些字段，解析结果全为空，导入行为保持不变。
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+struct CodexPortableAccountMetadata {
+    #[serde(default)]
+    tags: Option<Vec<String>>,
+    #[serde(default)]
+    account_name: Option<String>,
+    #[serde(default)]
+    account_structure: Option<String>,
+    #[serde(default)]
+    group_name: Option<String>,
+}
+
+impl CodexPortableAccountMetadata {
+    fn from_value(value: &serde_json::Value) -> Self {
+        Self {
+            tags: read_json_string_array(value, &["tags"]),
+            account_name: read_json_string(value, &["account_name", "accountName"]),
+            account_structure: read_json_string(
+                value,
+                &["account_structure", "accountStructure"],
+            ),
+            group_name: read_json_string(
+                value,
+                &["group", "group_name", "groupName", "folder", "folder_name", "folderName"],
+            ),
+        }
+    }
+}
+
+/// 把导出文件里的标签/账号名/账号结构写回账号，返回是否发生变更。
+fn apply_portable_account_metadata(
+    account: &mut CodexAccount,
+    metadata: &CodexPortableAccountMetadata,
+) -> bool {
+    let mut changed = false;
+    if let Some(tags) = metadata.tags.as_ref() {
+        account.tags = Some(tags.clone());
+        changed = true;
+    }
+    if let Some(account_name) = metadata.account_name.as_ref() {
+        account.account_name = Some(account_name.clone());
+        changed = true;
+    }
+    if let Some(account_structure) = metadata.account_structure.as_ref() {
+        account.account_structure = Some(account_structure.clone());
+        changed = true;
+    }
+    changed
+}
+
+/// 按名称把导入账号归入分组（文件夹）：同名分组直接复用，缺失时新建。
+/// 账号会先移出其他分组，保持「一个账号一个分组」的既有语义。
+fn assign_imported_account_to_group_by_name(
+    account_id: &str,
+    group_name: &str,
+) -> Result<(), String> {
+    let account_id = account_id.trim();
+    let group_name = group_name.trim();
+    if account_id.is_empty() || group_name.is_empty() {
+        return Ok(());
+    }
+
+    let path = account::get_data_dir()?.join(CODEX_ACCOUNT_GROUPS_FILE);
+    let mut groups: Vec<serde_json::Value> = if path.exists() {
+        match fs::read_to_string(&path) {
+            Ok(raw) => serde_json::from_str::<serde_json::Value>(&raw)
+                .ok()
+                .and_then(|value| value.as_array().cloned())
+                .unwrap_or_default(),
+            Err(_) => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+
+    for group in groups.iter_mut() {
+        let Some(ids) = group
+            .get_mut("accountIds")
+            .and_then(|value| value.as_array_mut())
+        else {
+            continue;
+        };
+        ids.retain(|item| item.as_str().map(str::trim) != Some(account_id));
+    }
+
+    let existing_index = groups.iter().position(|group| {
+        group
+            .get("name")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            == Some(group_name)
+    });
+
+    match existing_index {
+        Some(index) => {
+            if let Some(ids) = groups[index]
+                .get_mut("accountIds")
+                .and_then(|value| value.as_array_mut())
+            {
+                ids.push(serde_json::Value::String(account_id.to_string()));
+            }
+        }
+        None => {
+            let next_sort_order = groups
+                .iter()
+                .filter_map(|group| group.get("sortOrder").and_then(|value| value.as_i64()))
+                .max()
+                .unwrap_or(-1)
+                + 1;
+            let counter = CODEX_IMPORTED_GROUP_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
+            groups.push(serde_json::json!({
+                "id": format!(
+                    "cgrp_{}_{}",
+                    chrono::Utc::now().timestamp_millis(),
+                    counter
+                ),
+                "name": group_name,
+                "sortOrder": next_sort_order,
+                "accountIds": [account_id],
+                "createdAt": now_timestamp(),
+                "quotaAutoRefreshMinutes": serde_json::Value::Null,
+            }));
+        }
+    }
+
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("创建 Codex 分组目录失败: {}", error))?;
+        }
+    }
+    let serialized = serde_json::to_string_pretty(&groups)
+        .map_err(|error| format!("序列化 Codex 分组失败: {}", error))?;
+    fs::write(&path, serialized).map_err(|error| format!("写入 Codex 分组失败: {}", error))
+}
+
+/// 分组归类属于附带信息，失败只记日志，不影响账号本身导入成功。
+fn apply_imported_group_assignment(
+    account: &CodexAccount,
+    metadata: &CodexPortableAccountMetadata,
+) {
+    let Some(group_name) = metadata.group_name.as_deref() else {
+        return;
+    };
+    if let Err(error) = assign_imported_account_to_group_by_name(&account.id, group_name) {
+        logger::log_warn(&format!(
+            "Codex 导入分组归类失败: account_id={}, group={}, error={}",
+            account.id, group_name, error
+        ));
+    }
+}
+
 fn codex_account_note_update_from_value(value: &serde_json::Value) -> CodexAccountNoteUpdate {
     CodexAccountNoteUpdate {
         note: read_json_string(
@@ -1404,6 +1562,21 @@ async fn import_sub2api_export_from_value(
 async fn import_account_from_json_value(
     value: serde_json::Value,
 ) -> Result<Option<CodexAccount>, String> {
+    let metadata = CodexPortableAccountMetadata::from_value(&value);
+    let Some(mut account) = import_account_core_from_json_value(value).await? else {
+        return Ok(None);
+    };
+
+    if apply_portable_account_metadata(&mut account, &metadata) {
+        save_account(&account)?;
+    }
+    apply_imported_group_assignment(&account, &metadata);
+    Ok(Some(account))
+}
+
+async fn import_account_core_from_json_value(
+    value: serde_json::Value,
+) -> Result<Option<CodexAccount>, String> {
     let is_web_session = normalize_codex_session_value(&value, 0).is_some();
 
     if let Some(identity) = parse_agent_identity_from_value(&value)? {
@@ -1771,6 +1944,9 @@ struct CodexBatchImportCachedItem {
     preview: CodexBatchImportItem,
     draft: Option<CodexBatchImportDraft>,
     quota: Option<crate::models::codex::CodexQuota>,
+    /// 导出文件附带的标签/账号名/分组元数据（社区 #2213）。
+    #[serde(default)]
+    metadata: CodexPortableAccountMetadata,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -2416,6 +2592,7 @@ async fn build_codex_batch_import_item(
     check_quota: bool,
 ) -> CodexBatchImportCachedItem {
     let item_id = format!("{}-item-{}", session_id, index + 1);
+    let metadata = CodexPortableAccountMetadata::from_value(&value);
     let draft = match codex_batch_import_draft_from_value(value).await {
         Ok(Some(draft)) => draft,
         Ok(None) => {
@@ -2438,6 +2615,7 @@ async fn build_codex_batch_import_item(
                 },
                 draft: None,
                 quota: None,
+                metadata,
             };
         }
         Err(error) => {
@@ -2460,11 +2638,12 @@ async fn build_codex_batch_import_item(
                 },
                 draft: None,
                 quota: None,
+                metadata,
             };
         }
     };
 
-    let account = match preview_account_for_draft(&draft) {
+    let mut account = match preview_account_for_draft(&draft) {
         Ok(account) => account,
         Err(error) => {
             return CodexBatchImportCachedItem {
@@ -2486,9 +2665,12 @@ async fn build_codex_batch_import_item(
                 },
                 draft: None,
                 quota: None,
+                metadata,
             };
         }
     };
+    // 预览同样使用文件里的标签与账号名，列表标签与实际导入结果保持一致。
+    apply_portable_account_metadata(&mut account, &metadata);
 
     let existing = load_account(&account.id).is_some();
     let (quota_status, quota_error, quota, status) = if check_quota
@@ -2539,6 +2721,7 @@ async fn build_codex_batch_import_item(
         },
         draft: Some(draft),
         quota,
+        metadata,
     }
 }
 
@@ -2595,6 +2778,7 @@ async fn run_codex_batch_import_scan(
                     },
                     draft: None,
                     quota: None,
+                    metadata: CodexPortableAccountMetadata::default(),
                 }),
             },
             Err(error) => read_failures.push(CodexBatchImportCachedItem {
@@ -2616,6 +2800,7 @@ async fn run_codex_batch_import_scan(
                 },
                 draft: None,
                 quota: None,
+                metadata: CodexPortableAccountMetadata::default(),
             }),
         }
     }
@@ -2953,10 +3138,16 @@ pub fn confirm_codex_batch_import(
                 account.usage_updated_at = Some(chrono::Utc::now().timestamp());
                 save_account(&account)?;
             }
+            if apply_portable_account_metadata(&mut account, &cached.metadata) {
+                save_account(&account)?;
+            }
             Ok(account)
         })();
         match result {
-            Ok(account) => imported.push(account),
+            Ok(account) => {
+                apply_imported_group_assignment(&account, &cached.metadata);
+                imported.push(account);
+            }
             Err(error) => failed.push(CodexFileImportFailure {
                 email: cached.preview.label,
                 error,

@@ -15,6 +15,40 @@ import { pelicanPreviewDocument } from './pelicanPreviewDocument';
 // Kept for existing account-group listeners; results no longer edit account groups.
 export const PELICAN_GROUPS_CHANGED = 'codex-pelican-groups-changed';
 
+interface PelicanTokenUsage {
+  input: number;
+  output: number;
+  total: number;
+}
+
+function readPelicanTokenUsage(usage: unknown): PelicanTokenUsage | null {
+  if (!usage || typeof usage !== 'object') return null;
+  const record = usage as Record<string, unknown>;
+  const read = (key: string) => {
+    const value = record[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  };
+  const input = read('input_tokens') ?? read('inputTokens');
+  const output = read('output_tokens') ?? read('outputTokens');
+  const total = read('total_tokens') ?? read('totalTokens');
+  if (input == null && output == null && total == null) return null;
+  return {
+    input: input ?? 0,
+    output: output ?? 0,
+    total: total ?? (input ?? 0) + (output ?? 0),
+  };
+}
+
+function formatPelicanNumber(value: number): string {
+  return new Intl.NumberFormat().format(Math.round(value));
+}
+
+function formatPelicanPercent(value: number): string {
+  if (value > 0 && value < 0.1) return '<0.1';
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
 function PelicanItem({ batch, item, mask }: { batch: CodexPelicanBatch; item: CodexPelicanItem; mask: (value: string) => string }) {
   const { t } = useTranslation();
   const [artifact, setArtifact] = useState<CodexPelicanArtifact | null>(null);
@@ -29,6 +63,13 @@ function PelicanItem({ batch, item, mask }: { batch: CodexPelicanBatch; item: Co
   const terminal = item.status !== 'running' && item.status !== 'queued';
   const retryable = ['failed', 'cancelled', 'interrupted'].includes(item.status);
   const elapsed = item.startedAt == null ? 0 : Math.max(0, (item.finishedAt ?? Date.now()) - item.startedAt) / 1000;
+  const tokenUsage = readPelicanTokenUsage(item.usage);
+  const tokenLabel = tokenUsage ? t('pelican.usageTokens', { tokens: formatPelicanNumber(tokenUsage.total) }) : null;
+  const quotaLabel = item.quota?.consumedPercent != null
+    ? t('pelican.quotaUsed', { percent: formatPelicanPercent(item.quota.consumedPercent) })
+    : item.quota?.remainingPercent != null
+      ? t('pelican.quotaLeft', { percent: formatPelicanPercent(item.quota.remainingPercent) })
+      : null;
 
   useEffect(() => {
     setArtifact(null); setLoadError(null);
@@ -79,6 +120,10 @@ function PelicanItem({ batch, item, mask }: { batch: CodexPelicanBatch; item: Co
       </>}
     </div>}
     {html && <div className="pelican-cell-caption"><span className={`pelican-status pelican-status-${item.status}`}>{t(`pelican.${item.status}`)}</span><span>{elapsed.toFixed(1)}s</span></div>}
+    {(tokenLabel || quotaLabel) && <div className="pelican-cell-usage">
+      {tokenLabel && <span>{tokenLabel}</span>}
+      {quotaLabel && <span>{quotaLabel}</span>}
+    </div>}
     {!detailsOpen && <ModalErrorMessage message={error.message} scrollKey={error.scrollKey} />}
     {detailsOpen && createPortal(<div className="pelican-detail-overlay">
       <section className="pelican-dialog pelican-detail-dialog" role="dialog" aria-modal="true" aria-labelledby={`pelican-detail-${item.id}`} onKeyDown={(event) => {
@@ -92,14 +137,22 @@ function PelicanItem({ batch, item, mask }: { batch: CodexPelicanBatch; item: Co
         }
       }}>
         <header className="pelican-detail-header"><h3 id={`pelican-detail-${item.id}`}>{mask(item.accountEmail || item.accountId)}</h3><button className="btn btn-secondary" autoFocus onClick={closeDetails}>{t('common.close')}</button></header>
-        <div className="pelican-actions pelican-detail-actions">
-          {source === 'error' && <span className="pelican-detail-error-label">{t('pelican.viewError')}</span>}
-          {source !== 'error' && <button className="btn btn-secondary" disabled={busy || !artifact?.rawReply} onClick={() => { error.clear(); setSource('rawReply'); }}>{t('pelican.rawReply')}</button>}
-          <button className="btn btn-secondary" disabled={busy || !html} onClick={() => void run(async () => { await openUrl(await browserPelican(batch.id, item.id)); })}><ExternalLink size={14} />{t('pelican.openBrowser')}</button>
+        <div className="pelican-detail-body">
+          <div className="pelican-actions pelican-detail-actions">
+            {source === 'error' && <span className="pelican-detail-error-label">{t('pelican.viewError')}</span>}
+            {source !== 'error' && <button className="btn btn-secondary" disabled={busy || !artifact?.rawReply} onClick={() => { error.clear(); setSource('rawReply'); }}>{t('pelican.rawReply')}</button>}
+            <button className="btn btn-secondary" disabled={busy || !html} onClick={() => void run(async () => { await openUrl(await browserPelican(batch.id, item.id)); })}><ExternalLink size={14} />{t('pelican.openBrowser')}</button>
+          </div>
+          <ModalErrorMessage message={error.message} scrollKey={error.scrollKey} />
+          {(tokenUsage || item.quota) && <div className="pelican-detail-usage">
+            {tokenUsage && <span>{t('pelican.usageTokens', { tokens: formatPelicanNumber(tokenUsage.total) })}</span>}
+            {item.quota?.remainingPercent != null && <span>{t('pelican.quotaLeft', { percent: formatPelicanPercent(item.quota.remainingPercent) })}</span>}
+            {item.quota?.consumedPercent != null && <span>{t('pelican.quotaUsed', { percent: formatPelicanPercent(item.quota.consumedPercent) })}</span>}
+            {item.quota?.resetAt != null && <span>{t('common.shared.quota.resetAt', { time: new Date(item.quota.resetAt * 1000).toLocaleString(), defaultValue: 'Reset: {{time}}' })}</span>}
+          </div>}
+          {source === 'preview' && document ? <iframe className="pelican-detail-canvas" title={t('pelican.preview')} srcDoc={document} sandbox="allow-scripts" />
+            : <pre className="pelican-detail-output" tabIndex={0}>{source === 'error' ? pelicanError(item.error ?? 'pelican.error.workerFailed', t) : artifact?.rawReply ?? item.replyPreview ?? t('pelican.noHtml')}</pre>}
         </div>
-        <ModalErrorMessage message={error.message} scrollKey={error.scrollKey} />
-        {source === 'preview' && document ? <iframe className="pelican-detail-canvas" title={t('pelican.preview')} srcDoc={document} sandbox="allow-scripts" />
-          : <pre className="pelican-detail-output" tabIndex={0}>{source === 'error' ? pelicanError(item.error ?? 'pelican.error.workerFailed', t) : artifact?.rawReply ?? item.replyPreview ?? t('pelican.noHtml')}</pre>}
       </section>
     </div>, window.document.body)}
   </div>;

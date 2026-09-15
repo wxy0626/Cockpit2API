@@ -651,9 +651,10 @@ fn normalize_responses_input(obj: &mut Map<String, Value>) -> bool {
         }
         Value::Array(items) => {
             let mut changed = false;
-            for item in items {
+            for item in items.iter_mut() {
                 changed |= normalize_responses_input_item(item);
             }
+            changed |= ensure_responses_call_ids(items);
             changed
         }
         Value::Object(_) => {
@@ -699,6 +700,122 @@ fn normalize_responses_input_item(item: &mut Value) -> bool {
         changed |= normalize_message_content(content, &normalized_role);
     }
 
+    changed
+}
+
+fn responses_call_item_requires_id(item_type: &str) -> bool {
+    matches!(
+        item_type,
+        "function_call" | "custom_tool_call" | "tool_call" | "mcp_tool_call"
+    )
+}
+
+fn responses_call_output_requires_id(item_type: &str) -> bool {
+    matches!(
+        item_type,
+        "function_call_output"
+            | "custom_tool_call_output"
+            | "tool_call_output"
+            | "mcp_tool_call_output"
+    )
+}
+
+fn next_generated_call_id(prefix: &str, index: usize, used: &mut HashSet<String>) -> String {
+    let base = format!("{}_{}", prefix, index);
+    if used.insert(base.clone()) {
+        return base;
+    }
+    for suffix in 1.. {
+        let candidate = format!("{}_{}", base, suffix);
+        if used.insert(candidate.clone()) {
+            return candidate;
+        }
+    }
+    unreachable!("call id suffix space is unbounded")
+}
+
+fn response_item_non_empty_string<'a>(obj: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
+    obj.get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn responses_call_output_can_stand_alone(item_type: &str, obj: &Map<String, Value>) -> bool {
+    item_type == "function_call_output" && response_item_non_empty_string(obj, "name").is_some()
+}
+
+fn ensure_responses_call_ids(items: &mut Vec<Value>) -> bool {
+    let mut used = HashSet::new();
+    for item in items.iter() {
+        if let Some(call_id) = item
+            .as_object()
+            .and_then(|obj| response_item_non_empty_string(obj, "call_id"))
+        {
+            used.insert(call_id.to_string());
+        }
+    }
+
+    let mut pending: Vec<(String, Option<String>)> = Vec::new();
+    let mut drop_indices = Vec::new();
+    let mut changed = false;
+    for (index, item) in items.iter_mut().enumerate() {
+        let Some(obj) = item.as_object_mut() else {
+            continue;
+        };
+        let item_type = obj
+            .get("type")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let is_call = responses_call_item_requires_id(&item_type);
+        let is_output = responses_call_output_requires_id(&item_type);
+        if !is_call && !is_output {
+            continue;
+        }
+        let name = response_item_non_empty_string(obj, "name").map(ToOwned::to_owned);
+        let call_id = match response_item_non_empty_string(obj, "call_id") {
+            Some(call_id) => call_id.to_string(),
+            None => {
+                let generated = if is_call {
+                    next_generated_call_id("call_missing", index, &mut used)
+                } else {
+                    let matched = name
+                        .as_deref()
+                        .and_then(|name| {
+                            pending
+                                .iter()
+                                .position(|(_, pending_name)| pending_name.as_deref() == Some(name))
+                        })
+                        .or_else(|| (!pending.is_empty()).then_some(0));
+                    match matched {
+                        Some(position) => pending.remove(position).0,
+                        None if responses_call_output_can_stand_alone(&item_type, obj) => {
+                            continue;
+                        }
+                        None => {
+                            drop_indices.push(index);
+                            continue;
+                        }
+                    }
+                };
+                obj.insert("call_id".to_string(), Value::String(generated.clone()));
+                changed = true;
+                generated
+            }
+        };
+
+        if is_call {
+            pending.push((call_id, name));
+        } else if let Some(position) = pending.iter().position(|(id, _)| id == &call_id) {
+            pending.remove(position);
+        }
+    }
+    for index in drop_indices.into_iter().rev() {
+        items.remove(index);
+        changed = true;
+    }
     changed
 }
 
@@ -1212,6 +1329,125 @@ mod tests {
             body.pointer("/tools/0/type").and_then(Value::as_str),
             Some("namespace")
         );
+    }
+
+    #[test]
+    fn synthesizes_missing_call_ids_for_replayed_tool_items() {
+        let mut body = json!({
+            "model": "deepseek-v4-flash",
+            "input": [
+                {
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "arguments": "{\"cmd\":\"pwd\"}"
+                },
+                {
+                    "type": "function_call_output",
+                    "output": "/workspace"
+                },
+                {
+                    "type": "custom_tool_call",
+                    "name": "apply_patch",
+                    "input": "*** Begin Patch"
+                },
+                {
+                    "type": "custom_tool_call_output",
+                    "output": "Done!"
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "call_existing",
+                    "name": "lookup",
+                    "arguments": "{}"
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_existing",
+                    "output": "ok"
+                }
+            ]
+        });
+
+        assert!(normalize_responses_body_for_codex(&mut body));
+        let input = body.get("input").and_then(Value::as_array).unwrap();
+        let first_call_id = input[0]
+            .get("call_id")
+            .and_then(Value::as_str)
+            .expect("function call id");
+        assert!(first_call_id.starts_with("call_missing"));
+        assert_eq!(
+            input[1].get("call_id").and_then(Value::as_str),
+            Some(first_call_id)
+        );
+        let custom_call_id = input[2]
+            .get("call_id")
+            .and_then(Value::as_str)
+            .expect("custom tool call id");
+        assert!(custom_call_id.starts_with("call_missing"));
+        assert_eq!(
+            input[3].get("call_id").and_then(Value::as_str),
+            Some(custom_call_id)
+        );
+        assert_eq!(
+            input[4].get("call_id").and_then(Value::as_str),
+            Some("call_existing")
+        );
+        assert_eq!(
+            input[5].get("call_id").and_then(Value::as_str),
+            Some("call_existing")
+        );
+    }
+
+    #[test]
+    fn drops_anonymous_orphan_outputs_while_preserving_paired_history() {
+        let mut body = json!({
+            "model": "deepseek-v4-flash",
+            "input": [
+                {"type": "message", "role": "user", "content": "continue"},
+                {"type": "function_call_output", "output": "orphan result"},
+                {"type": "function_call", "name": "exec_command", "arguments": "{}"},
+                {"type": "function_call_output", "output": "paired result"},
+                {"type": "function_call_output", "name": "heartbeat", "output": "keep standalone"}
+            ]
+        });
+
+        assert!(normalize_responses_body_for_codex(&mut body));
+        let input = body.get("input").and_then(Value::as_array).unwrap();
+        assert_eq!(input.len(), 4);
+        assert_eq!(
+            input[1].get("type").and_then(Value::as_str),
+            Some("function_call")
+        );
+        let call_id = input[1]
+            .get("call_id")
+            .and_then(Value::as_str)
+            .expect("synthesized call id");
+        assert_eq!(
+            input[2].get("call_id").and_then(Value::as_str),
+            Some(call_id)
+        );
+        assert_eq!(
+            input[3].get("name").and_then(Value::as_str),
+            Some("heartbeat")
+        );
+        assert!(input[3].get("call_id").is_none());
+    }
+
+    #[test]
+    fn preserves_existing_replay_input_items() {
+        let mut body = json!({
+            "model": "gpt-5.6-sol",
+            "input": [
+                {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "continue"}]},
+                {"type": "function_call", "call_id": "old_unanswered", "name": "exec_command", "arguments": "{}"},
+                {"type": "function_call", "call_id": "old_answered", "name": "lookup", "arguments": "{}"},
+                {"type": "function_call_output", "call_id": "old_answered", "output": "ok"}
+            ]
+        });
+        let expected_input = body["input"].clone();
+
+        normalize_responses_body_for_codex(&mut body);
+        assert_eq!(body["input"], expected_input);
     }
 
     #[test]

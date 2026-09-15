@@ -585,3 +585,42 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod windows_launch_fallback_tests {
+    use super::{is_windowsapps_launch_path, windows_powershell_executable_candidates};
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn powershell_candidates_prefer_path_then_system32_then_pwsh() {
+        let candidates = windows_powershell_executable_candidates(Some(r"D:\Windows"));
+        assert_eq!(candidates[0], PathBuf::from("powershell.exe"));
+        assert_eq!(
+            candidates[1],
+            PathBuf::from(r"D:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
+        );
+        assert_eq!(candidates[2], PathBuf::from("pwsh.exe"));
+    }
+
+    #[test]
+    fn powershell_candidates_keep_windows_default_root_fallback() {
+        let candidates = windows_powershell_executable_candidates(None);
+        assert_eq!(
+            candidates[1],
+            PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
+        );
+    }
+
+    #[test]
+    fn detects_windowsapps_launch_paths() {
+        assert!(is_windowsapps_launch_path(Path::new(
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__8wekyb3d8bbwe\app\ChatGPT.exe"
+        )));
+        assert!(is_windowsapps_launch_path(Path::new(
+            r"C:/Program Files/WindowsApps/OpenAI.Codex_1.0.0.0_x64__8wekyb3d8bbwe/app/Codex.exe"
+        )));
+        assert!(!is_windowsapps_launch_path(Path::new(
+            r"C:\Users\me\AppData\Local\Programs\Codex\Codex.exe"
+        )));
+    }
+}

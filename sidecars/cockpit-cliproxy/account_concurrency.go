@@ -97,6 +97,13 @@ func (s *accountSlotSelector) Stop() {
 	}
 }
 
+func (s *accountSlotSelector) OnResult(result coreauth.Result) {
+	if s == nil {
+		return
+	}
+	forwardAuthSelectionResult(s.fallback, result)
+}
+
 func (s *accountSlotSelector) ReportAuthSelectionFailure(ctx context.Context, provider, model string, candidates []*coreauth.Auth, err error) error {
 	if s == nil || s.fallback == nil {
 		return err
@@ -264,6 +271,13 @@ func (s *accountConcurrencySelector) Stop() {
 	if stoppable, ok := s.fallback.(coreauth.StoppableSelector); ok {
 		stoppable.Stop()
 	}
+}
+
+func (s *accountConcurrencySelector) OnResult(result coreauth.Result) {
+	if s == nil {
+		return
+	}
+	forwardAuthSelectionResult(s.fallback, result)
 }
 
 func (s *accountConcurrencySelector) ReportAuthSelectionFailure(ctx context.Context, provider, model string, candidates []*coreauth.Auth, err error) error {

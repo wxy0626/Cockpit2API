@@ -713,7 +713,8 @@
         CODEX_LOCAL_ACCESS_DISABLE_HOSTED_IMAGE_GENERATION_HEADER,
         CODEX_LOCAL_ACCESS_DISABLE_HOSTED_IMAGE_GENERATION_HEADER_VALUE,
         CODEX_LOCAL_ACCESS_MODEL_CATALOG_FILE, CODEX_PROFILE_AUTH_FILE, CODEX_PROFILE_CONFIG_FILE,
-        CODEX_PROVIDER_MODEL_BACKUP_FILE, CODEX_PROVIDER_MODEL_CATALOG_FILE,
+        CODEX_LOCAL_ACCESS_RUNTIME_PROVIDER_ID, CODEX_PROVIDER_MODEL_BACKUP_FILE,
+        CODEX_PROVIDER_MODEL_CATALOG_FILE,
         DEFAULT_ACCOUNT_CONCURRENCY_WAIT_MS, DEFAULT_MAX_RETRY_INTERVAL_MS,
         DEFAULT_MODEL_PRICING_VERSION,
         DEFAULT_SESSION_AFFINITY_TTL_MS, MAX_HTTP_REQUEST_BYTES,
@@ -3600,6 +3601,11 @@ http_headers = { "x-cockpit-instance-id" = "default" }
         );
         assert!(account.api_supports_websockets);
         assert_eq!(account.api_wire_api.as_deref(), Some("responses"));
+        assert_eq!(account.api_provider_name.as_deref(), Some("OpenAI"));
+        assert_eq!(
+            account.api_provider_id.as_deref(),
+            Some(CODEX_LOCAL_ACCESS_RUNTIME_PROVIDER_ID)
+        );
     }
 
     #[test]
@@ -3705,4 +3711,28 @@ http_headers = { "x-cockpit-instance-id" = "default" }
             &collection,
             "mixed-local-key"
         ));
+    }
+
+    /// 混合路由的可见模型清单由路由配置推导，因此不依赖用户是否开启「模型管理」。
+    #[test]
+    fn mixed_model_catalog_definitions_include_official_models_without_routes() {
+        let routing = crate::models::CodexInstanceModelRouting {
+            enabled: true,
+            version: 1,
+            routes: Vec::new(),
+        };
+        let definitions = super::mixed_model_catalog_definitions(&routing)
+            .expect("build mixed catalog definitions");
+        assert!(!definitions.is_empty(), "至少包含官方模型");
+        assert!(
+            definitions.iter().all(|(model_id, _)| !model_id.contains('/')),
+            "没有路由配置时不应出现带命名空间前缀的模型"
+        );
+        assert!(
+            definitions
+                .iter()
+                .any(|(model_id, display_name)| model_id.starts_with("gpt-")
+                    && !display_name.trim().is_empty()),
+            "官方模型需要带展示名"
+        );
     }

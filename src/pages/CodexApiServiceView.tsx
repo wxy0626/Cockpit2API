@@ -196,6 +196,7 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
     resolveClientInstanceLabel,
     responsesWebsocketsEnabledDraft,
     routingOptions,
+    routingSaving,
     routingStrategy,
     selectedModelId,
     selectedStatsRangeTitle,
@@ -1751,7 +1752,7 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => void handleSaveRoutingOptions()}
-                  disabled={busy || !collection}
+                  disabled={busy || routingSaving || !collection}
                 >
                   <Check size={14} />
                   {t("codex.apiService.routing.saveOptions", "保存选项")}
@@ -1781,7 +1782,7 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
                     onChange={(event) =>
                       setSessionAffinityDraft(event.target.checked)
                     }
-                    disabled={busy || !collection}
+                    disabled={routingSaving || !collection}
                   />
                 </label>
                 <label>
@@ -1799,7 +1800,7 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
                     onChange={(event) =>
                       setSessionAffinityTtlDraft(event.target.value)
                     }
-                    disabled={busy || !collection}
+                    disabled={routingSaving || !collection}
                   />
                 </label>
                 <label>
@@ -2414,6 +2415,24 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
                       event.email ||
                       event.accountId ||
                       "-";
+                    const serviceTier = (event.serviceTier || "")
+                      .trim()
+                      .toLowerCase();
+                    const serviceTierIsFast =
+                      serviceTier === "priority" || serviceTier === "ultrafast";
+                    const serviceTierLabel =
+                      serviceTier === "priority"
+                        ? t("codex.speed.fast", "快速")
+                        : serviceTier === "ultrafast"
+                          ? t("codex.speed.ultrafast", "超高速")
+                          : serviceTier === "standard"
+                            ? t("codex.speed.standard", "标准")
+                            : event.serviceTier
+                              ? t("codex.apiService.logs.serviceTierValue", {
+                                  tier: event.serviceTier,
+                                  defaultValue: "Tier {{tier}}",
+                                })
+                              : "";
                     return (
                       <div
                         key={`${event.timestamp}-${event.requestId || event.apiKeyId}-${index}`}
@@ -2442,18 +2461,15 @@ export function CodexApiServiceView(props: CodexApiServiceViewProps) {
                               })}
                             </span>
                           ) : null}
-                          {event.serviceTier ? (
+                          {serviceTierLabel ? (
                             <span
-                              className="codex-api-service-pill muted"
+                              className={`codex-api-service-pill ${serviceTierIsFast ? "fast" : "muted"}`}
                               title={t(
                                 "codex.apiService.logs.serviceTier",
                                 "服务等级",
                               )}
                             >
-                              {t("codex.apiService.logs.serviceTierValue", {
-                                tier: event.serviceTier,
-                                defaultValue: "Tier {{tier}}",
-                              })}
+                              {serviceTierLabel}
                             </span>
                           ) : null}
                         </div>

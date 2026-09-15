@@ -749,6 +749,7 @@ fn validate_api_key_account_scope_update(
 
 fn codex_app_speed_service_tier(speed: &CodexAppSpeed) -> Option<&'static str> {
     match speed {
+        CodexAppSpeed::Ultrafast => Some("ultrafast"),
         CodexAppSpeed::Fast => Some("priority"),
         CodexAppSpeed::Standard => None,
     }

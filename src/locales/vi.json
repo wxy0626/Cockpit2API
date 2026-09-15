@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Kết quả kiểm thử",
+    "usageTokens": "{{tokens}} token",
+    "quotaUsed": "5h đã dùng {{percent}}%",
+    "quotaLeft": "5h còn lại {{percent}}%",
     "openBrowser": "Mở trong trình duyệt",
     "error": {
       "stateUnavailable": "Không có trạng thái tác vụ. Hãy thử lại.",
@@ -854,7 +857,7 @@
       "codexSyncWsl": "Đồng bộ Codex sang WSL",
       "codexSyncWslDesc": "Sau khi chuyển tài khoản Codex mặc định, auth.json và config.toml cũng được ghi vào thư mục Codex trong WSL.",
       "codexAppUiInjection": "Hạn mức dịch vụ API",
-      "codexAppUiInjectionDesc": "Sau khi khởi động lại phiên Codex, hiển thị số tài khoản cùng hạn mức tuần và 5 giờ của dịch vụ API Cockpit Tools bên dưới trình soạn thảo. Cần giữ Cockpit Tools chạy trong nền; dữ liệu sẽ ngừng cập nhật khi thoát hoàn toàn hoặc khi mạng không khả dụng.",
+      "codexAppUiInjectionDesc": "Sau khi khởi động lại phiên Codex, hiển thị số tài khoản cùng hạn mức tuần và 5 giờ của dịch vụ API Cockpit Tools bên dưới trình soạn thảo; phiên liên kết với tài khoản DeepSeek sẽ hiển thị số dư của tài khoản đó. Cần giữ Cockpit Tools chạy trong nền; dữ liệu sẽ ngừng cập nhật khi thoát hoàn toàn hoặc khi mạng không khả dụng.",
       "codexAppUiInjectionPoolLabel": "Tài khoản",
       "codexAppUiInjectionWeeklyLabel": "Tuần",
       "codexAppUiInjectionFiveHourLabel": "5 giờ",
@@ -2097,6 +2100,7 @@
       "manage": "Quản lý mô hình",
       "disabledDescription": "Mặc định tắt. Mô hình, thứ tự và mức suy luận tuân theo danh mục chính thức.",
       "enabledDescription": "Danh mục đã cấu hình đang hoạt động. Bạn có thể thêm hoặc xóa mô hình và danh sách không còn tự động cập nhật.",
+      "routingManagedHint": "Định tuyến hỗn hợp chỉ tạm dùng danh mục mô hình này khi instance đang chạy và tự khôi phục sau khi dừng. Công tắc ở đây không thay đổi.",
       "enableConfirmTitle": "Bật quản lý mô hình?",
       "enableConfirmDescription": "Codex sẽ dùng danh mục được cấu hình tại đây. Bạn có thể điều chỉnh mô hình, nhưng danh sách sẽ không còn tự động cập nhật.",
       "enableConfirmAction": "Bật và cấu hình"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "Có",
       "imageGenSwitchNo": "Không",
       "imageGenTitle": "Bật tạo ảnh GPT",
+      "oauthBindingHint": "Sau khi liên kết, việc khởi chạy giống hệt tài khoản thường và mọi khả năng OAuth (nén từ xa, điều khiển trình duyệt, các loại plugin, v.v.) đều khả dụng; hội thoại vẫn do nhà cung cấp API Key hiện tại xử lý.",
+      "oauthBindingChange": "Đổi",
       "title": "Xem trước khi khởi động Codex",
       "description": "Hãy cấu hình và kiểm tra trước; ứng dụng chỉ thay đổi sau khi bạn chọn Chuyển hoặc Khởi động.",
       "notApplied": "Chưa áp dụng",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "Cần ít nhất hai phiên bản để đồng bộ phiên",
         "pickRestoreOne": "Hãy chọn ít nhất một phiên để khôi phục",
         "repairVisibilitySkippedOnly": "Không tìm thấy khác biệt provider có thể ghi; đã bỏ qua {{count}} tệp state_5.sqlite không hợp lệ hoặc bị hỏng. Codex phải tạo lại chúng trước khi có thể sửa các bản ghi SQLite bên trong.",
-        "repairVisibilitySkippedWithBase": "{{message}}; đã bỏ qua {{count}} tệp state_5.sqlite không hợp lệ hoặc bị hỏng. Codex phải tạo lại chúng trước khi có thể sửa các bản ghi SQLite bên trong."
+        "repairVisibilitySkippedWithBase": "{{message}}; đã bỏ qua {{count}} tệp state_5.sqlite không hợp lệ hoặc bị hỏng. Codex phải tạo lại chúng trước khi có thể sửa các bản ghi SQLite bên trong.",
+        "trashSummary": "Đã chuyển {{count}} cuộc trò chuyện vào thùng rác và xóa trong Codex chính thức",
+        "trashSummaryFallback": "Đã chuyển {{count}} cuộc trò chuyện vào thùng rác và kích hoạt dựng lại chỉ mục phiên của Codex chính thức",
+        "trashSummaryRunningHint": "Các phiên bản đang chạy có thể cần làm mới hoặc khởi động lại để hiển thị thay đổi",
+        "trashSummaryFallbackHint": "Việc xóa chính thức chưa hoàn tất ở {{count}} phiên bản; tệp đã được xóa trực tiếp và Codex sẽ đồng bộ sau khi khởi động lại",
+        "trashSummaryRebuildFailedHint": "Việc dựng lại chỉ mục thanh bên chính thức chưa hoàn tất ở {{count}} phiên bản; Codex sẽ tải lại sau khi khởi động lại",
+        "trashSummaryEmpty": "Các cuộc trò chuyện đã chọn không tồn tại trong tập hợp phiên bản hiện tại, không cần xử lý"
       },
       "groupCount": "{{count}} phiên",
       "updatedAt": "Đã cập nhật",
@@ -3273,7 +3285,12 @@
         "subagent": "Tác nhân con",
         "all": "Mọi loại"
       },
-      "pickInstancePrompt": "Phiên tồn tại trên nhiều instance. Nhập ID instance:"
+      "locationPicker": {
+        "title": "Chọn instance",
+        "hint": "Phiên này tồn tại trên nhiều instance. Chọn instance để mở vị trí tệp:",
+        "rolloutHint": "Phiên này tồn tại trên nhiều instance. Chọn instance để mở tệp phiên:",
+        "running": "Đang chạy"
+      }
     },
     "sessionUsage": {
       "tab": "Mức dùng",
@@ -3758,6 +3775,9 @@
           "planName": "Gói",
           "remaining": "Còn lại",
           "balance": "Số dư",
+          "totalBalance": "Tổng số dư",
+          "grantedBalance": "Số dư tặng",
+          "toppedUpBalance": "Số dư nạp",
           "todayRequests": "Yêu cầu hôm nay",
           "todayTokens": "Token hôm nay",
           "todayCost": "Chi phí hôm nay",
@@ -3983,6 +4003,8 @@
       "standardDesc": "Tốc độ mặc định, mức dùng thường",
       "fast": "Nhanh",
       "fastDesc": "Tốc độ 1,5x, dùng nhiều hơn",
+      "ultrafast": "Siêu nhanh",
+      "ultrafastDesc": "Phản hồi nhanh nhất, dùng nhiều hơn",
       "saveSuccess": "Đã cập nhật tốc độ",
       "saveFailed": "Không thể lưu tốc độ: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "Hiện hạn mức relay",
       "hideRelayQuota": "Ẩn hạn mức relay"
+    },
+    "instanceGateways": {
+      "entry": "Cổng instance",
+      "entryCount": "Cổng instance {{count}}",
+      "issueCount": "{{count}} bất thường",
+      "title": "Cổng instance",
+      "subtitle": "Cổng cục bộ khởi động cùng các instance Codex",
+      "summary": "Tổng {{total}} · đang chạy {{running}} · bất thường {{issues}}",
+      "empty": "Không có cổng cấp instance",
+      "emptyHint": "Chúng sẽ tự xuất hiện sau khi liên kết tài khoản khóa API theo giao thức Chat hoặc bật định tuyến nhiều mô hình.",
+      "kindProviderGateway": "Cổng nhà cung cấp",
+      "kindMixedModel": "Định tuyến nhiều mô hình",
+      "kindBoundOauth": "Cổng OAuth cục bộ",
+      "statusUnreachable": "Đã khởi động nhưng không truy cập được",
+      "statusPortConflict": "Cổng đang bị chiếm",
+      "statusNotStarted": "Chưa khởi động",
+      "fieldAccount": "Tài khoản",
+      "fieldAddress": "Địa chỉ cục bộ",
+      "fieldProtocol": "Giao thức",
+      "fieldModels": "Mô hình nguồn",
+      "loadFailed": "Không tải được cổng instance",
+      "stop": "Dừng",
+      "restart": "Khởi động lại",
+      "stopConfirmTitle": "Dừng gateway của instance này?",
+      "stopConfirmDescription": "Dừng gateway định tuyến hỗn hợp cũng sẽ tắt định tuyến hỗn hợp của instance đó (cấu hình kênh vẫn được giữ); các gateway khác có thể chạy lại bằng “Khởi động lại”.",
+      "stopFailed": "Không dừng được gateway: {{error}}",
+      "restartFailed": "Không khởi động lại được gateway: {{error}}"
     }
   },
   "githubCopilot": {

@@ -1442,6 +1442,9 @@ fn price_book_entry_for_model(model_id: &str) -> Option<&'static CodexLocalAcces
 fn parse_billing_service_tier(service_tier: Option<&str>) -> CodexBillingServiceTier {
     match service_tier.and_then(normalize_proxy_service_tier) {
         Some("priority") => CodexBillingServiceTier::Priority,
+        // “超高速”（ultrafast）目前没有公开的独立费率，按官方快速档同档估算，
+        // 避免落回标准档导致费用被明显低估。
+        Some("ultrafast") => CodexBillingServiceTier::Priority,
         Some("flex") => CodexBillingServiceTier::Flex,
         _ => CodexBillingServiceTier::Standard,
     }

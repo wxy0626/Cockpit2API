@@ -75,6 +75,17 @@ pub struct Item {
     pub usage: Option<serde_json::Value>,
     pub response_id: Option<String>,
     pub response_model: Option<String>,
+    pub quota: Option<QuotaUsage>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaUsage {
+    pub consumed_percent: Option<f64>,
+    pub before_remaining_percent: Option<i32>,
+    pub remaining_percent: Option<i32>,
+    pub window_minutes: Option<i64>,
+    pub reset_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -122,6 +133,48 @@ fn now() -> i64 {
 
 fn lock_error() -> String {
     "pelican.error.stateUnavailable".into()
+}
+
+fn same_pelican_quota_window(
+    before: &crate::modules::codex_local_access::PelicanQuotaSnapshot,
+    after: &crate::modules::codex_local_access::PelicanQuotaSnapshot,
+) -> bool {
+    if let (Some(before_window), Some(after_window)) =
+        (before.window_minutes, after.window_minutes)
+    {
+        if before_window != after_window {
+            return false;
+        }
+    }
+    match (before.reset_at, after.reset_at) {
+        (Some(before_reset), Some(after_reset)) => after_reset + 60 >= before_reset,
+        _ => true,
+    }
+}
+
+fn pelican_quota_usage(
+    before: Option<&crate::modules::codex_local_access::PelicanQuotaSnapshot>,
+    after: Option<&crate::modules::codex_local_access::PelicanQuotaSnapshot>,
+) -> Option<QuotaUsage> {
+    if before.is_none() && after.is_none() {
+        return None;
+    }
+    let consumed_percent = match (before, after) {
+        (Some(before), Some(after)) if same_pelican_quota_window(before, after) => {
+            let consumed = before.remaining_percent as f64 - after.remaining_percent as f64;
+            (consumed >= 0.0).then_some(consumed)
+        }
+        _ => None,
+    };
+    Some(QuotaUsage {
+        consumed_percent,
+        before_remaining_percent: before.map(|snapshot| snapshot.remaining_percent),
+        remaining_percent: after.map(|snapshot| snapshot.remaining_percent),
+        window_minutes: after
+            .and_then(|snapshot| snapshot.window_minutes)
+            .or_else(|| before.and_then(|snapshot| snapshot.window_minutes)),
+        reset_at: after.and_then(|snapshot| snapshot.reset_at),
+    })
 }
 
 fn take_stream_emit_slot(last_emit: &mut Instant, current: Instant) -> bool {
@@ -231,6 +284,7 @@ pub fn start(app: AppHandle, mut request: StartRequest) -> Result<Batch, String>
                 usage: None,
                 response_id: None,
                 response_model: None,
+                quota: None,
             })
             .collect(),
     };
@@ -415,6 +469,7 @@ fn prepare_item_retry(batch: &mut Batch, item_id: &str) -> Result<usize, String>
     item.usage = None;
     item.response_id = None;
     item.response_model = None;
+    item.quota = None;
     Ok(index)
 }
 
@@ -722,21 +777,23 @@ async fn run_item(job: Arc<ActiveBatch>, semaphore: Arc<Semaphore>, index: usize
         return;
     }
     let account_id = item.account_id.clone();
+    let item_id = item.id.clone();
+    let account_id_for_load = account_id.clone();
     let identity = tokio::select! {
         biased;
         _ = cancel.changed() => { finish_cancelled(&job, index).await; return; },
         result = tokio::time::timeout(IO_TIMEOUT, tokio::task::spawn_blocking(move || {
-            let account = crate::modules::codex_account::load_account(&account_id)
+            let account = crate::modules::codex_account::load_account(&account_id_for_load)
                 .ok_or_else(|| "pelican.error.accountUnavailable".to_string())?;
             if account.is_api_key_auth() || account.is_web_session_auth() {
                 return Err("PELICAN_UNSUPPORTED_ACCOUNT".into());
             }
-            Ok(account.email)
+            Ok((account.email, account.quota, account.usage_updated_at))
         })) => result.map_err(|_| "pelican.error.storageTimeout".to_string())
             .and_then(|result| result.map_err(|error| error.to_string())).and_then(|result| result),
     };
-    let email = match identity {
-        Ok(email) => email,
+    let (email, cached_quota, quota_updated_at) = match identity {
+        Ok(identity) => identity,
         Err(error) => {
             finish_failed(&job, index, error).await;
             return;
@@ -782,6 +839,11 @@ async fn run_item(job: Arc<ActiveBatch>, semaphore: Arc<Semaphore>, index: usize
         },
     )
     .await;
+    let result_ok = result.is_ok();
+    let header_quota = result
+        .as_ref()
+        .ok()
+        .and_then(|output| output.quota.as_ref().cloned());
     let raw_reply = match &result {
         Ok(output) => output.reply.clone(),
         Err(_) => partial
@@ -792,13 +854,25 @@ async fn run_item(job: Arc<ActiveBatch>, semaphore: Arc<Semaphore>, index: usize
     let html = extract_html(&raw_reply);
     let has_html = html.is_some();
     let preview = preview_text(&raw_reply);
+    // A stale cached quota would turn other sessions' usage into this run's delta.
+    let current_timestamp = now() / 1000;
+    let before_quota = quota_updated_at
+        .filter(|updated_at| (current_timestamp - updated_at).abs() <= 900)
+        .and_then(|_| cached_quota.as_ref())
+        .and_then(crate::modules::codex_local_access::pelican_quota_snapshot_from_codex_quota)
+        .filter(|snapshot| {
+            snapshot
+                .reset_at
+                .map(|reset_at| reset_at > current_timestamp)
+                .unwrap_or(true)
+        });
     let artifact_result =
-        store::save_artifact(batch.id, item.id, Artifact { raw_reply, html }).await;
+        store::save_artifact(batch.id, item_id.clone(), Artifact { raw_reply, html }).await;
     if let Err(error) = &artifact_result {
         job.storage_error(error.clone());
     }
     let cancelled = *job.cancel.borrow();
-    let _ = job.update(|batch| {
+    let updated = job.update(|batch| {
         let item = &mut batch.items[index];
         item.finished_at = Some(now());
         item.reply_preview = Some(preview);
@@ -812,6 +886,7 @@ async fn run_item(job: Arc<ActiveBatch>, semaphore: Arc<Semaphore>, index: usize
                 }
                 .into();
                 item.error = artifact_result.err();
+                item.quota = pelican_quota_usage(before_quota.as_ref(), output.quota.as_ref());
                 item.usage = output.usage;
                 item.response_id = output.response_id;
                 item.response_model = output.response_model;
@@ -825,6 +900,66 @@ async fn run_item(job: Arc<ActiveBatch>, semaphore: Arc<Semaphore>, index: usize
     if let Err(error) = persist(&job).await {
         job.storage_error(error);
     }
+    if result_ok && header_quota.is_none() {
+        if let Ok(updated) = updated {
+            if let Some(finished_at) = updated
+                .items
+                .get(index)
+                .filter(|item| item.id == item_id)
+                .and_then(|item| item.finished_at)
+            {
+                spawn_pelican_quota_refresh(
+                    job.clone(),
+                    index,
+                    item_id,
+                    finished_at,
+                    account_id,
+                    before_quota,
+                );
+            }
+        }
+    }
+}
+
+fn spawn_pelican_quota_refresh(
+    job: Arc<ActiveBatch>,
+    index: usize,
+    item_id: String,
+    finished_at: i64,
+    account_id: String,
+    before_quota: Option<crate::modules::codex_local_access::PelicanQuotaSnapshot>,
+) {
+    tokio::spawn(async move {
+        let refreshed = tokio::time::timeout(
+            Duration::from_secs(15),
+            crate::modules::codex_quota::refresh_account_quota(&account_id),
+        )
+        .await;
+        let Ok(Ok(quota)) = refreshed else {
+            return;
+        };
+        let Some(after) =
+            crate::modules::codex_local_access::pelican_quota_snapshot_from_codex_quota(&quota)
+        else {
+            return;
+        };
+        let usage = pelican_quota_usage(before_quota.as_ref(), Some(&after));
+        let mut matched = false;
+        let updated = job.update(|batch| {
+            let Some(item) = batch.items.get_mut(index) else {
+                return;
+            };
+            if item.id == item_id && item.finished_at == Some(finished_at) {
+                item.quota = usage;
+                matched = true;
+            }
+        });
+        if updated.is_ok() && matched {
+            if let Err(error) = persist(&job).await {
+                job.storage_error(error);
+            }
+        }
+    });
 }
 
 async fn finish_cancelled(job: &ActiveBatch, index: usize) {
@@ -919,6 +1054,36 @@ fn tag_boundary(suffix: &str) -> bool {
 mod tests {
     use super::*;
 
+    fn quota_snapshot(
+        remaining_percent: i32,
+        reset_at: i64,
+    ) -> crate::modules::codex_local_access::PelicanQuotaSnapshot {
+        crate::modules::codex_local_access::PelicanQuotaSnapshot {
+            used_percent: (100 - remaining_percent) as f64,
+            remaining_percent,
+            window_minutes: Some(300),
+            reset_at: Some(reset_at),
+        }
+    }
+
+    #[test]
+    fn quota_usage_reports_remaining_and_consumed_percent() {
+        let before = quota_snapshot(80, 1_000);
+        let after = quota_snapshot(73, 1_300);
+        let usage = pelican_quota_usage(Some(&before), Some(&after)).expect("quota usage");
+        assert_eq!(usage.remaining_percent, Some(73));
+        assert_eq!(usage.consumed_percent, Some(7.0));
+    }
+
+    #[test]
+    fn quota_usage_does_not_invent_consumption_after_reset() {
+        let before = quota_snapshot(12, 1_000);
+        let after = quota_snapshot(95, 1_300);
+        let usage = pelican_quota_usage(Some(&before), Some(&after)).expect("quota usage");
+        assert_eq!(usage.remaining_percent, Some(95));
+        assert_eq!(usage.consumed_percent, None);
+    }
+
     #[test]
     fn retry_resets_failed_item_without_creating_a_new_batch() {
         let item_id = uuid::Uuid::new_v4().to_string();
@@ -948,6 +1113,7 @@ mod tests {
                 usage: Some(serde_json::json!({"tokens": 10})),
                 response_id: Some("response".into()),
                 response_model: Some("model".into()),
+                quota: None,
             }],
         };
         let batch_id = batch.id.clone();

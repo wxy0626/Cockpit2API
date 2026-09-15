@@ -162,7 +162,7 @@
     }
 
     #[test]
-    fn deepseek_direct_provider_catalog_uses_display_whitelist_and_upstream_names() {
+    fn deepseek_official_catalog_keeps_upstream_names_and_official_metadata() {
         let account = CodexAccount::new_api_key(
             "deepseek-catalog".to_string(),
             "deepseek@example.com".to_string(),
@@ -173,7 +173,7 @@
             Some("DeepSeek".to_string()),
             Vec::new(),
         );
-        let json = super::build_deepseek_direct_provider_catalog_json(&account)
+        let json = super::build_deepseek_official_model_catalog_json(&account)
             .expect("build catalog");
         let value: serde_json::Value = serde_json::from_str(&json).expect("parse catalog");
         let models = value
@@ -222,6 +222,40 @@
             vision.get("input_modalities"),
             Some(&serde_json::json!(["text", "image"]))
         );
+        // 官方完整条目：官方声明的多 agent / 客户端版本要求必须原样带过去，
+        // 不能再从 Codex 内置模型壳继承计费档位与套餐门控。
+        assert_eq!(
+            models[0]
+                .get("multi_agent_version")
+                .and_then(|item| item.as_str()),
+            Some("v2")
+        );
+        assert_eq!(
+            models[0]
+                .get("minimal_client_version")
+                .and_then(|item| item.as_str()),
+            Some("0.144.0")
+        );
+        assert_eq!(
+            models[0]
+                .get("effective_context_window_percent")
+                .and_then(|item| item.as_i64()),
+            Some(95)
+        );
+        for model in models {
+            for shell_field in [
+                "service_tiers",
+                "additional_speed_tiers",
+                "available_in_plans",
+                "include_apps_usage_instructions",
+                "include_plugin_usage_instructions",
+            ] {
+                assert!(
+                    model.get(shell_field).is_none(),
+                    "{shell_field} 不应来自 Codex 内置模型壳: {model}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -275,13 +309,13 @@
             "model = \"gpt-5\"\n\n[features]\njs_repl = false\n",
         )
         .expect("parse config");
-        super::apply_deepseek_compaction_fallback_inner(&mut doc, &base_dir);
+        super::apply_deepseek_config_overrides(&mut doc, &base_dir);
         let applied = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
         assert!(applied.contains("remote_compaction_v2 = false"));
         assert!(applied.contains("token_budget = true"));
         assert!(applied.contains("js_repl = false"));
 
-        assert!(super::restore_deepseek_compaction_fallback(&mut doc, &base_dir));
+        assert!(super::restore_deepseek_config_overrides(&mut doc, &base_dir));
         let restored = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
         assert!(!restored.contains("remote_compaction_v2"));
         assert!(!restored.contains("token_budget"));
@@ -296,14 +330,150 @@
             "[features]\nremote_compaction_v2 = true\ntoken_budget = false\n",
         )
         .expect("parse config");
-        super::apply_deepseek_compaction_fallback_inner(&mut doc, &base_dir);
+        super::apply_deepseek_config_overrides(&mut doc, &base_dir);
         let applied = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
         assert!(applied.contains("remote_compaction_v2 = false"));
 
-        assert!(super::restore_deepseek_compaction_fallback(&mut doc, &base_dir));
+        assert!(super::restore_deepseek_config_overrides(&mut doc, &base_dir));
         let restored = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
         assert!(restored.contains("remote_compaction_v2 = true"));
         assert!(restored.contains("token_budget = false"));
+        fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn deepseek_overrides_disable_web_search_and_clean_conflict_keys() {
+        let base_dir = make_temp_dir("codex-deepseek-config-overrides");
+        let mut doc = crate::modules::codex_config_format::read_codex_config_doc_from_str(
+            "model = \"gpt-5\"\nweb_search = \"live\"\nmodel_verbosity = \"low\"\nplan_mode_reasoning_effort = \"xhigh\"\nbase_instructions = \"custom\"\nservice_tier = \"priority\"\nmodel_context_window = 1000000\n",
+        )
+        .expect("parse config");
+
+        super::apply_deepseek_config_overrides(&mut doc, &base_dir);
+        let applied = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
+        assert!(applied.contains("web_search = \"disabled\""));
+        for removed in [
+            "model_verbosity",
+            "plan_mode_reasoning_effort",
+            "base_instructions",
+            "service_tier",
+        ] {
+            assert!(!applied.contains(removed), "{removed} 应在切到 DeepSeek 时被移除");
+        }
+        // 上下文窗口属于用户在「上下文管理」里的显式设置，不在清理范围内。
+        assert!(applied.contains("model_context_window = 1000000"));
+
+        assert!(super::restore_deepseek_config_overrides(&mut doc, &base_dir));
+        let restored = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
+        assert!(restored.contains("web_search = \"live\""));
+        assert!(restored.contains("model_verbosity = \"low\""));
+        assert!(restored.contains("plan_mode_reasoning_effort = \"xhigh\""));
+        assert!(restored.contains("base_instructions = \"custom\""));
+        assert!(restored.contains("service_tier = \"priority\""));
+        fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn deepseek_switch_restores_preferred_auth_method_written_by_runtime() {
+        // 用户原本手工设置过：DeepSeek 运行态会改写成 apikey，切走必须还原原值。
+        let base_dir = make_temp_dir("codex-deepseek-preferred-auth-method-restore");
+        let mut doc = crate::modules::codex_config_format::read_codex_config_doc_from_str(
+            "model = \"gpt-5\"\npreferred_auth_method = \"chatgpt\"\n",
+        )
+        .expect("parse config");
+        super::apply_deepseek_config_overrides(&mut doc, &base_dir);
+        doc["preferred_auth_method"] = toml_edit::value("apikey");
+
+        assert!(super::restore_deepseek_config_overrides(&mut doc, &base_dir));
+        let restored = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
+        assert!(restored.contains("preferred_auth_method = \"chatgpt\""));
+        assert!(!restored.contains("apikey"));
+        fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
+
+        // 用户原本没有该键：切走时要把 DeepSeek 运行态写入的值清掉。
+        let empty_dir = make_temp_dir("codex-deepseek-preferred-auth-method-absent");
+        let mut doc = crate::modules::codex_config_format::read_codex_config_doc_from_str(
+            "model = \"gpt-5\"\n",
+        )
+        .expect("parse config");
+        super::apply_deepseek_config_overrides(&mut doc, &empty_dir);
+        doc["preferred_auth_method"] = toml_edit::value("apikey");
+
+        assert!(super::restore_deepseek_config_overrides(&mut doc, &empty_dir));
+        let restored = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
+        assert!(!restored.contains("preferred_auth_method"));
+        assert!(restored.contains("model = \"gpt-5\""));
+        fs::remove_dir_all(&empty_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn deepseek_overrides_remove_web_search_when_user_had_none() {
+        let base_dir = make_temp_dir("codex-deepseek-config-overrides-empty");
+        let mut doc = crate::modules::codex_config_format::read_codex_config_doc_from_str(
+            "model = \"gpt-5\"\n",
+        )
+        .expect("parse config");
+
+        super::apply_deepseek_config_overrides(&mut doc, &base_dir);
+        let applied = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
+        assert!(applied.contains("web_search = \"disabled\""));
+
+        assert!(super::restore_deepseek_config_overrides(&mut doc, &base_dir));
+        let restored = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
+        assert!(!restored.contains("web_search"));
+        assert!(restored.contains("model = \"gpt-5\""));
+        fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn deepseek_overrides_leave_table_valued_keys_untouched() {
+        let base_dir = make_temp_dir("codex-deepseek-config-overrides-table");
+        let mut doc = crate::modules::codex_config_format::read_codex_config_doc_from_str(
+            "model = \"gpt-5\"\n\n[web_search]\nmode = \"live\"\n\n[base_instructions]\nvalue = \"custom\"\n",
+        )
+        .expect("parse config");
+
+        super::apply_deepseek_config_overrides(&mut doc, &base_dir);
+        let applied = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
+        assert!(applied.contains("[web_search]"));
+        assert!(applied.contains("[base_instructions]"));
+
+        assert!(super::restore_deepseek_config_overrides(&mut doc, &base_dir));
+        let restored = crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc);
+        assert!(restored.contains("[web_search]"));
+        assert!(restored.contains("[base_instructions]"));
+        fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
+    }
+
+    #[test]
+    fn switching_away_from_deepseek_restores_overrides_and_catalog() {
+        let base_dir = make_temp_dir("codex-deepseek-switch-away-restore");
+        let config_path = base_dir.join("config.toml");
+        let mut doc = crate::modules::codex_config_format::read_codex_config_doc_from_str(
+            "model = \"gpt-5\"\nweb_search = \"live\"\nmodel_verbosity = \"low\"\n",
+        )
+        .expect("parse config");
+        super::apply_deepseek_config_overrides(&mut doc, &base_dir);
+        doc["model_catalog_json"] = toml_edit::value(super::CODEX_MANAGED_MODEL_CATALOG_FILE);
+        fs::write(
+            &config_path,
+            crate::modules::codex_config_format::codex_config_doc_to_string(&mut doc),
+        )
+        .expect("write config");
+        fs::write(
+            base_dir.join(super::CODEX_MANAGED_MODEL_CATALOG_FILE),
+            r#"{"models":[{"slug":"deepseek-flash","apply_patch_tool_type":"freeform"}]}"#,
+        )
+        .expect("write deepseek catalog");
+
+        assert!(super::cleanup_deepseek_official_model_catalog_for_dir(&base_dir).expect("cleanup"));
+        let restored = fs::read_to_string(&config_path).expect("read config");
+        assert!(restored.contains("web_search = \"live\""));
+        assert!(restored.contains("model_verbosity = \"low\""));
+        assert!(!restored.contains("model_catalog_json"));
+        assert!(!base_dir
+            .join(super::CODEX_MANAGED_MODEL_CATALOG_FILE)
+            .exists());
         fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
     }
 
@@ -1128,4 +1298,66 @@ multi_agent = true
         assert!(content.contains("[features]"));
 
         fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
+    }
+
+    /// 第三方（API Key）账号必须使用自己的模型目录：既不能被「模型管理」的受管目录覆盖，
+    /// 也不能反过来改动用户的模型管理开关与模型清单。
+    #[test]
+    fn api_key_account_catalog_is_independent_from_model_management() {
+        let managed_dir = make_temp_dir("codex-api-key-managed-catalog-isolation");
+        let baseline_dir = make_temp_dir("codex-api-key-managed-catalog-baseline");
+
+        fs::write(managed_dir.join("config.toml"), "model = \"gpt-5.6-sol\"\n")
+            .expect("write base config");
+        let definitions = super::default_experimental_model_definitions(&managed_dir);
+        super::save_model_catalog_for_base_dir_preserving_context(
+            &managed_dir,
+            true,
+            definitions.clone(),
+            None,
+        )
+        .expect("enable managed catalog");
+        let policy_path = managed_dir.join(super::CODEX_EXPERIMENTAL_MODEL_POLICY_FILE);
+        assert!(policy_path.is_file(), "前置条件：模型管理已开启");
+
+        let mut account = CodexAccount::new_api_key(
+            "deepseek-api-key".to_string(),
+            "deepseek@example.com".to_string(),
+            "sk-deepseek".to_string(),
+            CodexApiProviderMode::Custom,
+            Some("https://api.deepseek.com".to_string()),
+            Some("deepseek".to_string()),
+            Some("DeepSeek".to_string()),
+            vec![
+                "deepseek-v4-flash".to_string(),
+                "deepseek-v4-pro".to_string(),
+            ],
+        );
+        account.api_wire_api = Some("responses".to_string());
+        account.api_sync_model_catalog_to_codex = true;
+        account.api_instance_access_mode = Some("gateway".to_string());
+        account.api_startup_model = Some("deepseek-v4-pro".to_string());
+
+        write_account_bundle_to_dir(&managed_dir, &account).expect("write managed dir bundle");
+        write_account_bundle_to_dir(&baseline_dir, &account).expect("write baseline bundle");
+
+        let catalog_file = super::CODEX_MANAGED_MODEL_CATALOG_FILE;
+        let managed_catalog =
+            fs::read_to_string(managed_dir.join(catalog_file)).expect("read managed catalog");
+        let baseline_catalog =
+            fs::read_to_string(baseline_dir.join(catalog_file)).expect("read baseline catalog");
+        assert_eq!(
+            managed_catalog, baseline_catalog,
+            "第三方账号的模型目录不能受模型管理影响"
+        );
+        assert!(policy_path.is_file(), "API Key 账号不能改动模型管理开关");
+        let definitions_after = super::read_experimental_model_definitions(&managed_dir);
+        assert_eq!(
+            definitions_after.len(),
+            definitions.len(),
+            "用户的模型清单必须保留"
+        );
+
+        fs::remove_dir_all(&managed_dir).expect("cleanup temp dir");
+        fs::remove_dir_all(&baseline_dir).expect("cleanup temp dir");
     }

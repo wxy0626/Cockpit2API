@@ -464,6 +464,7 @@ mod tests {
                 usage: None,
                 response_id: None,
                 response_model: None,
+                quota: None,
             }],
         }
     }

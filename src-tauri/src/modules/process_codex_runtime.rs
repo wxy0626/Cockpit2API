@@ -91,6 +91,7 @@ fn start_codex_default_internal(
             before_probe_started.elapsed().as_millis()
         ));
 
+        let mut store_entry_launched = false;
         let app_user_model_id = detect_codex_store_app_user_model_id();
         if let Some(app_user_model_id) = app_user_model_id {
             crate::modules::logger::log_info(&format!(
@@ -100,6 +101,7 @@ fn start_codex_default_internal(
             let args = build_codex_default_launch_args(extra_args);
             match launch_codex_via_store_app_user_model_id(&app_user_model_id, None, None, &args) {
                 Ok(()) => {
+                    store_entry_launched = true;
                     crate::modules::logger::log_info(&format!(
                         "[Codex Start] 已通过系统入口启动 Codex: {}",
                         app_user_model_id
@@ -168,8 +170,20 @@ fn start_codex_default_internal(
                             ));
                         }
                     }
+                    // Store 激活后的进程注册可能晚于主探测窗口，保留短宽限期避免偶发误报。
+                    let grace_started = Instant::now();
+                    while grace_started.elapsed() < Duration::from_secs(5) {
+                        if let Some(pid) = resolve_codex_pid(None, None) {
+                            crate::modules::logger::log_info(&format!(
+                                "[Codex Start] 系统入口已启动 Codex，未匹配到新 PID 但已确认主进程 pid={} app_id={}",
+                                pid, app_user_model_id
+                            ));
+                            return Ok(pid);
+                        }
+                        thread::sleep(Duration::from_millis(250));
+                    }
                     crate::modules::logger::log_warn(
-                        "[Codex Start] 系统入口已调用，但 15s 内未探测到 Codex 主进程，准备回退可执行路径",
+                        "[Codex Start] 系统入口已调用，但 15s 内未确认到 Codex 主进程；后续仅在安全路径可用时回退",
                     );
                 }
                 Err(err) => {
@@ -185,11 +199,51 @@ fn start_codex_default_internal(
             );
         }
 
+        if store_entry_launched {
+            let message = "Codex 已通过系统入口启动，但未确认到主进程；请手动打开 Codex 后重试";
+            crate::modules::logger::log_warn(&format!("[Codex Start] {}", message));
+            return Err(crate::modules::windows_operation::format_error(
+                "launch_app",
+                message,
+                "系统入口已调用成功，但 15s 内未确认到 Codex 主进程；为避免重复启动，已跳过 exe 回退",
+                None,
+                &[],
+                true,
+                false,
+                true,
+            ));
+        }
+
         let launch_path = resolve_codex_launch_path()?;
+        let launch_path_text = launch_path.to_string_lossy().to_string();
         crate::modules::logger::log_info(&format!(
             "[Codex Start] 启动策略=exe-path launch_path={}",
-            launch_path.to_string_lossy()
+            launch_path_text
         ));
+        if is_windowsapps_launch_path(&launch_path) {
+            if let Some(pid) = resolve_codex_pid(None, None) {
+                crate::modules::logger::log_info(&format!(
+                    "[Codex Start] 已跳过 WindowsApps 直接启动；确认 Codex 正在运行 pid={} launch_path={}",
+                    pid, launch_path_text
+                ));
+                return Ok(pid);
+            }
+            let message = "未探测到 Codex 的 Store 启动入口；请确认 PowerShell 可用，或手动打开 Codex";
+            crate::modules::logger::log_warn(&format!(
+                "[Codex Start] {} launch_path={}",
+                message, launch_path_text
+            ));
+            return Err(crate::modules::windows_operation::format_error(
+                "launch_app",
+                message,
+                "WindowsApps 目录下的 Codex 可执行文件拒绝普通进程直接启动（ACCESS_DENIED / os error 5）",
+                None,
+                &[],
+                true,
+                false,
+                true,
+            ));
+        }
         let mut cmd = Command::new(&launch_path);
         apply_managed_proxy_env_to_command(&mut cmd);
         if should_detach_child() {
@@ -204,11 +258,35 @@ fn start_codex_default_internal(
             cmd.arg(arg);
         }
 
-        let child =
-            spawn_command_with_trace(&mut cmd).map_err(|e| format!("启动 Codex 失败: {}", e))?;
+        let child = match spawn_command_with_trace(&mut cmd) {
+            Ok(child) => child,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::PermissionDenied
+                    && is_windowsapps_launch_path(&launch_path) =>
+            {
+                if let Some(pid) = resolve_codex_pid(None, None) {
+                    crate::modules::logger::log_info(&format!(
+                        "[Codex Start] WindowsApps 直接启动被拒绝，但确认 Codex 正在运行 pid={} launch_path={}",
+                        pid, launch_path_text
+                    ));
+                    return Ok(pid);
+                }
+                return Err(crate::modules::windows_operation::format_error(
+                    "launch_app",
+                    "无法启动 WindowsApps 中的 Codex；请手动打开 Codex 后重试",
+                    &format!("启动 Codex 失败: {}", error),
+                    None,
+                    &[],
+                    true,
+                    false,
+                    true,
+                ));
+            }
+            Err(error) => return Err(format!("启动 Codex 失败: {}", error)),
+        };
         crate::modules::logger::log_info(&format!(
             "[Codex Start] 启动策略=exe-path launch_path={} pid={}",
-            launch_path.to_string_lossy(),
+            launch_path_text,
             child.id()
         ));
         return Ok(child.id());

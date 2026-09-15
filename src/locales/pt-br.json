@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Resultados do teste",
+    "usageTokens": "{{tokens}} tokens",
+    "quotaUsed": "5h usados {{percent}}%",
+    "quotaLeft": "5h restantes {{percent}}%",
     "openBrowser": "Abrir no navegador",
     "error": {
       "stateUnavailable": "Estado da tarefa indisponível. Tente novamente.",
@@ -854,7 +857,7 @@
       "codexSyncWsl": "Sincronizar Codex com WSL",
       "codexSyncWslDesc": "Depois de trocar a conta padrão do Codex, auth.json e config.toml também são gravados no diretório Codex no WSL.",
       "codexAppUiInjection": "Cota do serviço de API",
-      "codexAppUiInjectionDesc": "Após reiniciar uma instância do Codex, mostrar abaixo do compositor a quantidade de contas e as cotas semanal e de 5 horas do serviço de API do Cockpit Tools. O Cockpit Tools deve continuar em execução em segundo plano; as atualizações param ao fechar completamente o aplicativo ou quando a rede está indisponível.",
+      "codexAppUiInjectionDesc": "Após reiniciar uma instância do Codex, mostrar abaixo do compositor a quantidade de contas e as cotas semanal e de 5 horas do serviço de API do Cockpit Tools; instâncias vinculadas a uma conta DeepSeek mostram o saldo dessa conta. O Cockpit Tools deve continuar em execução em segundo plano; as atualizações param ao fechar completamente o aplicativo ou quando a rede está indisponível.",
       "codexAppUiInjectionPoolLabel": "Contas",
       "codexAppUiInjectionWeeklyLabel": "Semana",
       "codexAppUiInjectionFiveHourLabel": "5 h",
@@ -2097,6 +2100,7 @@
       "manage": "Gerenciar modelos",
       "disabledDescription": "Desativado por padrão. Modelos, ordem e níveis de raciocínio seguem o catálogo oficial.",
       "enabledDescription": "O catálogo configurado está ativo. Você pode adicionar ou remover modelos, e a lista não será mais atualizada com o catálogo oficial.",
+      "routingManagedHint": "O roteamento misto usa este catálogo de modelos apenas enquanto a instância está em execução e o restaura ao parar. Este interruptor não é alterado.",
       "enableConfirmTitle": "Ativar o gerenciamento de modelos?",
       "enableConfirmDescription": "O Codex usará o catálogo configurado aqui. Você poderá ajustar modelos, mas a lista não será mais atualizada automaticamente.",
       "enableConfirmAction": "Ativar e configurar"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "Sim",
       "imageGenSwitchNo": "Não",
       "imageGenTitle": "Ativar geração de imagens GPT",
+      "oauthBindingHint": "Após vincular, a inicialização é idêntica à de uma conta normal e todos os recursos do OAuth (compactação remota, controle do navegador, diversos plugins etc.) ficam disponíveis; as conversas continuam no provedor da API Key atual.",
+      "oauthBindingChange": "Alterar",
       "title": "Prévia de inicialização do Codex",
       "description": "Configure e verifique primeiro; o cliente só muda após escolher Alternar ou Iniciar.",
       "notApplied": "Ainda não aplicado",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "Pelo menos duas instâncias são necessárias para sincronizar sessões",
         "pickRestoreOne": "Selecione pelo menos uma sessão para restaurar",
         "repairVisibilitySkippedOnly": "Nenhuma diferença de provider gravável foi encontrada; {{count}} arquivo(s) state_5.sqlite inválidos ou corrompidos foram ignorados. O Codex precisa recriá-los antes que seus registros SQLite possam ser reparados.",
-        "repairVisibilitySkippedWithBase": "{{message}}; {{count}} arquivo(s) state_5.sqlite inválidos ou corrompidos foram ignorados. O Codex precisa recriá-los antes que seus registros SQLite possam ser reparados."
+        "repairVisibilitySkippedWithBase": "{{message}}; {{count}} arquivo(s) state_5.sqlite inválidos ou corrompidos foram ignorados. O Codex precisa recriá-los antes que seus registros SQLite possam ser reparados.",
+        "trashSummary": "{{count}} conversas movidas para a lixeira e excluídas no Codex oficial",
+        "trashSummaryFallback": "{{count}} conversas movidas para a lixeira e reconstrução do índice de sessões do Codex oficial acionada",
+        "trashSummaryRunningHint": "Instâncias em execução podem precisar de atualização ou reinício para exibir a mudança",
+        "trashSummaryFallbackHint": "A exclusão oficial não foi concluída em {{count}} instâncias; os arquivos foram removidos diretamente e o Codex sincronizará após reiniciar",
+        "trashSummaryRebuildFailedHint": "A reconstrução do índice oficial da barra lateral não foi concluída em {{count}} instâncias; o Codex recarregará após reiniciar",
+        "trashSummaryEmpty": "As conversas selecionadas não existem no conjunto atual de instâncias, nada a fazer"
       },
       "groupCount": "{{count}} sessões",
       "updatedAt": "Atualizado",
@@ -3273,7 +3285,12 @@
         "subagent": "Subagente",
         "all": "Todos"
       },
-      "pickInstancePrompt": "Sessão existe em várias instâncias. Informe o ID da instância:"
+      "locationPicker": {
+        "title": "Escolher instância",
+        "hint": "Esta sessão existe em várias instâncias. Escolha de qual instância abrir o local do arquivo:",
+        "rolloutHint": "Esta sessão existe em várias instâncias. Escolha de qual instância abrir o arquivo da sessão:",
+        "running": "Em execução"
+      }
     },
     "sessionUsage": {
       "tab": "Uso",
@@ -3758,6 +3775,9 @@
           "planName": "Plano",
           "remaining": "Crédito restante",
           "balance": "Saldo",
+          "totalBalance": "Saldo total",
+          "grantedBalance": "Saldo de bônus",
+          "toppedUpBalance": "Saldo recarregado",
           "todayRequests": "Requisições hoje",
           "todayTokens": "Tokens hoje",
           "todayCost": "Custo hoje",
@@ -3983,6 +4003,8 @@
       "standardDesc": "Velocidade padrão, uso normal",
       "fast": "Rápida",
       "fastDesc": "Velocidade 1,5x, uso maior",
+      "ultrafast": "Ultrarrápida",
+      "ultrafastDesc": "Respostas mais rápidas, uso maior",
       "saveSuccess": "Velocidade atualizada",
       "saveFailed": "Falha ao salvar a velocidade: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "Mostrar cota relay",
       "hideRelayQuota": "Ocultar cota relay"
+    },
+    "instanceGateways": {
+      "entry": "Gateways de instância",
+      "entryCount": "Gateways de instância {{count}}",
+      "issueCount": "{{count}} com problema",
+      "title": "Gateways de instância",
+      "subtitle": "Gateways locais iniciados com as instâncias do Codex",
+      "summary": "{{total}} no total · {{running}} em execução · {{issues}} com problema",
+      "empty": "Nenhum gateway no nível da instância",
+      "emptyHint": "Eles aparecem automaticamente após vincular uma conta de chave de API com protocolo Chat ou ativar o roteamento de modelos mistos.",
+      "kindProviderGateway": "Gateway do provedor",
+      "kindMixedModel": "Roteamento de modelos mistos",
+      "kindBoundOauth": "Gateway OAuth local",
+      "statusUnreachable": "Iniciado, mas inacessível",
+      "statusPortConflict": "Porta em uso",
+      "statusNotStarted": "Não iniciado",
+      "fieldAccount": "Conta",
+      "fieldAddress": "Endereço local",
+      "fieldProtocol": "Protocolo",
+      "fieldModels": "Modelos upstream",
+      "loadFailed": "Falha ao carregar os gateways de instância",
+      "stop": "Parar",
+      "restart": "Reiniciar",
+      "stopConfirmTitle": "Parar este gateway da instância?",
+      "stopConfirmDescription": "Parar um gateway de roteamento misto também desativa o roteamento misto dessa instância (a configuração dos canais é mantida); os outros gateways podem ser iniciados novamente em “Reiniciar”.",
+      "stopFailed": "Falha ao parar o gateway: {{error}}",
+      "restartFailed": "Falha ao reiniciar o gateway: {{error}}"
     }
   },
   "githubCopilot": {

@@ -77,6 +77,7 @@ export type CodexAccountsAccessControllerContext = Pick<ReturnType<typeof useCod
   | "quickSwitchAccount"
   | "quickSwitchSubmitting"
   | "reloadManagedProviders"
+  | "reloadCodexGroups"
   | "resetBatchImportState"
   | "resolveManagedProviderIdForAccount"
   | "resolveValidCodexGroupId"

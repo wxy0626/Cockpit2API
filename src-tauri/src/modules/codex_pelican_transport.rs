@@ -12,6 +12,54 @@ pub struct PelicanChatOutput {
     pub usage: Option<Value>,
     pub response_id: Option<String>,
     pub response_model: Option<String>,
+    pub quota: Option<PelicanQuotaSnapshot>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PelicanQuotaSnapshot {
+    pub used_percent: f64,
+    pub remaining_percent: i32,
+    pub window_minutes: Option<i64>,
+    pub reset_at: Option<i64>,
+}
+
+fn pelican_header_number(headers: &reqwest::header::HeaderMap, name: &str) -> Option<f64> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<f64>().ok())
+}
+
+fn pelican_quota_snapshot_from_headers(
+    headers: &reqwest::header::HeaderMap,
+) -> Option<PelicanQuotaSnapshot> {
+    let used_percent = pelican_header_number(headers, "x-codex-primary-used-percent")?;
+    let used_percent = used_percent.clamp(0.0, 100.0);
+    let reset_at = pelican_header_number(headers, "x-codex-primary-reset-after-seconds")
+        .filter(|seconds| *seconds >= 0.0)
+        .map(|seconds| chrono::Utc::now().timestamp() + seconds.round() as i64);
+    Some(PelicanQuotaSnapshot {
+        used_percent,
+        remaining_percent: (100.0 - used_percent).round().clamp(0.0, 100.0) as i32,
+        window_minutes: pelican_header_number(headers, "x-codex-primary-window-minutes")
+            .filter(|minutes| *minutes > 0.0)
+            .map(|minutes| minutes.round() as i64),
+        reset_at,
+    })
+}
+
+pub fn pelican_quota_snapshot_from_codex_quota(quota: &CodexQuota) -> Option<PelicanQuotaSnapshot> {
+    if quota.hourly_window_present == Some(false) {
+        return None;
+    }
+    let remaining_percent = quota.hourly_percentage.clamp(0, 100);
+    Some(PelicanQuotaSnapshot {
+        used_percent: (100 - remaining_percent) as f64,
+        remaining_percent,
+        window_minutes: quota.hourly_window_minutes,
+        reset_at: quota.hourly_reset_time,
+    })
 }
 
 #[derive(Default)]
@@ -123,6 +171,7 @@ impl PelicanSseDecoder {
                 .get("model")
                 .and_then(Value::as_str)
                 .map(str::to_owned),
+            quota: None,
         })
     }
 }
@@ -412,6 +461,7 @@ async fn pelican_consume_response(
     idle_timeout: Duration,
     on_delta: &impl Fn(String),
 ) -> Result<PelicanChatOutput, String> {
+    let quota = pelican_quota_snapshot_from_headers(response.headers());
     let mut decoder = PelicanSseDecoder::default();
     while let Some(chunk) = timeout(idle_timeout, response.chunk())
         .await
@@ -426,7 +476,9 @@ async fn pelican_consume_response(
             break;
         }
     }
-    decoder.finish(on_delta)
+    let mut output = decoder.finish(on_delta)?;
+    output.quota = quota;
+    Ok(output)
 }
 
 #[cfg(test)]

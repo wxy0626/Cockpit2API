@@ -49,6 +49,9 @@ fn emit_sidecar_rerun_inputs(path: &Path) {
     };
 
     if metadata.is_dir() {
+        // 目录本身也纳入追踪：只追踪已有文件时，新增 .go 文件不会触发重建，
+        // dev 启动会继续使用旧的 sidecar 二进制。
+        println!("cargo:rerun-if-changed={}", path.display());
         let Ok(entries) = std::fs::read_dir(path) else {
             return;
         };

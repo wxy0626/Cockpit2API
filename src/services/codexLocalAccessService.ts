@@ -23,6 +23,7 @@ import type {
   CodexLocalAccessTimeouts,
   CodexLocalAccessUsageEventPage,
   CodexLocalAccessImageGenerationPolicy,
+  CodexInstanceGatewayView,
 } from "../types/codexLocalAccess";
 
 export async function getCodexLocalAccessState(): Promise<CodexLocalAccessState> {
@@ -83,6 +84,28 @@ export async function updateCodexLocalAccessBoundOAuthAccount(
 
 export async function clearCodexLocalAccessStats(): Promise<CodexLocalAccessState> {
   return await invoke("codex_local_access_clear_stats");
+}
+
+export async function listCodexInstanceGateways(): Promise<
+  CodexInstanceGatewayView[]
+> {
+  return await invoke("codex_list_instance_gateways");
+}
+
+/** 停止某个实例网关；混合模型路由网关会同时关闭该实例的路由（渠道配置保留）。 */
+export async function stopCodexInstanceGateway(
+  instanceId: string,
+  kind: string,
+): Promise<void> {
+  await invoke("codex_stop_instance_gateway", { instanceId, kind });
+}
+
+/** 重新启动某个实例网关。 */
+export async function restartCodexInstanceGateway(
+  instanceId: string,
+  kind: string,
+): Promise<void> {
+  await invoke("codex_restart_instance_gateway", { instanceId, kind });
 }
 
 export async function queryCodexLocalAccessRequestLogs(

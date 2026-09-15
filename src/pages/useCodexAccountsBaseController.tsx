@@ -7,7 +7,7 @@ import * as codexInstanceService from "../services/codexInstanceService";
 import * as codexLocalAccessService from "../services/codexLocalAccessService";
 import { maskJsonPreviewContent } from "../components/ExportJsonModal";
 import { useModalErrorState } from "../components/ModalErrorMessage";
-import { type CodexAccountGroup, assignAccountsToCodexGroup, getCodexAccountGroups } from "../services/codexAccountGroupService";
+import { type CodexAccountGroup, assignAccountsToCodexGroup, getCodexAccountGroups, invalidateCodexGroupCache } from "../services/codexAccountGroupService";
 import { formatCodexResetTime, formatCodexResetTimeAbsolute, isCodexOpaqueAccessTokenOnlyAccount, type CodexBatchDeleteJobStatus, type CodexResetCredit, type CodexResetCreditsSnapshot } from "../types/codex";
 import { buildCodexAccountPresentation } from "../presentation/platformAccountPresentation";
 import { type CodexWindowStats } from "../utils/codexWindowStats";
@@ -259,9 +259,26 @@ export function useCodexAccountsBaseController() {
   
     const [codexGroupsReady, setCodexGroupsReady] = useState(false);
     const reloadCodexGroups = useCallback(async () => {
+      // 分组文件也可能被导入流程直接改写，这里始终以磁盘为准。
+      invalidateCodexGroupCache();
       setCodexGroups(await getCodexAccountGroups());
       setCodexGroupsReady(true);
     }, []);
+
+    // 导出 Cockpit Tools 格式时把分组（文件夹）名称一并写入，导入端据此恢复归类（#2213）。
+    const codexExportAccountGroupNames = useMemo(() => {
+      const names: Record<string, string> = {};
+      for (const group of codexGroups) {
+        const name = group.name?.trim();
+        if (!name) continue;
+        for (const accountId of group.accountIds) {
+          if (accountId && !names[accountId]) {
+            names[accountId] = name;
+          }
+        }
+      }
+      return names;
+    }, [codexGroups]);
   
     const codexAddTargetGroup = useMemo(() => {
       if (!codexAddTargetGroupId) return null;
@@ -500,7 +517,12 @@ export function useCodexAccountsBaseController() {
         updateAccountTags: store.updateAccountTags,
       },
       dataService: {
-        importFromJson: codexService.importCodexFromJson,
+        // 导入文件可能带有分组（文件夹）归类，导入后刷新分组缓存，避免弹框里看不到新分组。
+        importFromJson: async (content: string) => {
+          const imported = await codexService.importCodexFromJson(content);
+          await reloadCodexGroups();
+          return imported;
+        },
         exportAccounts: codexService.exportCodexAccounts,
       },
       getDisplayEmail: (account) => account.email ?? account.id,
@@ -1388,6 +1410,7 @@ export function useCodexAccountsBaseController() {
       const exportOptions = {
         includeSensitiveNotes:
           includeExportSensitiveNotes && exportFormatSupportsSensitiveNotes,
+        accountGroupNames: codexExportAccountGroupNames,
       };
       if (!exportJsonContent) {
         return {
@@ -1427,6 +1450,7 @@ export function useCodexAccountsBaseController() {
         };
       }
     }, [
+      codexExportAccountGroupNames,
       exportFileNameBase,
       exportFormat,
       exportJsonContent,

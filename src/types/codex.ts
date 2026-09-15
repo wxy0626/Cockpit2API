@@ -32,7 +32,7 @@ export interface CodexQuickConfig {
   context_management_experimental_mode: boolean;
 }
 
-export type CodexAppSpeed = "standard" | "fast";
+export type CodexAppSpeed = "standard" | "fast" | "ultrafast";
 export type CodexFingerprintMode = "off" | "device" | "session" | "full";
 
 export interface CodexAppSpeedConfig {
@@ -427,6 +427,8 @@ export interface CodexSessionRecord {
   sessionKind?: string;
   title: string;
   cwd: string;
+  /** 官方客户端项目名（可重命名），用于分组标题，缺失时回退到目录名。 */
+  projectName?: string | null;
   updatedAt?: number | null;
   locationCount: number;
   locations: CodexSessionLocation[];
@@ -516,6 +518,12 @@ export interface CodexSessionTrashSummary {
   requestedSessionCount: number;
   trashedSessionCount: number;
   trashedInstanceCount: number;
+  /** 运行中、删除后可能需要在客户端刷新才可见的实例数。 */
+  runningInstanceCount?: number;
+  /** 官方删除未完成、已回退到文件方式删除的实例数。 */
+  officialDeleteFallbackInstanceCount?: number;
+  /** 官方侧边栏索引重建失败的实例数。 */
+  metadataRebuildFailedInstanceCount?: number;
   trashDirs: string[];
   message: string;
 }

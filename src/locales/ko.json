@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "테스트 결과",
+    "usageTokens": "{{tokens}} 토큰",
+    "quotaUsed": "5h 사용 {{percent}}%",
+    "quotaLeft": "5h 남음 {{percent}}%",
     "openBrowser": "브라우저에서 열기",
     "error": {
       "stateUnavailable": "작업 상태를 확인할 수 없습니다. 다시 시도하세요.",
@@ -854,7 +857,7 @@
       "codexSyncWsl": "Codex를 WSL에 동기화",
       "codexSyncWslDesc": "기본 Codex 계정을 전환한 뒤 auth.json과 config.toml도 WSL의 Codex 디렉터리에 씁니다.",
       "codexAppUiInjection": "API 서비스 할당량",
-      "codexAppUiInjectionDesc": "Codex 인스턴스를 다시 시작하면 입력창 아래에 Cockpit Tools API 서비스의 계정 수와 주간 및 5시간 할당량을 표시합니다. Cockpit Tools를 백그라운드에서 계속 실행해야 하며, 완전히 종료하거나 네트워크를 사용할 수 없으면 업데이트가 중지됩니다.",
+      "codexAppUiInjectionDesc": "Codex 인스턴스를 다시 시작하면 입력창 아래에 Cockpit Tools API 서비스의 계정 수와 주간 및 5시간 할당량을 표시합니다. DeepSeek 계정을 바인딩한 인스턴스는 대신 해당 계정 잔액을 표시합니다. Cockpit Tools를 백그라운드에서 계속 실행해야 하며, 완전히 종료하거나 네트워크를 사용할 수 없으면 업데이트가 중지됩니다.",
       "codexAppUiInjectionPoolLabel": "계정",
       "codexAppUiInjectionWeeklyLabel": "주",
       "codexAppUiInjectionFiveHourLabel": "5시간",
@@ -2097,6 +2100,7 @@
       "manage": "모델 관리",
       "disabledDescription": "기본적으로 꺼져 있습니다. 끄면 모델, 정렬, 기본 모델 및 추론 수준이 공식 카탈로그를 따릅니다.",
       "enabledDescription": "구성된 모델 카탈로그를 사용 중입니다. 모델을 추가하거나 제거할 수 있으며 목록은 공식 카탈로그를 자동으로 따르지 않습니다.",
+      "routingManagedHint": "혼합 모델 라우팅은 이 모델 카탈로그를 인스턴스 실행 중에만 임시로 사용하고 중지 후 자동으로 복원합니다. 여기 있는 스위치 상태는 바뀌지 않습니다.",
       "enableConfirmTitle": "모델 관리를 켤까요?",
       "enableConfirmDescription": "켜면 Codex가 여기에서 구성한 모델 카탈로그를 사용합니다. 모델을 조정할 수 있지만 목록은 공식 카탈로그를 자동으로 따르지 않습니다.",
       "enableConfirmAction": "켜고 구성"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "예",
       "imageGenSwitchNo": "아니요",
       "imageGenTitle": "GPT 이미지 생성 사용",
+      "oauthBindingHint": "바인딩 후에는 일반 계정과 완전히 동일하게 실행되며 OAuth의 모든 기능(원격 압축, 브라우저 제어, 각종 플러그인 등)을 사용할 수 있습니다. 대화는 계속 현재 API Key 공급자가 처리합니다.",
+      "oauthBindingChange": "변경",
       "title": "Codex 시작 미리보기",
       "description": "먼저 설정하고 확인하세요. 전환 또는 시작을 누른 뒤에만 클라이언트 상태가 변경됩니다.",
       "notApplied": "아직 적용되지 않음",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "세션을 동기화하려면 인스턴스가 두 개 이상 필요합니다",
         "pickRestoreOne": "복원할 세션을 하나 이상 선택하세요",
         "repairVisibilitySkippedOnly": "쓸 수 있는 provider 차이가 발견되지 않았습니다. 유효하지 않거나 손상된 state_5.sqlite 파일 {{count}}개를 건너뛰었습니다. 해당 SQLite 레코드를 복구하려면 먼저 Codex가 이 파일들을 다시 생성해야 합니다.",
-        "repairVisibilitySkippedWithBase": "{{message}}; 유효하지 않거나 손상된 state_5.sqlite 파일 {{count}}개를 건너뛰었습니다. 해당 SQLite 레코드를 복구하려면 먼저 Codex가 이 파일들을 다시 생성해야 합니다."
+        "repairVisibilitySkippedWithBase": "{{message}}; 유효하지 않거나 손상된 state_5.sqlite 파일 {{count}}개를 건너뛰었습니다. 해당 SQLite 레코드를 복구하려면 먼저 Codex가 이 파일들을 다시 생성해야 합니다.",
+        "trashSummary": "{{count}}개의 대화를 휴지통으로 이동하고 공식 Codex에서도 삭제했습니다",
+        "trashSummaryFallback": "{{count}}개의 대화를 휴지통으로 이동하고 공식 Codex 대화 인덱스 재구성을 실행했습니다",
+        "trashSummaryRunningHint": "실행 중인 인스턴스는 새로 고침하거나 다시 시작해야 반영될 수 있습니다",
+        "trashSummaryFallbackHint": "{{count}}개 인스턴스의 공식 삭제가 완료되지 않아 파일 방식으로 제거했습니다. Codex를 다시 시작하면 동기화됩니다",
+        "trashSummaryRebuildFailedHint": "{{count}}개 인스턴스의 공식 사이드바 인덱스 재구성이 완료되지 않았습니다. Codex를 다시 시작하면 다시 불러옵니다",
+        "trashSummaryEmpty": "선택한 대화가 현재 인스턴스 집합에 없어 처리할 항목이 없습니다"
       },
       "groupCount": "{{count}}개 세션",
       "updatedAt": "업데이트됨",
@@ -3273,7 +3285,12 @@
         "subagent": "서브에이전트",
         "all": "전체"
       },
-      "pickInstancePrompt": "이 세션이 여러 인스턴스에 있습니다. 인스턴스 ID를 입력하세요:"
+      "locationPicker": {
+        "title": "인스턴스 선택",
+        "hint": "이 세션은 여러 인스턴스에 있습니다. 파일 위치를 열 인스턴스를 선택하세요:",
+        "rolloutHint": "이 세션은 여러 인스턴스에 있습니다. 세션 파일을 열 인스턴스를 선택하세요:",
+        "running": "실행 중"
+      }
     },
     "sessionUsage": {
       "tab": "사용량",
@@ -3758,6 +3775,9 @@
           "planName": "구독",
           "remaining": "잔여 한도",
           "balance": "잔액",
+          "totalBalance": "총 잔액",
+          "grantedBalance": "지급 잔액",
+          "toppedUpBalance": "충전 잔액",
           "todayRequests": "오늘 요청",
           "todayTokens": "오늘 Token",
           "todayCost": "오늘 사용액",
@@ -3983,6 +4003,8 @@
       "standardDesc": "기본 속도, 일반 사용량",
       "fast": "빠름",
       "fastDesc": "1.5배 속도, 사용량 증가",
+      "ultrafast": "초고속",
+      "ultrafastDesc": "가장 빠른 응답, 사용량 최대",
       "saveSuccess": "속도가 업데이트되었습니다",
       "saveFailed": "속도 저장 실패: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "중계 한도 표시",
       "hideRelayQuota": "중계 한도 숨기기"
+    },
+    "instanceGateways": {
+      "entry": "인스턴스 게이트웨이",
+      "entryCount": "인스턴스 게이트웨이 {{count}}",
+      "issueCount": "{{count}}개 이상",
+      "title": "인스턴스 게이트웨이",
+      "subtitle": "Codex 인스턴스와 함께 시작되는 로컬 게이트웨이",
+      "summary": "총 {{total}} · 실행 중 {{running}} · 이상 {{issues}}",
+      "empty": "인스턴스 수준 게이트웨이가 없습니다",
+      "emptyHint": "Chat 프로토콜 API 키 계정을 연결하거나 혼합 모델 라우팅을 켜면 자동으로 표시됩니다.",
+      "kindProviderGateway": "공급자 게이트웨이",
+      "kindMixedModel": "혼합 모델 라우팅",
+      "kindBoundOauth": "OAuth 로컬 게이트웨이",
+      "statusUnreachable": "시작되었지만 사용할 수 없음",
+      "statusPortConflict": "포트 사용 중",
+      "statusNotStarted": "시작되지 않음",
+      "fieldAccount": "계정",
+      "fieldAddress": "로컬 주소",
+      "fieldProtocol": "프로토콜",
+      "fieldModels": "업스트림 모델",
+      "loadFailed": "인스턴스 게이트웨이를 불러오지 못했습니다",
+      "stop": "중지",
+      "restart": "재시작",
+      "stopConfirmTitle": "이 인스턴스 게이트웨이를 중지할까요?",
+      "stopConfirmDescription": "혼합 모델 라우팅 게이트웨이를 중지하면 해당 인스턴스의 혼합 모델 라우팅도 함께 꺼집니다(채널 설정은 유지됩니다). 다른 게이트웨이는 ‘재시작’으로 다시 시작할 수 있습니다.",
+      "stopFailed": "게이트웨이 중지 실패: {{error}}",
+      "restartFailed": "게이트웨이 재시작 실패: {{error}}"
     }
   },
   "githubCopilot": {

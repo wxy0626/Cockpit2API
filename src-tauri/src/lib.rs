@@ -26,7 +26,9 @@ pub fn get_app_handle() -> Option<&'static tauri::AppHandle> {
 #[cfg(test)]
 mod tests {
     use super::{
-        should_hide_startup_minimized_window, should_preserve_main_window_for_menu_bar_refresh,
+        has_enabled_periodic_account_refresh, should_hide_startup_minimized_window,
+        should_preserve_main_window_for_background_refresh,
+        should_preserve_main_window_for_menu_bar_refresh,
     };
     use crate::modules::config::UserConfig;
 
@@ -80,6 +82,54 @@ mod tests {
     fn menu_bar_refresh_does_not_change_non_macos_close_behavior() {
         assert!(!should_preserve_main_window_for_menu_bar_refresh(
             false, true
+        ));
+    }
+
+    fn disable_all_periodic_refresh(config: &mut UserConfig) {
+        config.auto_refresh_minutes = -1;
+        config.codex_auto_refresh_minutes = -1;
+        config.zed_auto_refresh_minutes = -1;
+        config.ghcp_auto_refresh_minutes = -1;
+        config.windsurf_auto_refresh_minutes = -1;
+        config.kiro_auto_refresh_minutes = -1;
+        config.cursor_auto_refresh_minutes = -1;
+        config.grok_auto_refresh_minutes = -1;
+        config.claude_auto_refresh_minutes = -1;
+        config.codebuddy_auto_refresh_minutes = -1;
+        config.codebuddy_cn_auto_refresh_minutes = -1;
+        config.workbuddy_auto_refresh_minutes = -1;
+        config.qoder_auto_refresh_minutes = -1;
+        config.zcode_auto_refresh_minutes = -1;
+        config.trae_auto_refresh_minutes = -1;
+        config.trae_solo_auto_refresh_minutes = -1;
+        config.trae_cn_auto_refresh_minutes = -1;
+        config.trae_solo_cn_auto_refresh_minutes = -1;
+    }
+
+    #[test]
+    fn windows_periodic_refresh_keeps_main_webview_alive() {
+        let config = UserConfig::default();
+        assert!(has_enabled_periodic_account_refresh(&config));
+        assert!(should_preserve_main_window_for_background_refresh(
+            false, true, false, &config
+        ));
+    }
+
+    #[test]
+    fn windows_without_periodic_refresh_keeps_destroy_behavior() {
+        let mut config = UserConfig::default();
+        disable_all_periodic_refresh(&mut config);
+        assert!(!has_enabled_periodic_account_refresh(&config));
+        assert!(!should_preserve_main_window_for_background_refresh(
+            false, true, false, &config
+        ));
+    }
+
+    #[test]
+    fn periodic_refresh_does_not_change_non_windows_close_behavior() {
+        let config = UserConfig::default();
+        assert!(!should_preserve_main_window_for_background_refresh(
+            false, false, false, &config
         ));
     }
 }
@@ -143,6 +193,41 @@ fn should_preserve_main_window_for_menu_bar_refresh(
     menu_bar_quota_enabled: bool,
 ) -> bool {
     is_macos && menu_bar_quota_enabled
+}
+
+fn has_enabled_periodic_account_refresh(config: &modules::config::UserConfig) -> bool {
+    [
+        config.auto_refresh_minutes,
+        config.codex_auto_refresh_minutes,
+        config.zed_auto_refresh_minutes,
+        config.ghcp_auto_refresh_minutes,
+        config.windsurf_auto_refresh_minutes,
+        config.kiro_auto_refresh_minutes,
+        config.cursor_auto_refresh_minutes,
+        config.grok_auto_refresh_minutes,
+        config.claude_auto_refresh_minutes,
+        config.codebuddy_auto_refresh_minutes,
+        config.codebuddy_cn_auto_refresh_minutes,
+        config.workbuddy_auto_refresh_minutes,
+        config.qoder_auto_refresh_minutes,
+        config.zcode_auto_refresh_minutes,
+        config.trae_auto_refresh_minutes,
+        config.trae_solo_auto_refresh_minutes,
+        config.trae_cn_auto_refresh_minutes,
+        config.trae_solo_cn_auto_refresh_minutes,
+    ]
+    .into_iter()
+    .any(|minutes| minutes > 0)
+}
+
+fn should_preserve_main_window_for_background_refresh(
+    is_macos: bool,
+    is_windows: bool,
+    menu_bar_quota_enabled: bool,
+    config: &modules::config::UserConfig,
+) -> bool {
+    should_preserve_main_window_for_menu_bar_refresh(is_macos, menu_bar_quota_enabled)
+        || (is_windows && has_enabled_periodic_account_refresh(config))
 }
 
 fn apply_startup_minimized(app: &tauri::AppHandle) {
@@ -324,6 +409,18 @@ pub fn run() {
                 }
             });
 
+            // 一次性迁移：历史版本可能被自动开启的「模型管理」统一关闭，之后由用户自己决定。
+            std::thread::spawn(|| {
+                let migrated =
+                    modules::codex_account::migrate_model_management_default_off_for_all_profiles();
+                if migrated > 0 {
+                    logger::log_info(&format!(
+                        "[Codex模型目录] 已按新默认关闭历史模型管理: profiles={}",
+                        migrated
+                    ));
+                }
+            });
+
             // 初始化 Updater 插件
             #[cfg(desktop)]
             {
@@ -370,6 +467,43 @@ pub fn run() {
 
             tauri::async_runtime::spawn(async {
                 modules::codex_local_access::restore_local_access_gateway().await;
+            });
+
+            // 实例级网关（provider gateway / 绑定 OAuth 本地网关）启动自愈：宿主重启后按已持久化的
+            // profile 绑定与 sidecar 目录重建，避免 Codex 实例指向一个已经不存在的本地端口。
+            tauri::async_runtime::spawn(async {
+                modules::codex_local_access::restore_instance_gateways_on_startup().await;
+            });
+
+            // 会话一次性迁移：清理历史库与会话日志里第三方（DeepSeek 等）留下的 reasoning
+            // content / 假 encrypted_content。每个 profile 目录只做一次，后台执行，不阻塞启动；
+            // 新的脏数据已由网关响应出口拦截。
+            std::thread::spawn(|| {
+                match modules::codex_session_history_sanitize::run_one_time_reasoning_history_sanitize()
+                {
+                    Ok(outcome) => {
+                        if outcome.history.changed_anything() {
+                            logger::log_info(&format!(
+                                "[Codex History Sanitize] 一次性清理第三方推理历史完成: databases={}, updated_items={}, changed_threads={}",
+                                outcome.history.database_count,
+                                outcome.history.updated_item_count,
+                                outcome.history.changed_thread_count
+                            ));
+                        }
+                        if outcome.rollout.changed_anything() {
+                            logger::log_info(&format!(
+                                "[Codex Rollout Sanitize] 一次性清理会话日志推理签名完成: files_changed={}, removed_signatures={}, pending_files={}",
+                                outcome.rollout.files_changed,
+                                outcome.rollout.removed_signatures,
+                                outcome.rollout.pending_files.len()
+                            ));
+                        }
+                    }
+                    Err(error) => logger::log_warn(&format!(
+                        "[Codex History Sanitize] 一次性清理第三方推理历史失败: error={}",
+                        error
+                    )),
+                }
             });
 
             commands::codex_instance::start_mixed_model_gateway_watchdog(app.handle().clone());
@@ -559,9 +693,18 @@ pub fn run() {
                 match config.close_behavior {
                     CloseWindowBehavior::Minimize => {
                         api.prevent_close();
-                        if should_preserve_main_window_for_menu_bar_refresh(
+                        let preserve_for_menu_bar =
+                            should_preserve_main_window_for_menu_bar_refresh(
+                                cfg!(target_os = "macos"),
+                                config.menu_bar_quota_enabled,
+                            );
+                        let preserve_for_background_refresh = cfg!(target_os = "windows")
+                            && has_enabled_periodic_account_refresh(&config);
+                        if should_preserve_main_window_for_background_refresh(
                             cfg!(target_os = "macos"),
+                            cfg!(target_os = "windows"),
                             config.menu_bar_quota_enabled,
+                            &config,
                         ) {
                             // Keep the WebView alive so its configured quota refresh
                             // scheduler can continue updating the native menu bar.
@@ -582,7 +725,13 @@ pub fn run() {
                                 }
                             } else {
                                 let _ = modules::tray::update_tray_menu(window.app_handle());
-                                info!("[Window] 主窗口已隐藏到托盘，保留 WebView 以刷新菜单栏额度");
+                                if preserve_for_menu_bar {
+                                    info!("[Window] 主窗口已隐藏到托盘，保留 WebView 以刷新菜单栏额度");
+                                } else if preserve_for_background_refresh {
+                                    info!("[Window] 主窗口已隐藏到托盘，保留 WebView 以继续后台额度刷新");
+                                } else {
+                                    info!("[Window] 主窗口已隐藏到托盘");
+                                }
                             }
                         } else if let Err(err) =
                             modules::floating_card_window::destroy_main_window_to_tray(window)
@@ -940,6 +1089,9 @@ pub fn run() {
             commands::codex::codex_list_model_provider_models,
             commands::codex::codex_query_model_provider_usage,
             commands::codex::codex_local_access_get_state,
+            commands::codex::codex_list_instance_gateways,
+            commands::codex::codex_stop_instance_gateway,
+            commands::codex::codex_restart_instance_gateway,
             commands::codex::codex_local_access_save_accounts,
             commands::codex::codex_local_access_append_accounts,
             commands::codex::codex_local_access_remove_account,

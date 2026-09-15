@@ -32,6 +32,81 @@ type responsesTerminalEventTestError struct {
 	event []byte
 }
 
+func TestUsageServiceTierPrefersUpstreamResponseTier(t *testing.T) {
+	// 上游实际返回的档位最权威：请求要求 priority 但上游降级为 default 时，
+	// 统计与日志必须显示标准模式。
+	if got := usageServiceTier(coreusage.Record{
+		ResponseServiceTier: "default",
+		ServiceTier:         "priority",
+	}, ""); got != "standard" {
+		t.Fatalf("downgraded response tier = %q, want standard", got)
+	}
+	if got := usageServiceTier(coreusage.Record{
+		ResponseServiceTier: "priority",
+	}, ""); got != "priority" {
+		t.Fatalf("upstream priority tier = %q, want priority", got)
+	}
+}
+
+func TestUsageServiceTierFallsBackToInjectedDefault(t *testing.T) {
+	// 客户端没有指定 service_tier 时，Cockpit 注入的默认档位就是实际使用的档位。
+	for _, record := range []coreusage.Record{
+		{},
+		{ServiceTier: "auto"},
+		{ServiceTier: "default"},
+		{RequestServiceTier: "auto"},
+	} {
+		if got := usageServiceTier(record, "priority"); got != "priority" {
+			t.Fatalf("record %#v fallback tier = %q, want priority", record, got)
+		}
+	}
+	if got := usageServiceTier(coreusage.Record{}, ""); got != "" {
+		t.Fatalf("no tier information = %q, want empty", got)
+	}
+}
+
+func TestUsageServiceTierUsesClientRequestedTier(t *testing.T) {
+	if got := usageServiceTier(coreusage.Record{ServiceTier: "priority"}, ""); got != "priority" {
+		t.Fatalf("client priority tier = %q, want priority", got)
+	}
+	// 客户端显式要求标准档位时不能回退成注入的默认档位。
+	if got := usageServiceTier(coreusage.Record{ServiceTier: "standard"}, "priority"); got != "standard" {
+		t.Fatalf("client standard tier = %q, want standard", got)
+	}
+	if got := usageServiceTier(coreusage.Record{ServiceTier: "flex"}, ""); got != "flex" {
+		t.Fatalf("client flex tier = %q, want flex", got)
+	}
+	if got := usageServiceTier(coreusage.Record{RequestServiceTier: "priority"}, ""); got != "priority" {
+		t.Fatalf("deprecated request tier = %q, want priority", got)
+	}
+	// 官方“超高速”档位必须原样保留，不能落回标准档。
+	if got := usageServiceTier(coreusage.Record{ServiceTier: "ultrafast"}, ""); got != "ultrafast" {
+		t.Fatalf("client ultrafast tier = %q, want ultrafast", got)
+	}
+}
+
+func TestDefaultUsageServiceTierFromConfig(t *testing.T) {
+	cfg := &config.Config{
+		Payload: config.PayloadConfig{
+			Default: []config.PayloadRule{{Params: map[string]any{"service_tier": "priority"}}},
+		},
+	}
+	if got := defaultUsageServiceTier(cfg); got != "priority" {
+		t.Fatalf("default config service tier = %q, want priority", got)
+	}
+	if got := defaultUsageServiceTier(nil); got != "" {
+		t.Fatalf("nil config service tier = %q, want empty", got)
+	}
+	standard := &config.Config{
+		Payload: config.PayloadConfig{
+			Default: []config.PayloadRule{{Params: map[string]any{"service_tier": "standard"}}},
+		},
+	}
+	if got := defaultUsageServiceTier(standard); got != "standard" {
+		t.Fatalf("standard config service tier = %q, want standard", got)
+	}
+}
+
 func TestImageGenerationAllowedForAccountPolicy(t *testing.T) {
 	apiKey := &accountSpec{AuthKind: "api_key", ImageGenerationPolicy: "inherit"}
 	if imageGenerationAllowedForAccount(apiKey) {
@@ -267,8 +342,18 @@ func TestCodexClientModelsResponsePreserves56Template(t *testing.T) {
 	if intFromAny(sol["context_window"]) != 272000 || intFromAny(sol["max_context_window"]) != 921000 {
 		t.Fatalf("sol context windows = %#v / %#v", sol["context_window"], sol["max_context_window"])
 	}
-	if tiers, ok := sol["service_tiers"].([]any); !ok || len(tiers) != 1 {
+	// 官方为 gpt-5.6-sol 同时声明 Fast 与 Ultrafast 两个档位。
+	tiers, ok := sol["service_tiers"].([]any)
+	if !ok || len(tiers) != 2 {
 		t.Fatalf("sol service_tiers = %#v", sol["service_tiers"])
+	}
+	tierIDs := make([]string, 0, len(tiers))
+	for _, raw := range tiers {
+		tier, _ := raw.(map[string]any)
+		tierIDs = append(tierIDs, strings.TrimSpace(fmt.Sprint(tier["id"])))
+	}
+	if got := strings.Join(tierIDs, ","); got != "priority,ultrafast" {
+		t.Fatalf("sol service tier ids = %q, want priority,ultrafast", got)
 	}
 	if got, ok := sol["supports_search_tool"].(bool); !ok || !got {
 		t.Fatalf("sol supports_search_tool = %#v, want true", sol["supports_search_tool"])

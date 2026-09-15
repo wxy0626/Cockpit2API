@@ -596,8 +596,46 @@ pub fn remove_accounts(account_ids: &[String]) -> Result<(), String> {
     }
     save_account_index(&index)?;
 
+    let deleted_account_ids = remove_ids.iter().cloned().collect::<Vec<_>>();
     for account_id in remove_ids {
         delete_account_file_unlocked(&account_id)?;
+    }
+    // 账号删除后，引用它的混合模型路由必须自动关闭（渠道配置保留），
+    // 否则后台监控会反复尝试恢复失败的网关，并弹出与删除账号无关的报错。
+    match crate::modules::codex_instance::disable_model_routing_for_deleted_accounts(
+        &deleted_account_ids,
+    ) {
+        Ok(affected) if !affected.is_empty() => {
+            logger::log_info(&format!(
+                "[Codex Account] 已自动关闭引用被删除账号的混合模型路由: instances={}",
+                affected.join(", ")
+            ));
+            tauri::async_runtime::spawn(async move {
+                for instance_id in affected {
+                    let Ok(profile_dir) =
+                        crate::modules::codex_instance::profile_dir_for_instance(&instance_id)
+                    else {
+                        continue;
+                    };
+                    if let Err(error) =
+                        crate::modules::codex_local_access::release_instance_gateway_for_profile(
+                            &profile_dir,
+                        )
+                        .await
+                    {
+                        logger::log_warn(&format!(
+                            "[Codex Account] 关闭混合模型路由后释放实例网关失败: instance={}, error={}",
+                            instance_id, error
+                        ));
+                    }
+                }
+            });
+        }
+        Ok(_) => {}
+        Err(error) => logger::log_warn(&format!(
+            "[Codex Account] 关闭引用被删除账号的混合模型路由失败: error={}",
+            error
+        )),
     }
     Ok(())
 }

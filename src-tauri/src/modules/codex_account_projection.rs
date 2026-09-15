@@ -582,12 +582,18 @@ pub fn write_auth_file_to_dir(base_dir: &Path, account: &CodexAccount) -> Result
         provider_config
     };
 
+    // auth.json 与官方 forced_login_method 必须同为本次账号的登录方式，否则客户端会把
+    // 有效凭据判定成未登录（切号直接不可用）。键值一致时不重复落盘。
+    let login_method_aligned = apply_forced_login_method_to_config_toml(base_dir, account)?;
+
     logger::log_info(&format!(
-        "[Codex切号] 已写入登录信息: account_id={}, auth_store={}, target_file={}, has_base_url={}",
+        "[Codex切号] 已写入登录信息: account_id={}, auth_store={}, target_file={}, has_base_url={}, forced_login_method={}, login_method_aligned={}",
         account.id,
         auth_store,
         auth_path.display(),
-        provider_config.base_url.is_some()
+        provider_config.base_url.is_some(),
+        forced_login_method_for_account(account),
+        login_method_aligned
     ));
 
     Ok(())
@@ -1189,4 +1195,3 @@ pub async fn sync_bound_oauth_consumers_after_reauth(account_id: &str) -> Result
 
     sync_managed_account_sidecar_checked(&account)
 }
-

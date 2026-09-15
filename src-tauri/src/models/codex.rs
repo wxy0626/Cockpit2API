@@ -86,6 +86,8 @@ pub struct CodexQuickConfig {
 pub enum CodexAppSpeed {
     Standard,
     Fast,
+    /// 官方新增的“超高速”档位（service tier id: `ultrafast`）。
+    Ultrafast,
 }
 
 impl Default for CodexAppSpeed {

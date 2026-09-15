@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Hasil pengujian",
+    "usageTokens": "{{tokens}} token",
+    "quotaUsed": "5h terpakai {{percent}}%",
+    "quotaLeft": "5h tersisa {{percent}}%",
     "openBrowser": "Buka di peramban",
     "error": {
       "stateUnavailable": "Status tugas tidak tersedia. Coba lagi.",
@@ -911,7 +914,7 @@
       "codexSyncWsl": "Sinkronkan Codex ke WSL",
       "codexSyncWslDesc": "Setelah mengganti akun Codex default, auth.json dan config.toml juga ditulis ke direktori Codex di WSL.",
       "codexAppUiInjection": "Kuota layanan API",
-      "codexAppUiInjectionDesc": "Setelah instans Codex dimulai ulang, tampilkan jumlah akun serta kuota mingguan dan 5 jam layanan API Cockpit Tools di bawah composer. Cockpit Tools harus tetap berjalan di latar belakang; pembaruan berhenti jika aplikasi ditutup sepenuhnya atau jaringan tidak tersedia.",
+      "codexAppUiInjectionDesc": "Setelah instans Codex dimulai ulang, tampilkan jumlah akun serta kuota mingguan dan 5 jam layanan API Cockpit Tools di bawah composer; instans yang terhubung ke akun DeepSeek menampilkan saldo akun tersebut. Cockpit Tools harus tetap berjalan di latar belakang; pembaruan berhenti jika aplikasi ditutup sepenuhnya atau jaringan tidak tersedia.",
       "codexAppUiInjectionPoolLabel": "Akun",
       "codexAppUiInjectionWeeklyLabel": "Minggu",
       "codexAppUiInjectionFiveHourLabel": "5 jam",
@@ -2144,6 +2147,7 @@
       "manage": "Kelola model",
       "disabledDescription": "Nonaktif secara default. Model, urutan, model default, dan tingkat penalaran mengikuti katalog resmi.",
       "enabledDescription": "Katalog yang dikonfigurasi sedang aktif. Anda dapat menambah atau menghapus model dan daftar tidak lagi diperbarui mengikuti katalog resmi.",
+      "routingManagedHint": "Perutean campuran hanya memakai katalog model ini selama instance berjalan dan memulihkannya saat instance berhenti. Sakelar di sini tidak berubah.",
       "enableConfirmTitle": "Aktifkan manajemen model?",
       "enableConfirmDescription": "Codex akan menggunakan katalog yang dikonfigurasi di sini. Anda dapat menyesuaikan model, tetapi daftar tidak lagi diperbarui otomatis.",
       "enableConfirmAction": "Aktifkan dan atur"
@@ -2264,6 +2268,8 @@
       "imageGenSwitchYes": "Ya",
       "imageGenSwitchNo": "Tidak",
       "imageGenTitle": "Aktifkan pembuatan gambar GPT",
+      "oauthBindingHint": "Setelah ditautkan, peluncuran sama persis seperti akun biasa dan semua kemampuan OAuth (kompresi jarak jauh, kontrol browser, berbagai plugin, dll.) tersedia; percakapan tetap diproses oleh penyedia API Key saat ini.",
+      "oauthBindingChange": "Ganti",
       "title": "Pratinjau Peluncuran Codex",
       "description": "Periksa pengaturan terlebih dahulu; klien baru berubah setelah Anda memilih ganti atau mulai.",
       "notApplied": "Belum diterapkan",
@@ -3264,7 +3270,13 @@
         "syncNeedTwo": "Setidaknya dua instansi diperlukan untuk menyinkronkan sesi",
         "pickRestoreOne": "Pilih setidaknya satu sesi untuk dipulihkan",
         "repairVisibilitySkippedOnly": "Tidak ditemukan perbedaan provider yang dapat ditulis; {{count}} file state_5.sqlite yang tidak valid atau rusak dilewati. Codex harus membuatnya ulang sebelum catatan SQLite di dalamnya dapat diperbaiki.",
-        "repairVisibilitySkippedWithBase": "{{message}}; {{count}} file state_5.sqlite yang tidak valid atau rusak dilewati. Codex harus membuatnya ulang sebelum catatan SQLite di dalamnya dapat diperbaiki."
+        "repairVisibilitySkippedWithBase": "{{message}}; {{count}} file state_5.sqlite yang tidak valid atau rusak dilewati. Codex harus membuatnya ulang sebelum catatan SQLite di dalamnya dapat diperbaiki.",
+        "trashSummary": "{{count}} percakapan dipindahkan ke tempat sampah dan dihapus di Codex resmi",
+        "trashSummaryFallback": "{{count}} percakapan dipindahkan ke tempat sampah dan pembangunan ulang indeks sesi Codex resmi dijalankan",
+        "trashSummaryRunningHint": "Instance yang berjalan mungkin perlu dimuat ulang atau dimulai ulang agar perubahan terlihat",
+        "trashSummaryFallbackHint": "Penghapusan resmi belum selesai pada {{count}} instance; file dihapus langsung dan Codex akan menyinkronkan setelah dimulai ulang",
+        "trashSummaryRebuildFailedHint": "Pembangunan ulang indeks sidebar resmi belum selesai pada {{count}} instance; Codex akan memuatnya kembali setelah dimulai ulang",
+        "trashSummaryEmpty": "Percakapan yang dipilih tidak ada di kumpulan instance saat ini, tidak ada yang perlu diproses"
       },
       "groupCount": "{{count}} sesi",
       "updatedAt": "Diperbarui",
@@ -3451,7 +3463,12 @@
         "subagent": "Subagen",
         "all": "Semua jenis"
       },
-      "pickInstancePrompt": "Sesi ada di beberapa instance. Masukkan ID instance:"
+      "locationPicker": {
+        "title": "Pilih instance",
+        "hint": "Sesi ini ada di beberapa instance. Pilih instance untuk membuka lokasi file:",
+        "rolloutHint": "Sesi ini ada di beberapa instance. Pilih instance untuk membuka file sesi:",
+        "running": "Berjalan"
+      }
     },
     "sessionUsage": {
       "tab": "Pemakaian",
@@ -3805,6 +3822,9 @@
           "planName": "Paket",
           "remaining": "Sisa kuota",
           "balance": "Saldo",
+          "totalBalance": "Total saldo",
+          "grantedBalance": "Saldo bonus",
+          "toppedUpBalance": "Saldo isi ulang",
           "todayRequests": "Permintaan hari ini",
           "todayTokens": "Token hari ini",
           "todayCost": "Biaya hari ini",
@@ -4030,6 +4050,8 @@
       "standardDesc": "Kecepatan bawaan, pemakaian normal",
       "fast": "Cepat",
       "fastDesc": "Kecepatan 1,5x, pemakaian lebih tinggi",
+      "ultrafast": "Sangat cepat",
+      "ultrafastDesc": "Respons tercepat, pemakaian lebih tinggi",
       "saveSuccess": "Kecepatan diperbarui",
       "saveFailed": "Gagal menyimpan kecepatan: {{error}}"
     },
@@ -4489,6 +4511,33 @@
     "accounts": {
       "showRelayQuota": "Tampilkan kuota relay",
       "hideRelayQuota": "Sembunyikan kuota relay"
+    },
+    "instanceGateways": {
+      "entry": "Gateway instans",
+      "entryCount": "Gateway instans {{count}}",
+      "issueCount": "{{count}} bermasalah",
+      "title": "Gateway instans",
+      "subtitle": "Gateway lokal yang dijalankan bersama instans Codex",
+      "summary": "Total {{total}} · berjalan {{running}} · bermasalah {{issues}}",
+      "empty": "Tidak ada gateway tingkat instans",
+      "emptyHint": "Gateway muncul otomatis setelah menautkan akun kunci API protokol Chat atau mengaktifkan perutean model campuran.",
+      "kindProviderGateway": "Gateway penyedia",
+      "kindMixedModel": "Perutean model campuran",
+      "kindBoundOauth": "Gateway OAuth lokal",
+      "statusUnreachable": "Berjalan tetapi tidak dapat diakses",
+      "statusPortConflict": "Port sedang dipakai",
+      "statusNotStarted": "Belum berjalan",
+      "fieldAccount": "Akun",
+      "fieldAddress": "Alamat lokal",
+      "fieldProtocol": "Protokol",
+      "fieldModels": "Model upstream",
+      "loadFailed": "Gagal memuat gateway instans",
+      "stop": "Hentikan",
+      "restart": "Mulai ulang",
+      "stopConfirmTitle": "Hentikan gateway instance ini?",
+      "stopConfirmDescription": "Menghentikan gateway perutean campuran juga menonaktifkan perutean campuran instance tersebut (konfigurasi kanal tetap disimpan); gateway lain dapat dijalankan lagi dengan “Mulai ulang”.",
+      "stopFailed": "Gagal menghentikan gateway: {{error}}",
+      "restartFailed": "Gagal memulai ulang gateway: {{error}}"
     }
   },
   "codebuddy": {

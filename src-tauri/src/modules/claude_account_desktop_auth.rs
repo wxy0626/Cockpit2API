@@ -339,16 +339,36 @@ fn quit_claude_desktop_for_profile_write() -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn quit_claude_desktop_for_profile_write() -> Result<(), String> {
-    let target_dir = get_default_claude_desktop_user_data_dir()?
-        .to_string_lossy()
-        .to_string();
+    let target_dir = get_default_claude_desktop_user_data_dir()?;
+    let target_dir_arg = target_dir.to_string_lossy().to_string();
     logger::log_info("[Claude] closing configured Claude Desktop before profile write");
-    crate::modules::claude_instance::close_claude(&[target_dir], 8)?;
-    if is_claude_desktop_running() {
-        return Err("Claude is still running, cannot safely write login state. Please quit Claude and retry.".to_string());
+    crate::modules::claude_instance::close_claude(&[target_dir_arg], 8)?;
+
+    // 进程名单会过滤 Electron 子进程（持有 Network\Cookies 的正是它们），所以这里不能只信
+    // is_claude_desktop_running()，必须由登录态文件本身确认已经释放。
+    if wait_for_desktop_profile_release(&target_dir, 12, 250) && !is_claude_desktop_running() {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        return Ok(());
     }
-    std::thread::sleep(std::time::Duration::from_millis(300));
-    Ok(())
+
+    // Store / MSIX 版路径容易漏判，按包路径结束仍占用的 claude.exe 后再复检。
+    logger::log_warn("[Claude] 登录态文件仍被占用，按 Store 包路径结束 Claude Desktop 进程后重试");
+    match crate::modules::claude_instance::force_close_windows_claude_desktop_processes(8) {
+        Ok(count) => logger::log_info(&format!(
+            "[Claude] 已结束 Store 版 Claude Desktop 进程: count={}",
+            count
+        )),
+        Err(error) => logger::log_warn(&format!(
+            "[Claude] 结束 Store 版 Claude Desktop 进程失败: {}",
+            error
+        )),
+    }
+    if wait_for_desktop_profile_release(&target_dir, 16, 250) && !is_claude_desktop_running() {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        return Ok(());
+    }
+
+    Err("Claude 仍在运行或登录态文件被占用，无法安全写入登录态。请完全退出 Claude Desktop（含托盘与后台进程）后重试。".to_string())
 }
 
 #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]

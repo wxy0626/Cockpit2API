@@ -616,6 +616,8 @@ func splitResponsesConcatenatedJSONDocuments(payload []byte) ([][]byte, bool) {
 }
 
 func writeResponsesSSEFrame(w io.Writer, chunk []byte) error {
+	// 出口统一清洗第三方推理项，避免客户端把不兼容的 reasoning content 落盘。
+	chunk = normalizeResponsesReasoningContentSSE(chunk)
 	payload, ok := responsesSSEDataPayload(chunk)
 	if !ok {
 		return writeResponsesSSEChunk(w, chunk)

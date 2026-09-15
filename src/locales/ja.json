@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "テスト結果",
+    "usageTokens": "{{tokens}} トークン",
+    "quotaUsed": "5h 使用 {{percent}}%",
+    "quotaLeft": "5h 残り {{percent}}%",
     "openBrowser": "ブラウザーで開く",
     "error": {
       "stateUnavailable": "タスクの状態を取得できません。再試行してください。",
@@ -854,7 +857,7 @@
       "codexSyncWsl": "Codex を WSL に同期",
       "codexSyncWslDesc": "既定の Codex アカウントを切り替えた後、auth.json と config.toml も WSL 内の Codex ディレクトリへ書き込みます。",
       "codexAppUiInjection": "API サービスのクォータ",
-      "codexAppUiInjectionDesc": "Codex インスタンスの再起動後、入力欄の下に Cockpit Tools API サービスのアカウント数、週間クォータ、5 時間クォータを表示します。Cockpit Tools をバックグラウンドで起動したままにしてください。完全に終了した場合やネットワークを利用できない場合は更新されません。",
+      "codexAppUiInjectionDesc": "Codex インスタンスの再起動後、入力欄の下に Cockpit Tools API サービスのアカウント数、週間クォータ、5 時間クォータを表示します。DeepSeek アカウントをバインドしたインスタンスでは、代わりにそのアカウントの残高を表示します。Cockpit Tools をバックグラウンドで起動したままにしてください。完全に終了した場合やネットワークを利用できない場合は更新されません。",
       "codexAppUiInjectionPoolLabel": "アカウント",
       "codexAppUiInjectionWeeklyLabel": "週",
       "codexAppUiInjectionFiveHourLabel": "5時間",
@@ -2097,6 +2100,7 @@
       "manage": "モデルを管理",
       "disabledDescription": "既定では無効です。無効時はモデル、並び順、既定モデル、推論レベルが公式カタログに従います。",
       "enabledDescription": "設定済みモデルカタログが有効です。モデルを追加・削除できますが、一覧は公式カタログに自動追従しません。",
+      "routingManagedHint": "混在モデルルーティングはこのモデルカタログをインスタンス実行中のみ一時的に使用し、停止後は自動で元に戻します。ここにあるスイッチの状態は変更しません。",
       "enableConfirmTitle": "モデル管理を有効にしますか？",
       "enableConfirmDescription": "有効にすると、Codex はここで設定したモデルカタログを使用します。モデルを調整できますが、一覧は公式に自動追従しません。",
       "enableConfirmAction": "有効にして設定"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "はい",
       "imageGenSwitchNo": "いいえ",
       "imageGenTitle": "GPT 画像生成を有効化",
+      "oauthBindingHint": "バインド後は通常アカウントとまったく同じように起動でき、OAuth のすべての機能（リモート圧縮、ブラウザ操作、各種プラグインなど）を利用できます。会話は引き続き現在の API Key プロバイダーが処理します。",
+      "oauthBindingChange": "変更",
       "title": "Codex 起動プレビュー",
       "description": "先に設定と確認を行い、「切替」または「起動」を選んだ後にだけクライアントを変更します。",
       "notApplied": "未適用",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "セッションを同期するには少なくとも2つのインスタンスが必要です",
         "pickRestoreOne": "復元するセッションを 1 つ以上選択してください",
         "repairVisibilitySkippedOnly": "書き込み可能な provider 差分は見つかりませんでした。無効または破損した state_5.sqlite ファイル {{count}} 件をスキップしました。SQLite レコードを修復するには、先に Codex がそれらを再生成する必要があります。",
-        "repairVisibilitySkippedWithBase": "{{message}}。無効または破損した state_5.sqlite ファイル {{count}} 件をスキップしました。SQLite レコードを修復するには、先に Codex がそれらを再生成する必要があります。"
+        "repairVisibilitySkippedWithBase": "{{message}}。無効または破損した state_5.sqlite ファイル {{count}} 件をスキップしました。SQLite レコードを修復するには、先に Codex がそれらを再生成する必要があります。",
+        "trashSummary": "{{count}} 件の会話をゴミ箱に移動し、公式 Codex 側でも削除しました",
+        "trashSummaryFallback": "{{count}} 件の会話をゴミ箱に移動し、公式 Codex の会話インデックス再構築を実行しました",
+        "trashSummaryRunningHint": "実行中のインスタンスでは、更新または再起動後に反映される場合があります",
+        "trashSummaryFallbackHint": "{{count}} 個のインスタンスで公式削除が完了しなかったため、ファイル操作で削除しました。Codex の再起動後に同期されます",
+        "trashSummaryRebuildFailedHint": "{{count}} 個のインスタンスで公式サイドバーのインデックス再構築が完了しませんでした。Codex の再起動後に再読み込みされます",
+        "trashSummaryEmpty": "選択した会話は現在のインスタンス群に存在しないため、処理は不要です"
       },
       "groupCount": "{{count}} 件のセッション",
       "updatedAt": "更新済み",
@@ -3273,7 +3285,12 @@
         "subagent": "サブエージェント",
         "all": "すべて"
       },
-      "pickInstancePrompt": "このセッションは複数インスタンスにあります。インスタンス ID を入力:"
+      "locationPicker": {
+        "title": "インスタンスを選択",
+        "hint": "このセッションは複数のインスタンスにあります。ファイルの場所を開くインスタンスを選択してください：",
+        "rolloutHint": "このセッションは複数のインスタンスにあります。セッションファイルを開くインスタンスを選択してください：",
+        "running": "実行中"
+      }
     },
     "sessionUsage": {
       "tab": "使用量",
@@ -3758,6 +3775,9 @@
           "planName": "プラン",
           "remaining": "残高",
           "balance": "残高",
+          "totalBalance": "総残高",
+          "grantedBalance": "付与残高",
+          "toppedUpBalance": "チャージ残高",
           "todayRequests": "本日のリクエスト",
           "todayTokens": "本日の Token",
           "todayCost": "本日の消費",
@@ -3983,6 +4003,8 @@
       "standardDesc": "既定の速度、通常の使用量",
       "fast": "高速",
       "fastDesc": "1.5倍速、使用量が増加",
+      "ultrafast": "超高速",
+      "ultrafastDesc": "最速の応答、使用量が最大",
       "saveSuccess": "速度を更新しました",
       "saveFailed": "速度の保存に失敗しました: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "中継枠を表示",
       "hideRelayQuota": "中継枠を非表示"
+    },
+    "instanceGateways": {
+      "entry": "インスタンスゲートウェイ",
+      "entryCount": "インスタンスゲートウェイ {{count}}",
+      "issueCount": "{{count}} 件異常",
+      "title": "インスタンスゲートウェイ",
+      "subtitle": "Codex インスタンスと一緒に起動するローカルゲートウェイ",
+      "summary": "合計 {{total}} · 稼働中 {{running}} · 異常 {{issues}}",
+      "empty": "インスタンス単位のゲートウェイはありません",
+      "emptyHint": "Chat プロトコルの API キーアカウントを紐付けるか、混在モデルルーティングを有効にすると自動的に表示されます。",
+      "kindProviderGateway": "プロバイダーゲートウェイ",
+      "kindMixedModel": "混在モデルルーティング",
+      "kindBoundOauth": "OAuth ローカルゲートウェイ",
+      "statusUnreachable": "起動済みですが利用できません",
+      "statusPortConflict": "ポートが使用中",
+      "statusNotStarted": "未起動",
+      "fieldAccount": "アカウント",
+      "fieldAddress": "ローカルアドレス",
+      "fieldProtocol": "プロトコル",
+      "fieldModels": "上流モデル",
+      "loadFailed": "インスタンスゲートウェイを読み込めませんでした",
+      "stop": "停止",
+      "restart": "再起動",
+      "stopConfirmTitle": "このインスタンスゲートウェイを停止しますか？",
+      "stopConfirmDescription": "混在モデルルーティングのゲートウェイを停止すると、そのインスタンスの混在モデルルーティングも無効になります（チャネル設定は保持されます）。その他のゲートウェイは「再起動」で復帰できます。",
+      "stopFailed": "ゲートウェイの停止に失敗しました：{{error}}",
+      "restartFailed": "ゲートウェイの再起動に失敗しました：{{error}}"
     }
   },
   "githubCopilot": {

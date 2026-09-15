@@ -1160,21 +1160,20 @@
             .expect("switch API Key account");
 
         let status = read_quick_config_from_config_toml(&base_dir).expect("read quick config");
+        // API Key / 第三方账号不参与模型管理：开关状态保持用户原值。
         assert!(status.experimental_model_catalog_enabled);
-        let config = fs::read_to_string(base_dir.join("config.toml")).expect("read config");
-        assert!(config.contains("model_catalog_json = \"cockpit-model-catalog.json\""));
-        assert!(config.contains("model = \"gpt-5.6-sol\""));
-        assert!(config.contains("model_context_window = 516000"));
-        assert!(config.contains("model_auto_compact_token_limit = 460000"));
-        assert!(base_dir
-            .join(super::CODEX_MANAGED_MODEL_CATALOG_FILE)
-            .is_file());
         assert!(base_dir
             .join(super::CODEX_EXPERIMENTAL_MODEL_POLICY_FILE)
             .is_file());
-        let catalog = fs::read_to_string(base_dir.join(super::CODEX_MANAGED_MODEL_CATALOG_FILE))
-            .expect("read API key switched catalog");
-        assert!(catalog.contains("\"gpt-6-astra\""));
+        let config = fs::read_to_string(base_dir.join("config.toml")).expect("read config");
+        // 该账号没有自己的模型目录，因此不能留下模型管理的受管目录引用或文件。
+        assert!(!config.contains("model_catalog_json = \"cockpit-model-catalog.json\""));
+        assert!(!base_dir
+            .join(super::CODEX_MANAGED_MODEL_CATALOG_FILE)
+            .exists());
+        assert!(config.contains("model = \"gpt-5.6-sol\""));
+        assert!(config.contains("model_context_window = 516000"));
+        assert!(config.contains("model_auto_compact_token_limit = 460000"));
 
         fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
     }
@@ -1535,6 +1534,57 @@ wire_api = "responses"
         assert!(restored_config.contains("model_context_window = 1000000"));
         assert!(restored_config.contains("model_auto_compact_token_limit = 900000"));
         assert!(restored_config.contains("model_catalog_json = \"cockpit-model-catalog.json\""));
+
+        fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
+    }
+
+    /// 一次性迁移：把历史遗留的「模型管理」关闭并恢复跟随官方模型目录，
+    /// 只执行一次，且保留用户已保存的模型清单（重新开启后仍可用）。
+    #[test]
+    fn model_management_default_off_migration_runs_once_and_keeps_definitions() {
+        let base_dir = make_temp_dir("codex-model-management-default-off-migration");
+        fs::write(base_dir.join("config.toml"), "model = \"gpt-5.6-sol\"\n")
+            .expect("write base config");
+        let definitions = super::default_experimental_model_definitions(&base_dir);
+        super::save_model_catalog_for_base_dir_preserving_context(
+            &base_dir,
+            true,
+            definitions.clone(),
+            Some("gpt-5.6-sol".to_string()),
+        )
+        .expect("enable managed catalog");
+        assert!(super::experimental_model_policy_enabled(&base_dir));
+
+        assert!(
+            super::migrate_model_management_default_off_once(&base_dir).expect("run migration"),
+            "首次执行必须生效"
+        );
+        assert!(!super::experimental_model_policy_enabled(&base_dir));
+        assert!(!base_dir
+            .join(super::CODEX_MANAGED_MODEL_CATALOG_FILE)
+            .exists());
+        let config = fs::read_to_string(base_dir.join("config.toml")).expect("read config");
+        assert!(!config.contains("model_catalog_json"));
+        assert!(config.contains("model = \"gpt-5.6-sol\""));
+        assert_eq!(
+            super::read_experimental_model_definitions(&base_dir).len(),
+            definitions.len(),
+            "用户模型清单必须保留"
+        );
+
+        // 迁移只执行一次：之后用户自己再开启模型管理不再被关闭。
+        super::save_model_catalog_for_base_dir_preserving_context(
+            &base_dir,
+            true,
+            definitions,
+            None,
+        )
+        .expect("re-enable managed catalog");
+        assert!(
+            !super::migrate_model_management_default_off_once(&base_dir).expect("run migration"),
+            "已迁移过的 profile 不能再次执行"
+        );
+        assert!(super::experimental_model_policy_enabled(&base_dir));
 
         fs::remove_dir_all(&base_dir).expect("cleanup temp dir");
     }

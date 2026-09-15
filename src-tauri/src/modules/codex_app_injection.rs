@@ -1,8 +1,17 @@
-//! Codex/ChatGPT renderer 的 Cockpit Tools API 服务可选额度显示注入。
+//! Codex/ChatGPT renderer 的 Cockpit Tools 额度显示注入。
+//!
+//! 两种注入共用同一套 loopback CDP 通道：
+//! - API 服务绑定：账号数、周额度、5h 额度；
+//! - DeepSeek 账号绑定（网关列出 / CDP 注入 / 直连官方）：该账号的余额。
 //!
 //! 该模块只连接实例自己的 loopback CDP 端口，不修改官方 app.asar，
 //! 也不修改官方额度或速度逻辑。额度以独立的小字段显示在 composer 操作栏下方。
 
+use crate::commands::codex::{
+    codex_model_provider_deepseek_balance_url, query_deepseek_balance_snapshot,
+    DeepSeekBalanceSnapshot,
+};
+use crate::models::codex::CodexAccount;
 use crate::modules::{
     app_lifecycle, codex_account, codex_local_access, codex_quota, config, i18n, logger,
 };
@@ -32,6 +41,15 @@ use toml_edit::Document;
 const CDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const INJECTION_INTERVAL: Duration = Duration::from_secs(2);
 const QUOTA_REFRESH_INTERVAL: Duration = Duration::from_secs(15);
+/// DeepSeek 余额变化很慢，保持较长的刷新间隔，避免无谓的上游请求。
+const DEEPSEEK_BALANCE_REFRESH_INTERVAL: Duration = Duration::from_secs(60);
+const DEEPSEEK_BALANCE_QUERY_TIMEOUT: Duration = Duration::from_secs(8);
+/// 绑定账号有变更（模型列表、接入方式等）时最多延迟这么久生效，避免每 2 秒读取账号文件。
+const DEEPSEEK_ACCOUNT_CACHE_TTL: Duration = Duration::from_secs(15);
+/// 新文档脚本按「脚本种类 | CDP target」记录，同一实例可同时运行多套注入。
+const QUOTA_SCRIPT_KIND: &str = "api-service-quota";
+const DEEPSEEK_MODEL_SCRIPT_KIND: &str = "deepseek-model-picker";
+const DEEPSEEK_BALANCE_SCRIPT_KIND: &str = "deepseek-balance";
 const AUTH_DIAGNOSTIC_INTERVAL: Duration = Duration::from_secs(5);
 const AUTH_IDENTITY_RETRY_INTERVAL: Duration = Duration::from_secs(30);
 const AUTH_NETWORK_DIAGNOSTIC_INTERVAL: Duration = Duration::from_secs(30);
@@ -81,16 +99,18 @@ fn new_document_scripts() -> &'static Mutex<HashSet<String>> {
     INSTALLED.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-fn should_install_new_document_script(websocket_url: &str) -> bool {
+/// 同一个 CDP target 可能同时跑多套注入脚本（DeepSeek 模型列表 + 余额），
+/// 因此“已安装新文档脚本”按 `脚本标识|websocket` 记录，避免互相顶掉。
+fn should_install_new_document_script(install_key: &str) -> bool {
     let Ok(installed) = new_document_scripts().lock() else {
         return true;
     };
-    !installed.contains(websocket_url)
+    !installed.contains(install_key)
 }
 
-fn mark_new_document_script_installed(websocket_url: &str) {
+fn mark_new_document_script_installed(install_key: &str) {
     if let Ok(mut installed) = new_document_scripts().lock() {
-        installed.insert(websocket_url.to_string());
+        installed.insert(install_key.to_string());
     }
 }
 
@@ -183,12 +203,40 @@ pub fn bind_uses_deepseek_cdp_injection(bind_account_id: Option<&str>) -> bool {
     })
 }
 
+/// 绑定账号（含 `__provider_gateway__:` 前缀）对应的 DeepSeek 账号。
+///
+/// DeepSeek 的余额注入与接入方式无关：网关列出、CDP 注入、直连官方都要显示，
+/// 因此这里只解析绑定账号本身，不看 `api_instance_access_mode`。
+fn deepseek_bound_account(bind_account_id: Option<&str>) -> Option<CodexAccount> {
+    let account_id = bind_account_id_value(bind_account_id)?;
+    let account = crate::modules::codex_account::load_account(&account_id)?;
+    crate::modules::codex_account::is_deepseek_account(&account).then_some(account)
+}
+
+/// DeepSeek 余额接口地址；非官方 host（第三方中转）返回 `None`，此时不注入余额。
+fn deepseek_balance_endpoint(account: &CodexAccount) -> Option<String> {
+    let base_url = account
+        .api_base_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    codex_model_provider_deepseek_balance_url(base_url)
+        .ok()
+        .flatten()
+}
+
+fn bind_uses_deepseek_balance_injection(bind_account_id: Option<&str>) -> bool {
+    deepseek_bound_account(bind_account_id)
+        .is_some_and(|account| deepseek_balance_endpoint(&account).is_some())
+}
+
 pub fn should_enable_injection(bind_account_id: Option<&str>) -> bool {
     (enabled_for_app() && supports_bind_account(bind_account_id))
         || bind_uses_deepseek_cdp_injection(bind_account_id)
+        || (enabled_for_app() && bind_uses_deepseek_balance_injection(bind_account_id))
 }
 
-/// 额度注入、认证页面观察和 DeepSeek 模型适配都依赖实例自己的 loopback CDP。
+/// 额度注入、DeepSeek 余额、认证页面观察和 DeepSeek 模型适配都依赖实例自己的 loopback CDP。
 pub fn should_enable_cdp(bind_account_id: Option<&str>) -> bool {
     auth_observation_enabled(bind_account_id) || should_enable_injection(bind_account_id)
 }
@@ -718,6 +766,29 @@ async fn fetch_quota(
         .await
         .ok()
         .map(QuotaResponse::normalize_empty_pool)
+}
+
+/// 查询绑定账号的 DeepSeek 余额；失败时保留上一次的有效快照，不清空已显示的额度。
+async fn fetch_deepseek_balance(
+    client: &Client,
+    account: &CodexAccount,
+) -> Option<DeepSeekBalanceSnapshot> {
+    let url = deepseek_balance_endpoint(account)?;
+    let api_key = account
+        .openai_api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    match query_deepseek_balance_snapshot(client, &url, api_key).await {
+        Ok(snapshot) => Some(snapshot),
+        Err(error) => {
+            logger::log_warn(&format!(
+                "[Codex App Injection] DeepSeek 余额查询失败: {}",
+                error
+            ));
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1405,6 +1476,217 @@ fn injection_script(
     )
 }
 
+/// DeepSeek 账号余额徽标：与 API 服务额度徽标同位置、同交互，但只展示账号余额。
+///
+/// 独立的 `window.__cockpitDeepSeekBalance` 命名空间与 `data-cockpit-deepseek-balance*`
+/// 标记，避免与 CDP 模式下的模型列表注入脚本互相覆盖渲染函数。
+fn deepseek_balance_injection_script(
+    locale: &str,
+    balance: Option<&DeepSeekBalanceSnapshot>,
+    refresh_in_progress: bool,
+    handled_refresh_token: Option<&str>,
+) -> String {
+    let balance = serde_json::to_string(&balance).unwrap_or_else(|_| "null".to_string());
+    let balance_label = serde_json::to_string(&i18n::translate(
+        locale,
+        "codex.modelProviders.usage.fields.balance",
+        &[],
+    ))
+    .unwrap_or_else(|_| "\"Balance\"".to_string());
+    let account_balance_label = serde_json::to_string(&i18n::translate(
+        locale,
+        "codex.modelProviders.usage.accountBalance",
+        &[],
+    ))
+    .unwrap_or_else(|_| "\"Account Balance\"".to_string());
+    let total_balance_label = serde_json::to_string(&i18n::translate(
+        locale,
+        "codex.modelProviders.usage.fields.totalBalance",
+        &[],
+    ))
+    .unwrap_or_else(|_| "\"Total balance\"".to_string());
+    let granted_balance_label = serde_json::to_string(&i18n::translate(
+        locale,
+        "codex.modelProviders.usage.fields.grantedBalance",
+        &[],
+    ))
+    .unwrap_or_else(|_| "\"Granted balance\"".to_string());
+    let topped_up_balance_label = serde_json::to_string(&i18n::translate(
+        locale,
+        "codex.modelProviders.usage.fields.toppedUpBalance",
+        &[],
+    ))
+    .unwrap_or_else(|_| "\"Topped-up balance\"".to_string());
+    let available_label = serde_json::to_string(&i18n::translate(
+        locale,
+        "codex.localAccess.healthAvailable",
+        &[],
+    ))
+    .unwrap_or_else(|_| "\"Available\"".to_string());
+    let unavailable_label = serde_json::to_string(&i18n::translate(
+        locale,
+        "codex.localAccess.healthUnavailable",
+        &[],
+    ))
+    .unwrap_or_else(|_| "\"Unavailable\"".to_string());
+    let refresh_label =
+        serde_json::to_string(&i18n::translate(locale, "common.shared.refreshQuota", &[]))
+            .unwrap_or_else(|_| "\"Refresh quota\"".to_string());
+    let close_label = serde_json::to_string(&i18n::translate(locale, "common.close", &[]))
+        .unwrap_or_else(|_| "\"Close\"".to_string());
+    let refresh_in_progress = if refresh_in_progress { "true" } else { "false" };
+    let handled_refresh_token =
+        serde_json::to_string(&handled_refresh_token).unwrap_or_else(|_| "null".to_string());
+    format!(
+        r#"(() => {{
+      const balance = {balance};
+      const balanceLabel = {balance_label};
+      const accountBalanceLabel = {account_balance_label};
+      const totalBalanceLabel = {total_balance_label};
+      const grantedBalanceLabel = {granted_balance_label};
+      const toppedUpBalanceLabel = {topped_up_balance_label};
+      const availableLabel = {available_label};
+      const unavailableLabel = {unavailable_label};
+      const refreshLabel = {refresh_label};
+      const closeLabel = {close_label};
+      const refreshInProgress = {refresh_in_progress};
+      const handledRefreshToken = {handled_refresh_token};
+      const hostHeartbeatTimeoutMs = 8000;
+      const root = window.__cockpitDeepSeekBalance || (window.__cockpitDeepSeekBalance = {{}});
+      root.hostHeartbeatAt = Date.now();
+      root.hostAvailable = true;
+      root.hasBalance = Boolean(balance);
+      const pendingRefreshToken = typeof root.refreshRequestToken === 'string' && root.refreshRequestToken !== handledRefreshToken
+        ? root.refreshRequestToken
+        : null;
+      root.refreshing = refreshInProgress || Boolean(pendingRefreshToken);
+      if (handledRefreshToken && root.refreshRequestToken === handledRefreshToken) root.refreshRequestToken = null;
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[char]));
+      const currencySymbol = (code) => {{
+        const key = String(code || '').toUpperCase();
+        if (key === 'CNY' || key === 'RMB') return '¥';
+        if (key === 'USD') return '$';
+        if (key === 'EUR') return '€';
+        return '';
+      }};
+      const formatMoney = (value, currency) => {{
+        if (!Number.isFinite(value)) return '—';
+        const symbol = currencySymbol(currency);
+        const amount = Number(value).toFixed(2);
+        return symbol ? symbol + amount : (currency ? amount + ' ' + String(currency) : amount);
+      }};
+      const render = () => {{
+        let host = document.querySelector('[data-cockpit-deepseek-balance]');
+        let details = document.querySelector('[data-cockpit-deepseek-balance-details]');
+        const permissions = document.querySelector('[data-composer-navigation-target="permissions"]');
+        const footer = permissions?.closest('._footer_1qb5a_2') || permissions?.parentElement?.parentElement?.parentElement;
+        if (!permissions || !footer || !balance) {{
+          if (host) host.style.display = 'none';
+          if (details) details.style.display = 'none';
+          root.detailsOpen = false;
+          return;
+        }}
+        if (!host) {{
+          host = document.createElement('div');
+          host.setAttribute('data-cockpit-deepseek-balance', 'true');
+          document.body.appendChild(host);
+        }}
+        if (!details) {{
+          details = document.createElement('div');
+          details.setAttribute('data-cockpit-deepseek-balance-details', 'true');
+          document.body.appendChild(details);
+        }}
+        const footerRect = footer.getBoundingClientRect();
+        const permissionsRect = permissions.getBoundingClientRect();
+        host.style.cssText = 'position:fixed;transform:translate(-50%,-50%);z-index:2;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--color-token-text-secondary,#737373);font-size:12px;line-height:1;white-space:nowrap;pointer-events:none;';
+        host.style.left = Math.round(footerRect.left + footerRect.width / 2) + 'px';
+        host.style.top = Math.round(permissionsRect.top + permissionsRect.height / 2) + 'px';
+        const badgeStyle = 'display:inline-flex;align-items:center;gap:6px;height:24px;border:1px solid var(--color-token-border-subtle,rgba(127,127,127,.20));border-radius:999px;padding:0 9px;background:var(--color-token-main-surface-primary,rgba(127,127,127,.10));color:inherit;font:inherit;box-shadow:0 1px 2px rgba(0,0,0,.08);backdrop-filter:blur(8px);font-weight:500;cursor:pointer;pointer-events:auto;';
+        const currency = balance.currency || null;
+        const totalText = formatMoney(balance.totalBalance, currency);
+        const badgeHtml = '<button type="button" data-cockpit-deepseek-balance-open style="' + badgeStyle + '"><span style="width:6px;height:6px;border-radius:999px;background:#3b82f6"></span>' + escapeHtml(balanceLabel) + ' ' + escapeHtml(totalText) + '</button>'
+          + '<button type="button" data-cockpit-deepseek-balance-refresh title="' + escapeHtml(refreshLabel) + '" aria-label="' + escapeHtml(refreshLabel) + '" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--color-token-border-subtle,rgba(127,127,127,.20));border-radius:999px;padding:0;background:var(--color-token-main-surface-primary,rgba(127,127,127,.10));color:inherit;box-shadow:0 1px 2px rgba(0,0,0,.08);backdrop-filter:blur(8px);cursor:pointer;pointer-events:auto;"><svg data-cockpit-deepseek-balance-refresh-icon viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6v5h-5"></path><path d="M4 18v-5h5"></path><path d="M6.1 9a7 7 0 0 1 11.6-2.6L20 11"></path><path d="M4 13l2.3 4.6A7 7 0 0 0 17.9 15"></path></svg></button>';
+        if (host.innerHTML !== badgeHtml) host.innerHTML = badgeHtml;
+        host.style.display = 'flex';
+        const row = (label, value) => '<div style="display:flex;align-items:center;justify-content:space-between;gap:9px;padding:6px 0;border-bottom:1px solid var(--color-token-border-subtle,rgba(127,127,127,.10));"><span style="color:var(--color-token-text-secondary,#737373);font-weight:500;white-space:nowrap;">' + escapeHtml(label) + '</span><span style="color:var(--color-token-text-secondary,#737373);text-align:right;white-space:nowrap;">' + escapeHtml(value) + '</span></div>';
+        details.style.cssText = 'position:fixed;z-index:4;width:min(240px,calc(100vw - 24px));box-sizing:border-box;padding:9px 11px;border:1px solid var(--color-token-border-subtle,rgba(127,127,127,.16));border-radius:10px;background:var(--color-token-main-surface-primary,#fff);color:var(--color-token-text-secondary,#737373);box-shadow:0 4px 14px rgba(0,0,0,.09);font-family:inherit;font-size:12px;line-height:1.3;letter-spacing:normal;pointer-events:auto;';
+        details.style.left = Math.round(footerRect.left + footerRect.width / 2) + 'px';
+        details.style.top = Math.max(12, Math.round(permissionsRect.top - 2)) + 'px';
+        details.style.transform = 'translate(-50%,-100%)';
+        details.style.display = root.detailsOpen ? 'block' : 'none';
+        if (root.detailsOpen) {{
+          const detailsHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px;padding-bottom:6px;border-bottom:1px solid var(--color-token-border-subtle,rgba(127,127,127,.10));"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--color-token-text-secondary,#737373);"><i style="width:6px;height:6px;border-radius:999px;background:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.12);"></i>' + escapeHtml(accountBalanceLabel) + '</span><button type="button" data-cockpit-deepseek-balance-close aria-label="' + escapeHtml(closeLabel) + '" title="' + escapeHtml(closeLabel) + '" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:0;border-radius:4px;background:transparent;color:var(--color-token-text-secondary,#737373);font:inherit;font-size:14px;line-height:1;cursor:pointer;padding:0;opacity:.72;">×</button></div>'
+            + '<div>'
+            + row(totalBalanceLabel, totalText)
+            + row(grantedBalanceLabel, formatMoney(balance.grantedBalance, currency))
+            + row(toppedUpBalanceLabel, formatMoney(balance.toppedUpBalance, currency))
+            + '</div>'
+            + '<div style="display:flex;justify-content:space-between;gap:10px;padding-top:7px;font-size:11px;opacity:.78;"><span>' + escapeHtml(balance.isAvailable ? availableLabel : unavailableLabel) + '</span><span>' + escapeHtml(currency || '') + '</span></div>';
+          if (details.innerHTML !== detailsHtml) details.innerHTML = detailsHtml;
+        }}
+        const openButton = host.querySelector('[data-cockpit-deepseek-balance-open]');
+        if (openButton) openButton.onclick = () => {{ root.detailsOpen = !root.detailsOpen; root.render(); }};
+        const closeButton = details.querySelector('[data-cockpit-deepseek-balance-close]');
+        if (closeButton) closeButton.onclick = () => {{ root.detailsOpen = false; root.render(); }};
+        const refreshButton = host.querySelector('[data-cockpit-deepseek-balance-refresh]');
+        if (refreshButton) {{
+          const refreshDisabled = root.refreshing || root.hostAvailable === false;
+          refreshButton.disabled = refreshDisabled;
+          refreshButton.style.cursor = refreshDisabled ? 'not-allowed' : 'pointer';
+          refreshButton.style.opacity = root.refreshing ? '.7' : (root.hostAvailable === false ? '.45' : '1');
+          const refreshIcon = refreshButton.querySelector('[data-cockpit-deepseek-balance-refresh-icon]');
+          if (refreshIcon) refreshIcon.style.animation = root.refreshing ? 'cockpit-quota-spin .8s linear infinite' : 'none';
+          refreshButton.onclick = () => {{
+            if (refreshDisabled) return;
+            root.refreshRequestToken = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+            root.refreshing = true;
+            root.render();
+          }};
+        }}
+      }};
+      root.render = render;
+      root.scheduleRender = () => {{
+        if (root.renderScheduled) return;
+        root.renderScheduled = true;
+        requestAnimationFrame(() => {{ root.renderScheduled = false; root.render(); }});
+      }};
+      if (!root.resizeHandler) {{
+        root.resizeHandler = () => root.scheduleRender();
+        window.addEventListener('resize', root.resizeHandler, {{passive:true}});
+      }}
+      if (!root.observer) {{
+        root.observer = new MutationObserver((mutations) => {{
+          const host = document.querySelector('[data-cockpit-deepseek-balance]');
+          const details = document.querySelector('[data-cockpit-deepseek-balance-details]');
+          if (host && mutations.every((mutation) => mutation.target === host || host.contains(mutation.target) || (details && (mutation.target === details || details.contains(mutation.target))))) return;
+          root.scheduleRender();
+        }});
+        root.observer.observe(document.documentElement, {{childList:true,subtree:true}});
+      }}
+      if (!document.querySelector('[data-cockpit-quota-style]')) {{
+        const style = document.createElement('style');
+        style.setAttribute('data-cockpit-quota-style', 'true');
+        style.textContent = '@keyframes cockpit-quota-spin{{to{{transform:rotate(360deg)}}}}';
+        document.head.appendChild(style);
+      }}
+      if (!root.watchdogTimer) {{
+        root.watchdogTimer = window.setInterval(() => {{
+          const hostAvailable = Date.now() - (root.hostHeartbeatAt || 0) <= hostHeartbeatTimeoutMs;
+          if (root.hostAvailable === hostAvailable && (hostAvailable || (!root.refreshing && !root.refreshRequestToken))) return;
+          root.hostAvailable = hostAvailable;
+          if (!hostAvailable) {{
+            root.refreshing = false;
+            root.refreshRequestToken = null;
+          }}
+          if (root.render) root.render();
+        }}, 1000);
+      }}
+      render();
+      return {{refreshRequestToken: pendingRefreshToken}};
+    }})()"#
+    )
+}
+
 fn refresh_request_token_from_cdp_response(value: &Value) -> Option<String> {
     value
         .pointer("/result/result/value/refreshRequestToken")
@@ -1433,18 +1715,23 @@ struct InjectionEvalResult {
     selected_model: Option<String>,
 }
 
-async fn evaluate_target(target: &CdpTarget, script: &str) -> Option<InjectionEvalResult> {
+async fn evaluate_target(
+    target: &CdpTarget,
+    script: &str,
+    script_kind: &str,
+) -> Option<InjectionEvalResult> {
     if target.target_type != "page" && target.target_type != "webview" {
         return None;
     }
     let Some(websocket_url) = target.websocket_url.as_deref() else {
         return None;
     };
+    let install_key = format!("{}|{}", script_kind, websocket_url);
     let Ok(Ok((mut socket, _))) = timeout(CDP_CONNECT_TIMEOUT, connect_async(websocket_url)).await
     else {
         return None;
     };
-    let install_on_new_document = should_install_new_document_script(websocket_url);
+    let install_on_new_document = should_install_new_document_script(&install_key);
     if install_on_new_document {
         let enable_page = socket
             .send(Message::Text(
@@ -1476,7 +1763,7 @@ async fn evaluate_target(target: &CdpTarget, script: &str) -> Option<InjectionEv
         if !install {
             return None;
         }
-        mark_new_document_script_installed(websocket_url);
+        mark_new_document_script_installed(&install_key);
     }
     if !socket
         .send(Message::Text(
@@ -2824,9 +3111,19 @@ async fn run_injection_loop(
     bind_account_id: Option<String>,
 ) {
     let client = Client::new();
+    // 余额接口是上游网络请求，必须自带超时，不能让注入循环被拖住。
+    let balance_client = Client::builder()
+        .timeout(DEEPSEEK_BALANCE_QUERY_TIMEOUT)
+        .build()
+        .unwrap_or_else(|_| Client::new());
     let mut last_quota_at = Instant::now() - QUOTA_REFRESH_INTERVAL;
+    let mut last_balance_at = Instant::now() - DEEPSEEK_BALANCE_REFRESH_INTERVAL;
     let mut quota = QuotaResponse::default();
+    let mut balance: Option<DeepSeekBalanceSnapshot> = None;
     let mut handled_refresh_token: Option<String> = None;
+    let mut handled_balance_token: Option<String> = None;
+    let mut deepseek_account_cache: Option<CodexAccount> = None;
+    let mut deepseek_account_at = Instant::now() - DEEPSEEK_ACCOUNT_CACHE_TTL;
     let mut refresh_tasks = JoinSet::new();
     loop {
         if app_lifecycle::is_shutdown_started() {
@@ -2868,59 +3165,129 @@ async fn run_injection_loop(
             }
         }
         let locale = config::get_user_config().language;
-        let deepseek_cdp = bind_uses_deepseek_cdp_injection(bind_account_id.as_deref());
-        if deepseek_cdp {
-            let account_id = bind_account_id_value(bind_account_id.as_deref());
-            let account = account_id
-                .as_deref()
-                .and_then(crate::modules::codex_account::load_account);
-            let payload = account
-                .as_ref()
-                .map(crate::modules::codex_account::deepseek_injection_model_payload)
-                .unwrap_or_else(|| serde_json::json!({ "models": [] }));
-            let script = deepseek_model_injection_script(
-                &locale,
-                &payload,
-                handled_refresh_token.as_deref(),
+        // DeepSeek 绑定（网关列出 / CDP 注入 / 直连官方）统一在底部显示账号余额；
+        // 只有 CDP 接入方式才需要额外的模型列表注入。
+        if deepseek_account_at.elapsed() >= DEEPSEEK_ACCOUNT_CACHE_TTL {
+            deepseek_account_at = Instant::now();
+            // 账号文件短暂读取失败时保留上一份快照，不因为一次读取失败就撤掉余额。
+            if let Some(account) = deepseek_bound_account(bind_account_id.as_deref()) {
+                deepseek_account_cache = Some(account);
+            }
+        }
+        // 只有「CDP 模型注入」或「可查官方余额」时才需要进入 DeepSeek 分支，
+        // 第三方中转的 DeepSeek 账号没有官方余额接口，保持原有行为。
+        let deepseek_account = deepseek_account_cache.as_ref().filter(|account| {
+            crate::modules::codex_account::account_uses_deepseek_cdp_injection(account)
+                || deepseek_balance_endpoint(account).is_some()
+        });
+        if let Some(deepseek_account) = deepseek_account {
+            let deepseek_cdp = crate::modules::codex_account::account_uses_deepseek_cdp_injection(
+                deepseek_account,
             );
-            let targets = query_targets(&client, port).await;
-            let mut pending_model = None;
-            for target in &targets {
-                if let Some(result) = evaluate_target(target, &script).await {
-                    if let Some(model) = result.selected_model {
-                        if handled_refresh_token.as_deref() != Some(model.as_str()) {
-                            pending_model = Some(model);
+            if deepseek_cdp {
+                let account_id = Some(deepseek_account.id.clone());
+                let payload = crate::modules::codex_account::deepseek_injection_model_payload(
+                    deepseek_account,
+                );
+                let script = deepseek_model_injection_script(
+                    &locale,
+                    &payload,
+                    handled_refresh_token.as_deref(),
+                );
+                let targets = query_targets(&client, port).await;
+                let mut pending_model = None;
+                for target in &targets {
+                    if let Some(result) =
+                        evaluate_target(target, &script, DEEPSEEK_MODEL_SCRIPT_KIND).await
+                    {
+                        if let Some(model) = result.selected_model {
+                            if handled_refresh_token.as_deref() != Some(model.as_str()) {
+                                pending_model = Some(model);
+                            }
                         }
                     }
                 }
-            }
-            if let (Some(account_id), Some(model)) = (account_id, pending_model) {
-                let profile_dir = profile_dir.clone();
-                let applied_model = model.clone();
-                match tauri::async_runtime::spawn_blocking(move || {
-                    crate::modules::codex_account::apply_deepseek_cdp_startup_model(
-                        &account_id,
-                        &applied_model,
-                        &profile_dir,
-                    )
-                })
-                .await
-                {
-                    Ok(Ok(_)) => {
-                        handled_refresh_token = Some(model.clone());
-                        logger::log_info(&format!(
-                            "[Codex App Injection] DeepSeek CDP 已切换启动模型: model={}",
-                            model
-                        ));
+                if let (Some(account_id), Some(model)) = (account_id, pending_model) {
+                    let profile_dir = profile_dir.clone();
+                    let applied_model = model.clone();
+                    match tauri::async_runtime::spawn_blocking(move || {
+                        crate::modules::codex_account::apply_deepseek_cdp_startup_model(
+                            &account_id,
+                            &applied_model,
+                            &profile_dir,
+                        )
+                    })
+                    .await
+                    {
+                        Ok(Ok(_)) => {
+                            handled_refresh_token = Some(model.clone());
+                            logger::log_info(&format!(
+                                "[Codex App Injection] DeepSeek CDP 已切换启动模型: model={}",
+                                model
+                            ));
+                        }
+                        Ok(Err(error)) => logger::log_warn(&format!(
+                            "[Codex App Injection] DeepSeek CDP 切换模型失败: {}",
+                            error
+                        )),
+                        Err(error) => logger::log_warn(&format!(
+                            "[Codex App Injection] DeepSeek CDP 切换模型任务异常: {}",
+                            error
+                        )),
                     }
-                    Ok(Err(error)) => logger::log_warn(&format!(
-                        "[Codex App Injection] DeepSeek CDP 切换模型失败: {}",
-                        error
-                    )),
-                    Err(error) => logger::log_warn(&format!(
-                        "[Codex App Injection] DeepSeek CDP 切换模型任务异常: {}",
-                        error
-                    )),
+                }
+            }
+            if enabled_for_app() {
+                if last_balance_at.elapsed() >= DEEPSEEK_BALANCE_REFRESH_INTERVAL {
+                    if let Some(value) =
+                        fetch_deepseek_balance(&balance_client, deepseek_account).await
+                    {
+                        balance = Some(value);
+                    }
+                    last_balance_at = Instant::now();
+                }
+                let script = deepseek_balance_injection_script(
+                    &locale,
+                    balance.as_ref(),
+                    false,
+                    handled_balance_token.as_deref(),
+                );
+                let targets = query_targets(&client, port).await;
+                let mut pending_refresh_token = None;
+                for target in &targets {
+                    if let Some(result) =
+                        evaluate_target(target, &script, DEEPSEEK_BALANCE_SCRIPT_KIND).await
+                    {
+                        if let Some(token) = result.refresh_request_token {
+                            if handled_balance_token.as_deref() != Some(token.as_str()) {
+                                pending_refresh_token = Some(token);
+                            }
+                        }
+                    }
+                }
+                if let Some(token) = pending_refresh_token {
+                    handled_balance_token = Some(token);
+                    if let Some(value) =
+                        fetch_deepseek_balance(&balance_client, deepseek_account).await
+                    {
+                        balance = Some(value);
+                    }
+                    last_balance_at = Instant::now();
+                    // 立刻重绘一次，让刷新按钮结束 loading 状态。
+                    let refreshed_script = deepseek_balance_injection_script(
+                        &locale,
+                        balance.as_ref(),
+                        false,
+                        handled_balance_token.as_deref(),
+                    );
+                    for target in &targets {
+                        let _ = evaluate_target(
+                            target,
+                            &refreshed_script,
+                            DEEPSEEK_BALANCE_SCRIPT_KIND,
+                        )
+                        .await;
+                    }
                 }
             }
             tokio::time::sleep(INJECTION_INTERVAL).await;
@@ -2963,7 +3330,7 @@ async fn run_injection_loop(
         let targets = query_targets(&client, port).await;
         let mut refresh_request_token = None;
         for target in &targets {
-            if let Some(result) = evaluate_target(target, &script).await {
+            if let Some(result) = evaluate_target(target, &script, QUOTA_SCRIPT_KIND).await {
                 if let Some(token) = result.refresh_request_token {
                     if handled_refresh_token.as_deref() != Some(token.as_str()) {
                         refresh_request_token = Some(token);
@@ -2981,7 +3348,7 @@ async fn run_injection_loop(
                 handled_refresh_token.as_deref(),
             );
             for target in &targets {
-                let _ = evaluate_target(target, &refreshing_script).await;
+                let _ = evaluate_target(target, &refreshing_script, QUOTA_SCRIPT_KIND).await;
             }
             let app = app.clone();
             refresh_tasks.spawn(async move { run_quota_refresh_singleflight(&app).await });
@@ -2995,14 +3362,16 @@ mod tests {
     use super::{
         app_server_auth_file_snapshot, auth_diagnostic_error_signal, auth_diagnostic_observation,
         build_launch_args, cdp_auth_signal, cdp_body_preview, cdp_console_auth_signal,
+        deepseek_balance_endpoint, deepseek_balance_injection_script,
         deepseek_model_injection_script, has_login_route_markers, injection_script,
         is_auth_diagnostic_url, is_codex_app_target, is_official_login_route,
         is_safe_cdp_websocket_url, refresh_request_token_from_cdp_response,
         remote_debugging_port_from_command_line, sanitize_cdp_headers,
         selected_model_from_cdp_response, should_capture_cdp_response_body, supports_bind_account,
-        AuthPageSnapshot, CdpTarget, QuotaPlanSummary, QuotaResponse, AUTH_DIAGNOSTIC_SCRIPT,
+        AuthPageSnapshot, CdpTarget, DeepSeekBalanceSnapshot, QuotaPlanSummary, QuotaResponse,
+        AUTH_DIAGNOSTIC_SCRIPT,
     };
-    use crate::models::codex::{CodexAccount, CodexTokens};
+    use crate::models::codex::{CodexAccount, CodexApiProviderMode, CodexTokens};
     use crate::modules::codex_account::{
         compare_official_oauth_identity, CodexOfficialOAuthIdentity,
         CodexOfficialOAuthIdentityMatch,
@@ -3087,6 +3456,67 @@ mod tests {
             "result": { "result": { "value": { "selectedModel": "deepseek-v4-pro" } } }
         }));
         assert_eq!(parsed.as_deref(), Some("deepseek-v4-pro"));
+    }
+
+    #[test]
+    fn deepseek_balance_endpoint_requires_official_host() {
+        let mut account = CodexAccount::new_api_key(
+            "codex_apikey_deepseek".to_string(),
+            "deepseek@example.com".to_string(),
+            "sk-deepseek".to_string(),
+            CodexApiProviderMode::Custom,
+            Some("https://api.deepseek.com/v1".to_string()),
+            Some("deepseek".to_string()),
+            Some("DeepSeek".to_string()),
+            vec!["deepseek-flash".to_string()],
+        );
+        assert_eq!(
+            deepseek_balance_endpoint(&account).as_deref(),
+            Some("https://api.deepseek.com/user/balance")
+        );
+
+        // 第三方中转没有官方余额接口，不能凭 provider id 猜测余额。
+        account.api_base_url = Some("https://relay.example.com/v1".to_string());
+        assert!(deepseek_balance_endpoint(&account).is_none());
+
+        account.api_base_url = None;
+        assert!(deepseek_balance_endpoint(&account).is_none());
+    }
+
+    #[test]
+    fn deepseek_balance_script_renders_balance_badge_and_details() {
+        let snapshot = DeepSeekBalanceSnapshot {
+            is_available: true,
+            currency: Some("CNY".to_string()),
+            total_balance: Some(110.0),
+            granted_balance: Some(10.0),
+            topped_up_balance: Some(100.0),
+        };
+        let script = deepseek_balance_injection_script("zh-cn", Some(&snapshot), false, None);
+
+        assert!(script.contains("window.__cockpitDeepSeekBalance"));
+        assert!(script.contains("data-cockpit-deepseek-balance"));
+        assert!(script.contains("data-cockpit-deepseek-balance-details"));
+        assert!(script.contains("data-cockpit-deepseek-balance-refresh"));
+        assert!(script.contains("const balanceLabel = \"余额\""));
+        assert!(script.contains("const totalBalanceLabel = \"总余额\""));
+        assert!(script.contains("const grantedBalanceLabel = \"赠金余额\""));
+        assert!(script.contains("const toppedUpBalanceLabel = \"充值余额\""));
+        assert!(script.contains("\"totalBalance\":110.0"));
+        // 与 API 服务额度注入各用各的宿主节点与命名空间，互不覆盖。
+        assert!(!script.contains("data-cockpit-quota-footer"));
+        assert!(!script.contains("__cockpitCodexInjection"));
+        assert!(script.contains("root.refreshRequestToken"));
+        assert!(script.contains("hostHeartbeatTimeoutMs = 8000"));
+    }
+
+    #[test]
+    fn deepseek_balance_script_hides_badge_without_data() {
+        let script = deepseek_balance_injection_script("en", None, false, None);
+
+        assert!(script.contains("const balance = null"));
+        assert!(script.contains("root.hasBalance = Boolean(balance)"));
+        assert!(script.contains("if (!permissions || !footer || !balance)"));
     }
 
     #[test]

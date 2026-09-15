@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Testergebnisse",
+    "usageTokens": "{{tokens}} Token",
+    "quotaUsed": "5h verbraucht {{percent}}%",
+    "quotaLeft": "5h übrig {{percent}}%",
     "openBrowser": "Im Browser öffnen",
     "error": {
       "stateUnavailable": "Aufgabenstatus nicht verfügbar. Bitte erneut versuchen.",
@@ -854,7 +857,7 @@
       "codexSyncWsl": "Codex mit WSL synchronisieren",
       "codexSyncWslDesc": "Nach dem Wechsel des Standard-Codex-Kontos werden auth.json und config.toml auch in das Codex-Verzeichnis in WSL geschrieben.",
       "codexAppUiInjection": "API-Dienst-Kontingent",
-      "codexAppUiInjectionDesc": "Nach dem Neustart einer Codex-Instanz Kontenanzahl sowie Wochen- und 5-Stunden-Kontingent des Cockpit Tools API-Dienstes unter dem Composer anzeigen. Cockpit Tools muss im Hintergrund laufen; nach vollständigem Beenden oder ohne Netzwerk werden die Werte nicht weiter aktualisiert.",
+      "codexAppUiInjectionDesc": "Nach dem Neustart einer Codex-Instanz Kontenanzahl sowie Wochen- und 5-Stunden-Kontingent des Cockpit Tools API-Dienstes unter dem Composer anzeigen; Instanzen mit gebundenem DeepSeek-Konto zeigen stattdessen das Guthaben dieses Kontos. Cockpit Tools muss im Hintergrund laufen; nach vollständigem Beenden oder ohne Netzwerk werden die Werte nicht weiter aktualisiert.",
       "codexAppUiInjectionPoolLabel": "Konten",
       "codexAppUiInjectionWeeklyLabel": "Woche",
       "codexAppUiInjectionFiveHourLabel": "5 Std.",
@@ -2097,6 +2100,7 @@
       "manage": "Modelle verwalten",
       "disabledDescription": "Standardmäßig deaktiviert. Modelle, Reihenfolge, Standardmodell und Denkstufen folgen dem offiziellen Katalog.",
       "enabledDescription": "Der konfigurierte Modellkatalog ist aktiv. Modelle können hinzugefügt oder entfernt werden; die Liste folgt nicht mehr automatisch dem offiziellen Katalog.",
+      "routingManagedHint": "Gemischtes Modell-Routing nutzt diesen Modellkatalog nur vorübergehend während der Ausführung der Instanz und stellt ihn nach dem Stopp wieder her. Dieser Schalter bleibt unverändert.",
       "enableConfirmTitle": "Modellverwaltung aktivieren?",
       "enableConfirmDescription": "Codex verwendet danach den hier konfigurierten Modellkatalog. Modelle können angepasst werden, die Liste wird jedoch nicht mehr automatisch aktualisiert.",
       "enableConfirmAction": "Aktivieren und einrichten"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "Ja",
       "imageGenSwitchNo": "Nein",
       "imageGenTitle": "GPT-Bildgenerierung aktivieren",
+      "oauthBindingHint": "Nach dem Binden startet das Konto genau wie ein normales Konto und alle OAuth-Funktionen (Remote-Kompression, Browser-Steuerung, verschiedene Plugins usw.) stehen zur Verfügung; Gespräche laufen weiterhin über den aktuellen API-Key-Anbieter.",
+      "oauthBindingChange": "Ändern",
       "title": "Codex-Startvorschau",
       "description": "Zuerst konfigurieren und prüfen; der Client ändert sich erst nach „Wechseln“ oder „Starten“.",
       "notApplied": "Noch nicht angewendet",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "Mindestens zwei Instanzen sind erforderlich, um Sitzungen zu synchronisieren",
         "pickRestoreOne": "Bitte wählen Sie mindestens eine Sitzung zur Wiederherstellung aus",
         "repairVisibilitySkippedOnly": "Es wurden keine schreibbaren Provider-Unterschiede gefunden; {{count}} ungültige oder beschädigte state_5.sqlite-Datei(en) wurden übersprungen. Codex muss sie neu erstellen, bevor ihre SQLite-Einträge repariert werden können.",
-        "repairVisibilitySkippedWithBase": "{{message}}; {{count}} ungültige oder beschädigte state_5.sqlite-Datei(en) wurden übersprungen. Codex muss sie neu erstellen, bevor ihre SQLite-Einträge repariert werden können."
+        "repairVisibilitySkippedWithBase": "{{message}}; {{count}} ungültige oder beschädigte state_5.sqlite-Datei(en) wurden übersprungen. Codex muss sie neu erstellen, bevor ihre SQLite-Einträge repariert werden können.",
+        "trashSummary": "{{count}} Unterhaltungen in den Papierkorb verschoben und im offiziellen Codex gelöscht",
+        "trashSummaryFallback": "{{count}} Unterhaltungen in den Papierkorb verschoben und den offiziellen Codex-Sitzungsindex neu aufgebaut",
+        "trashSummaryRunningHint": "Laufende Instanzen zeigen die Änderung erst nach Aktualisieren oder Neustart",
+        "trashSummaryFallbackHint": "Für {{count}} Instanzen konnte die offizielle Löschung nicht abgeschlossen werden; die Dateien wurden direkt entfernt und Codex synchronisiert nach einem Neustart",
+        "trashSummaryRebuildFailedHint": "Für {{count}} Instanzen wurde der offizielle Sidebar-Index nicht fertig neu aufgebaut; Codex lädt ihn nach einem Neustart neu",
+        "trashSummaryEmpty": "Die ausgewählten Unterhaltungen gibt es in den aktuellen Instanzen nicht, nichts zu tun"
       },
       "groupCount": "{{count}} Sitzungen",
       "updatedAt": "Aktualisiert",
@@ -3273,7 +3285,12 @@
         "subagent": "Unteragent",
         "all": "Alle Typen"
       },
-      "pickInstancePrompt": "Sitzung existiert auf mehreren Instanzen. Instanz-ID eingeben:"
+      "locationPicker": {
+        "title": "Instanz wählen",
+        "hint": "Diese Sitzung existiert auf mehreren Instanzen. Wählen Sie die Instanz für den Dateispeicherort:",
+        "rolloutHint": "Diese Sitzung existiert auf mehreren Instanzen. Wählen Sie die Instanz für die Sitzungsdatei:",
+        "running": "Läuft"
+      }
     },
     "sessionUsage": {
       "tab": "Verbrauch",
@@ -3758,6 +3775,9 @@
           "planName": "Tarif",
           "remaining": "Restguthaben",
           "balance": "Guthaben",
+          "totalBalance": "Gesamtguthaben",
+          "grantedBalance": "Zuschussguthaben",
+          "toppedUpBalance": "Aufgeladenes Guthaben",
           "todayRequests": "Anfragen heute",
           "todayTokens": "Token heute",
           "todayCost": "Kosten heute",
@@ -3983,6 +4003,8 @@
       "standardDesc": "Standardtempo, normaler Verbrauch",
       "fast": "Schnell",
       "fastDesc": "1,5-faches Tempo, höherer Verbrauch",
+      "ultrafast": "Ultraschnell",
+      "ultrafastDesc": "Schnellste Antworten, höherer Verbrauch",
       "saveSuccess": "Tempo aktualisiert",
       "saveFailed": "Tempo konnte nicht gespeichert werden: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "Relay-Kontingent zeigen",
       "hideRelayQuota": "Relay-Kontingent ausblenden"
+    },
+    "instanceGateways": {
+      "entry": "Instanz-Gateways",
+      "entryCount": "Instanz-Gateways {{count}}",
+      "issueCount": "{{count}} auffällig",
+      "title": "Instanz-Gateways",
+      "subtitle": "Lokale Gateways, die mit Codex-Instanzen gestartet werden",
+      "summary": "{{total}} gesamt · {{running}} aktiv · {{issues}} auffällig",
+      "empty": "Keine Gateways auf Instanzebene",
+      "emptyHint": "Sie erscheinen automatisch, sobald ein API-Key-Konto mit Chat-Protokoll gebunden oder das Routing gemischter Modelle aktiviert wird.",
+      "kindProviderGateway": "Anbieter-Gateway",
+      "kindMixedModel": "Routing gemischter Modelle",
+      "kindBoundOauth": "Lokales OAuth-Gateway",
+      "statusUnreachable": "Gestartet, aber nicht erreichbar",
+      "statusPortConflict": "Port belegt",
+      "statusNotStarted": "Nicht gestartet",
+      "fieldAccount": "Konto",
+      "fieldAddress": "Lokale Adresse",
+      "fieldProtocol": "Protokoll",
+      "fieldModels": "Upstream-Modelle",
+      "loadFailed": "Instanz-Gateways konnten nicht geladen werden",
+      "stop": "Beenden",
+      "restart": "Neu starten",
+      "stopConfirmTitle": "Dieses Instanz-Gateway beenden?",
+      "stopConfirmDescription": "Beim Beenden eines Gateways für gemischtes Modell-Routing wird auch das gemischte Modell-Routing dieser Instanz deaktiviert (Kanal-Konfiguration bleibt erhalten); andere Gateways lassen sich mit „Neu starten“ wieder starten.",
+      "stopFailed": "Gateway konnte nicht beendet werden: {{error}}",
+      "restartFailed": "Gateway konnte nicht gestartet werden: {{error}}"
     }
   },
   "githubCopilot": {

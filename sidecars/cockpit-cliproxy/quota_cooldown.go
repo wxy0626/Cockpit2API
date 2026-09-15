@@ -251,6 +251,13 @@ func (s *quotaCooldownSelector) Stop() {
 	}
 }
 
+func (s *quotaCooldownSelector) OnResult(result coreauth.Result) {
+	if s == nil {
+		return
+	}
+	forwardAuthSelectionResult(s.fallback, result)
+}
+
 func (s *quotaCooldownSelector) ReportAuthSelectionFailure(ctx context.Context, provider, model string, auths []*coreauth.Auth, err error) error {
 	if reporter, ok := s.fallback.(coreauth.AuthSelectionFailureReporter); ok {
 		return reporter.ReportAuthSelectionFailure(ctx, provider, model, auths, err)

@@ -218,3 +218,30 @@ async fn total_timeout_stops_a_nonterminating_operation() {
         pelican_with_cancel::<()>(rx, Duration::from_millis(10), std::future::pending()).await;
     assert_eq!(result.unwrap_err(), "PELICAN_TIMEOUT");
 }
+
+#[test]
+fn parses_primary_rate_limit_headers() {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        "x-codex-primary-used-percent",
+        reqwest::header::HeaderValue::from_static("42.5"),
+    );
+    headers.insert(
+        "x-codex-primary-window-minutes",
+        reqwest::header::HeaderValue::from_static("300"),
+    );
+    headers.insert(
+        "x-codex-primary-reset-after-seconds",
+        reqwest::header::HeaderValue::from_static("120"),
+    );
+    let snapshot = pelican_quota_snapshot_from_headers(&headers).expect("quota snapshot");
+    assert_eq!(snapshot.used_percent, 42.5);
+    assert_eq!(snapshot.remaining_percent, 58);
+    assert_eq!(snapshot.window_minutes, Some(300));
+    assert!(snapshot.reset_at.is_some());
+}
+
+#[test]
+fn ignores_missing_primary_rate_limit_headers() {
+    assert!(pelican_quota_snapshot_from_headers(&reqwest::header::HeaderMap::new()).is_none());
+}

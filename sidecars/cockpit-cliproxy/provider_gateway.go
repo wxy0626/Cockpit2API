@@ -282,10 +282,7 @@ func (s *relayServer) handleProviderGatewayRequest(c *gin.Context, gateway *prov
 			return
 		}
 		c.Status(http.StatusOK)
-		c.Stream(func(w io.Writer) bool {
-			_, _ = io.Copy(w, resp.Body)
-			return false
-		})
+		s.writeProviderGatewayResponsesStream(c, resp.Body)
 		return
 	}
 
@@ -302,6 +299,9 @@ func (s *relayServer) handleProviderGatewayRequest(c *gin.Context, gateway *prov
 		default:
 			payload = sdktranslator.TranslateNonStream(relayContext(c), sdktranslator.FormatOpenAI, sourceFormat, upstreamModel, body, upstreamBody, payload, nil)
 		}
+	}
+	if sourceFormatEqual(sourceFormat, sdktranslator.FormatOpenAIResponse) {
+		payload = normalizeResponsesReasoningContentBody(payload)
 	}
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" || (wireAPI == "chat_completions" && !sourceFormatEqual(sourceFormat, sdktranslator.FormatOpenAI)) {
@@ -514,6 +514,26 @@ func (s *relayServer) writeProviderGatewayTranslatedChatStream(c *gin.Context, b
 	}
 }
 
+// writeProviderGatewayResponsesStream 透传 provider gateway 的 Responses SSE，
+// 只在出口清洗第三方推理项，其余字节与原有 io.Copy 透传保持一致。
+func (s *relayServer) writeProviderGatewayResponsesStream(c *gin.Context, body io.Reader) {
+	if body == nil {
+		return
+	}
+	reader := bufio.NewReaderSize(body, 64*1024)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			if _, writeErr := c.Writer.Write(normalizeResponsesReasoningContentSSELine(line)); writeErr != nil {
+				return
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
 func providerGatewaySSEFrame(event []byte) []byte {
 	if len(event) == 0 || bytes.HasSuffix(event, []byte("\n\n")) || bytes.HasSuffix(event, []byte("\r\n\r\n")) {
 		return event
@@ -643,6 +663,10 @@ func (s *relayServer) handleNonStream(c *gin.Context, body []byte, model string,
 	}
 	s.emitExecutorDiagnostic(c, "executor_completed", model, "execute", startedAt, "")
 	writeUpstreamHeaders(c.Writer.Header(), resp.Headers)
+	if sourceFormatEqual(sourceFormat, sdktranslator.FormatOpenAIResponse) {
+		// 出口统一清洗第三方推理项，避免客户端把不兼容的 reasoning content 落盘。
+		resp.Payload = normalizeResponsesReasoningContentBody(resp.Payload)
+	}
 	contentType := resp.Headers.Get("Content-Type")
 	if contentType == "" {
 		contentType = "application/json"

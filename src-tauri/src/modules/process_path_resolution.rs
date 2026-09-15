@@ -2609,6 +2609,11 @@ fn normalized_windows_path_text(path: &Path) -> String {
 }
 
 #[cfg(any(test, target_os = "windows"))]
+fn is_windowsapps_launch_path(path: &Path) -> bool {
+    normalized_windows_path_text(path).contains("\\windowsapps\\")
+}
+
+#[cfg(any(test, target_os = "windows"))]
 fn is_legacy_codex_store_launch_path(path: &Path) -> bool {
     let normalized = normalized_windows_path_text(path);
     normalized.ends_with("\\codex.exe") && normalized.contains("\\windowsapps\\openai.codex_")

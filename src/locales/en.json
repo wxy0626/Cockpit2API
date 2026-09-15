@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Test results",
+    "usageTokens": "{{tokens}} tok",
+    "quotaUsed": "5h used {{percent}}%",
+    "quotaLeft": "5h left {{percent}}%",
     "openBrowser": "Open in browser",
     "error": {
       "stateUnavailable": "Task state unavailable. Try again.",
@@ -1062,7 +1065,7 @@
       "codexSyncWsl": "Sync Codex to WSL",
       "codexSyncWslDesc": "After switching the default Codex account, also write auth.json and config.toml to the WSL Codex directory.",
       "codexAppUiInjection": "Show API Service quota",
-      "codexAppUiInjectionDesc": "After restarting a Codex instance, show the Cockpit Tools API Service account count, weekly quota, and 5-hour quota below the composer. Keep Cockpit Tools running in the background; updates stop when it is fully quit or the network is unavailable.",
+      "codexAppUiInjectionDesc": "After restarting a Codex instance, show the Cockpit Tools API Service account count, weekly quota, and 5-hour quota below the composer; instances bound to a DeepSeek account show that account's balance instead. Keep Cockpit Tools running in the background; updates stop when it is fully quit or the network is unavailable.",
       "codexAppUiInjectionPoolLabel": "Accounts",
       "codexAppUiInjectionWeeklyLabel": "Week",
       "codexAppUiInjectionFiveHourLabel": "5h",
@@ -2296,6 +2299,7 @@
       "manage": "Manage models",
       "disabledDescription": "Off by default. When off, models, ordering, the default model, and reasoning levels follow the official catalog.",
       "enabledDescription": "The configured model catalog is active. You can add or remove models, and the list no longer updates with the official catalog.",
+      "routingManagedHint": "Mixed model routing uses this model catalog only temporarily while the instance runs and restores it after the instance stops; it does not change this switch.",
       "enableConfirmTitle": "Enable model management?",
       "enableConfirmDescription": "After enabling, Codex uses the model catalog configured here. You can add, remove, and adjust models, but the list will no longer update automatically with the official catalog.",
       "enableConfirmAction": "Enable and configure"
@@ -2416,6 +2420,8 @@
       "imageGenSwitchYes": "Yes",
       "imageGenSwitchNo": "No",
       "imageGenTitle": "Enable GPT image generation",
+      "oauthBindingHint": "After binding, launching is identical to a normal account and all OAuth capabilities are available (remote compaction, browser control, plugins, and more); conversations still run on the current API Key provider.",
+      "oauthBindingChange": "Change",
       "title": "Codex Launch Preview",
       "description": "Configure and inspect first; the client changes only after you choose Switch or Start.",
       "notApplied": "Not applied yet",
@@ -3468,6 +3474,9 @@
           "planName": "Plan",
           "remaining": "Remaining",
           "balance": "Balance",
+          "totalBalance": "Total balance",
+          "grantedBalance": "Granted balance",
+          "toppedUpBalance": "Topped-up balance",
           "todayRequests": "Today Requests",
           "todayTokens": "Today Tokens",
           "todayCost": "Today Cost",
@@ -3920,7 +3929,13 @@
         "pickRestoreOne": "Please select at least one session to restore",
         "syncNeedTwo": "At least two instances are required to sync sessions",
         "repairVisibilitySkippedOnly": "No writable session index differences were found; skipped {{count}} invalid or corrupted SQLite session database(s). Codex must regenerate them before their records can be repaired.",
-        "repairVisibilitySkippedWithBase": "{{message}}; skipped {{count}} invalid or corrupted SQLite session database(s). Codex must regenerate them before their records can be repaired."
+        "repairVisibilitySkippedWithBase": "{{message}}; skipped {{count}} invalid or corrupted SQLite session database(s). Codex must regenerate them before their records can be repaired.",
+        "trashSummary": "Moved {{count}} conversations to the trash and deleted them in official Codex",
+        "trashSummaryFallback": "Moved {{count}} conversations to the trash and triggered an official Codex session index rebuild",
+        "trashSummaryRunningHint": "Running instances may need a refresh or restart before the change appears",
+        "trashSummaryFallbackHint": "Official deletion did not finish for {{count}} instances; files were removed directly and Codex will sync after a restart",
+        "trashSummaryRebuildFailedHint": "Official sidebar index rebuild did not finish for {{count}} instances; Codex will reload it after a restart",
+        "trashSummaryEmpty": "The selected conversations are not present in the current instance set, nothing to do"
       },
       "groupCount": "{{count}} sessions",
       "updatedAt": "Updated",
@@ -4107,7 +4122,12 @@
         "subagent": "Subagent",
         "all": "All types"
       },
-      "pickInstancePrompt": "This session exists on multiple instances. Enter instance ID:"
+      "locationPicker": {
+        "title": "Choose instance",
+        "hint": "This session exists on multiple instances. Choose which instance to open the file location in:",
+        "rolloutHint": "This session exists on multiple instances. Choose which instance to open the session file in:",
+        "running": "Running"
+      }
     },
     "sessionUsage": {
       "tab": "Usage",
@@ -4194,6 +4214,8 @@
       "standardDesc": "Default speed, regular usage",
       "fast": "Fast",
       "fastDesc": "1.5x speed, higher usage",
+      "ultrafast": "Ultrafast",
+      "ultrafastDesc": "Fastest responses, highest usage",
       "saveSuccess": "Speed updated",
       "saveFailed": "Failed to save speed: {{error}}"
     },
@@ -4641,6 +4663,33 @@
     "accounts": {
       "showRelayQuota": "Show relay quota",
       "hideRelayQuota": "Hide relay quota"
+    },
+    "instanceGateways": {
+      "entry": "Instance gateways",
+      "entryCount": "Instance gateways {{count}}",
+      "issueCount": "{{count}} abnormal",
+      "title": "Instance gateways",
+      "subtitle": "Local gateways started with Codex instances",
+      "summary": "{{total}} total · {{running}} running · {{issues}} abnormal",
+      "empty": "No instance-level gateways",
+      "emptyHint": "They appear automatically after binding a Chat-protocol API key account or enabling mixed model routing.",
+      "kindProviderGateway": "Provider gateway",
+      "kindMixedModel": "Mixed model routing",
+      "kindBoundOauth": "OAuth local gateway",
+      "statusUnreachable": "Started but unreachable",
+      "statusPortConflict": "Port in use",
+      "statusNotStarted": "Not started",
+      "fieldAccount": "Account",
+      "fieldAddress": "Local address",
+      "fieldProtocol": "Protocol",
+      "fieldModels": "Upstream models",
+      "loadFailed": "Failed to load instance gateways",
+      "stop": "Stop",
+      "restart": "Restart",
+      "stopConfirmTitle": "Stop this instance gateway?",
+      "stopConfirmDescription": "Stopping a mixed model routing gateway also turns off that instance's mixed model routing (channel configuration is kept); other gateways can be started again with Restart.",
+      "stopFailed": "Failed to stop the gateway: {{error}}",
+      "restartFailed": "Failed to start the gateway: {{error}}"
     }
   },
   "codebuddy": {

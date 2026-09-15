@@ -1,5 +1,5 @@
 import { useEffect, type ReactElement } from "react";
-import { RefreshCw, Upload, Trash2, X, Power, Database, Copy, Check, Play, RotateCw, CircleAlert, Info, Calendar, Tag, Eye, EyeOff, FileText, ExternalLink, Pencil, FolderOpen, FolderPlus, ChevronRight, LogOut, Wrench, Terminal, Link2 } from "lucide-react";
+import { RefreshCw, Upload, Trash2, X, Power, Database, Copy, Check, Play, RotateCw, CircleAlert, Info, Calendar, Tag, Eye, EyeOff, FileText, ExternalLink, Pencil, FolderOpen, FolderPlus, ChevronRight, LogOut, Wrench, Terminal, Link2, Waypoints } from "lucide-react";
 import { isCodexGroupQuotaRefreshInherit, resolveCodexGroupQuotaAutoRefreshMinutes } from "../services/codexAccountGroupService";
 import { isCodexApiKeyAccount, isCodexAgentIdentityAccount, isCodexChatCompletionsApiKeyAccount, isCodexNewApiAccount } from "../types/codex";
 import { isVerboseCodexQuotaErrorMessage, summarizeCodexQuotaErrorMessage } from "../utils/codexQuotaError";
@@ -87,6 +87,8 @@ export function useCodexAccountsRenderers(context: Pick<ReturnType<typeof useCod
   | "localAccessCopiedField"
   | "localAccessDetailsExpanded"
   | "localAccessEntryVisible"
+  | "instanceGatewaySummary"
+  | "instanceGatewaysLoading"
   | "localAccessKeyVisible"
   | "localAccessLaunchCurrent"
   | "localAccessPortKilling"
@@ -105,6 +107,7 @@ export function useCodexAccountsRenderers(context: Pick<ReturnType<typeof useCod
   | "openLocalAccessMemberPicker"
   | "openLocalAccessOAuthBindingModal"
   | "openLocalAccessPanel"
+  | "openInstanceGateways"
   | "openQuickSwitchProviderModal"
   | "openQuotaErrorDetail"
   | "openTagModal"
@@ -230,6 +233,8 @@ export function useCodexAccountsRenderers(context: Pick<ReturnType<typeof useCod
     localAccessCopiedField,
     localAccessDetailsExpanded,
     localAccessEntryVisible,
+    instanceGatewaySummary,
+    instanceGatewaysLoading,
     localAccessKeyVisible,
     localAccessLaunchCurrent,
     localAccessPortKilling,
@@ -248,6 +253,7 @@ export function useCodexAccountsRenderers(context: Pick<ReturnType<typeof useCod
     openLocalAccessMemberPicker,
     openLocalAccessOAuthBindingModal,
     openLocalAccessPanel,
+    openInstanceGateways,
     openQuickSwitchProviderModal,
     openQuotaErrorDetail,
     openTagModal,
@@ -1323,6 +1329,37 @@ export function useCodexAccountsRenderers(context: Pick<ReturnType<typeof useCod
               </div>
             )}
             <div className="codex-local-access-header-actions">
+              <button
+                type="button"
+                className={`codex-local-access-instance-gateways${
+                  instanceGatewaySummary.issues > 0 ? " has-issue" : ""
+                }${instanceGatewaySummary.total === 0 ? " is-empty" : ""}`}
+                onClick={openInstanceGateways}
+                title={t("codex.instanceGateways.title", "实例网关")}
+                aria-label={t("codex.instanceGateways.title", "实例网关")}
+              >
+                {instanceGatewaysLoading ? (
+                  <RefreshCw size={12} className="loading-spinner" />
+                ) : (
+                  <Waypoints size={13} />
+                )}
+                <span>
+                  {instanceGatewaySummary.total > 0
+                    ? t("codex.instanceGateways.entryCount", {
+                        count: instanceGatewaySummary.total,
+                        defaultValue: "实例网关 {{count}}",
+                      })
+                    : t("codex.instanceGateways.entry", "实例网关")}
+                </span>
+                {instanceGatewaySummary.issues > 0 && (
+                  <span className="codex-local-access-instance-gateways-issue">
+                    {t("codex.instanceGateways.issueCount", {
+                      count: instanceGatewaySummary.issues,
+                      defaultValue: "{{count}} 异常",
+                    })}
+                  </span>
+                )}
+              </button>
               {isLocalAccessCurrent && (
                 <span className="current-tag">{t("codex.current", "当前")}</span>
               )}

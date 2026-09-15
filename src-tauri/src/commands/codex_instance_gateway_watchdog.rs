@@ -202,8 +202,9 @@ async fn check_profile(lease: Lease, target: Target, app: AppHandle) -> Result<(
     if !current(&lease) {
         return Ok(());
     }
-    let (profile_dir, account_id, routing, last_pid, is_default) = match target {
+    let (target_instance_id, profile_dir, account_id, routing, last_pid, is_default) = match target {
         Target::Default(s) => (
+            crate::modules::codex_instance::CODEX_DEFAULT_INSTANCE_ID.to_string(),
             modules::codex_instance::get_default_codex_home()?,
             super::codex_instance::resolve_default_account_id(&s),
             s.model_routing,
@@ -211,6 +212,7 @@ async fn check_profile(lease: Lease, target: Target, app: AppHandle) -> Result<(
             true,
         ),
         Target::Instance(s) => (
+            s.id.clone(),
             PathBuf::from(s.user_data_dir),
             s.bind_account_id,
             s.model_routing,
@@ -228,6 +230,17 @@ async fn check_profile(lease: Lease, target: Target, app: AppHandle) -> Result<(
     let running =
         modules::process::resolve_codex_pid(last_pid, process_context(is_default, &path)).is_some();
     if !current(&lease) {
+        return Ok(());
+    }
+    if !running {
+        // 实例没运行时不再保留本地网关：停进程并还原接管状态，避免出现
+        // “实例已关闭但网关仍在”。下次通过 Cockpit 启动该实例时会重新接管。
+        // 启动流程内部会先停旧网关再重新接管，这期间不能释放。
+        if !super::codex_instance::codex_instance_start_in_progress(&target_instance_id)
+            && modules::codex_local_access::profile_uses_mixed_model_gateway(&profile_dir)?
+        {
+            modules::codex_local_access::release_instance_gateway_for_profile(&profile_dir).await?;
+        }
         return Ok(());
     }
     if running && !modules::codex_local_access::profile_uses_mixed_model_gateway(&profile_dir)? {

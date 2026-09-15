@@ -1241,6 +1241,21 @@ html[data-reduced-motion="true"] .platform-group-switcher-trigger.is-open .platf
   background: linear-gradient(180deg, rgba(255, 247, 232, 1), rgba(250, 232, 204, 0.96));
 }
 
+.codex-speed-trigger.ultrafast {
+  color: #5b21b6;
+  border-color: rgba(124, 58, 237, 0.26);
+  background: linear-gradient(180deg, rgba(248, 245, 255, 0.98), rgba(237, 233, 254, 0.94));
+  box-shadow:
+    0 1px 2px rgba(76, 29, 149, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
+.codex-speed-trigger.ultrafast:hover:not(:disabled),
+.codex-speed-trigger.ultrafast.open {
+  border-color: rgba(124, 58, 237, 0.44);
+  background: linear-gradient(180deg, rgba(245, 241, 255, 1), rgba(228, 220, 254, 0.96));
+}
+
 .codex-speed-trigger.compact {
   height: 21px;
   padding: 0 6px;

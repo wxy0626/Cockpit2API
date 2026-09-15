@@ -113,6 +113,51 @@ fn provider_gateway_profile_port(
     Ok(state.port.expect("new provider gateway state must have a port"))
 }
 
+/// 持久端口是否已被本进程之外的进程占用。
+///
+/// 端口不可绑定、且本进程没有在该端口上托管 sidecar 时，说明它已被其它实例的网关或
+/// 外部进程占用；这种端口不能继续复用，否则 sidecar 会 bind 失败，下一次尝试也仍会撞上
+/// 同一个端口。
+async fn provider_gateway_profile_port_occupied_by_others(
+    profile_dir: &Path,
+    runtime_id: &str,
+) -> bool {
+    let Ok(Some(state)) = load_provider_gateway_profile_state(profile_dir, runtime_id) else {
+        return false;
+    };
+    let Some(port) = state.port.filter(|port| *port > 0) else {
+        return false;
+    };
+    if is_local_access_port_bindable(CODEX_LOCAL_ACCESS_LOCALHOST_BIND_HOST, port).unwrap_or(true) {
+        return false;
+    }
+
+    // 端口被占用：如果是本进程正在托管的 sidecar（实例仍在运行），保留端口继续复用。
+    let runtime_key = provider_gateway_runtime_key(profile_dir, runtime_id);
+    if let Some((live_port, _)) = live_provider_gateway_endpoints().await.get(&runtime_key) {
+        if *live_port == port {
+            return false;
+        }
+    }
+    true
+}
+
+/// 启动前放弃已被其它进程占用的持久端口，让网关重新分配一个空闲端口。
+///
+/// 端口按 profile 持久化是为了让仍然打开的 Codex 实例在宿主重启后继续指向同一个地址，
+/// 但端口被他人占用时必须以重新分配为准，不能带着冲突端口去启动 sidecar。
+async fn release_occupied_provider_gateway_profile_port(profile_dir: &Path, runtime_id: &str) {
+    if !provider_gateway_profile_port_occupied_by_others(profile_dir, runtime_id).await {
+        return;
+    }
+    logger::log_codex_api_warn(&format!(
+        "[CodexLocalAccess][provider-gateway] 持久端口已被其它进程占用，放弃该端口并重新分配: profile={}, runtime_id={}",
+        profile_dir.display(),
+        runtime_id
+    ));
+    reset_instance_gateway_profile_port(profile_dir, runtime_id);
+}
+
 fn persisted_mixed_model_gateway_endpoint(
     profile_dir: &Path,
 ) -> Result<Option<(GatewayBindEndpoint, String)>, String> {
@@ -422,6 +467,79 @@ fn mixed_route_upstream_models(
             .map(String::as_str),
     );
     normalize_provider_gateway_models(models)
+}
+
+/// 混合模型路由在 Codex 里可见的模型清单：官方订阅模型 + 各已启用路由的「命名空间/上游模型」。
+///
+/// 该清单只在实例运行时临时写入 profile 的模型目录，与用户是否开启「模型管理」无关，
+/// 因此不会持久改变用户的模型目录设置。
+fn mixed_model_catalog_definitions(
+    routing: &CodexInstanceModelRouting,
+) -> Result<Vec<(String, String)>, String> {
+    let mut definitions: Vec<(String, String)> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    let official = codex_protocol::build_codex_client_models_response(&supported_codex_model_ids());
+    for model in official
+        .get("models")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let Some(slug) = model
+            .get("slug")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+        if model
+            .get("visibility")
+            .and_then(Value::as_str)
+            .is_some_and(|visibility| visibility.eq_ignore_ascii_case("hide"))
+        {
+            continue;
+        }
+        let display_name = model
+            .get("display_name")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(slug)
+            .to_string();
+        if seen.insert(slug.to_ascii_lowercase()) {
+            definitions.push((slug.to_string(), display_name));
+        }
+    }
+
+    for route in routing.routes.iter().filter(|route| route.enabled) {
+        let namespace = route.namespace.trim();
+        if namespace.is_empty() {
+            continue;
+        }
+        let Some(account) = codex_account::load_account(route.provider_account_id.trim()) else {
+            continue;
+        };
+        let provider_gateway = provider_gateway_for_account(&account)?;
+        let upstream_models = mixed_route_upstream_models(
+            &provider_gateway.upstream_models,
+            route.selected_models.as_deref(),
+            route.extra_models.as_deref(),
+        );
+        for upstream in upstream_models {
+            let upstream = upstream.trim();
+            if upstream.is_empty() {
+                continue;
+            }
+            let model_id = format!("{}/{}", namespace, upstream);
+            if seen.insert(model_id.to_ascii_lowercase()) {
+                definitions.push((model_id, format!("{} / {}", namespace, upstream)));
+            }
+        }
+    }
+
+    Ok(definitions)
 }
 
 fn provider_gateway_models_for_account(account: &CodexAccount) -> Vec<String> {
@@ -1288,7 +1406,9 @@ pub fn validate_mixed_model_routing_config(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .and_then(|value| codex_account::oauth_account_id_for_runtime_binding(Some(value)))
-        .ok_or("启用混合模型路由前必须绑定直接登录的 OAuth 订阅账号")?;
+        .ok_or(
+            "启用混合模型路由前必须绑定直接登录的 OAuth 订阅账号：请先把该实例的绑定账号改为 OAuth 订阅账号，或关闭第三方 API 路由后重试",
+        )?;
     let _ = validate_local_access_bound_oauth_account(&oauth_account_id)?;
 
     let mut seen_namespaces = HashSet::new();
@@ -1456,7 +1576,9 @@ fn build_provider_gateway_collection_for_profile(
     }
 
     collection.enabled = true;
-    collection.port = allocate_random_local_port(CODEX_LOCAL_ACCESS_LOCALHOST_BIND_HOST)?;
+    // 端口写入 profile 级 state.json：宿主重启自愈时可以复用同一个端口，
+    // 已经运行中的 Codex 实例不会因为端口变化而失联。
+    collection.port = provider_gateway_profile_port(profile_dir, &account.id)?;
     collection.access_scope = CodexLocalAccessScope::Localhost;
     collection.client_base_url_host = CodexLocalAccessClientBaseUrlHost::default();
     collection.gateway_mode = CodexLocalAccessGatewayMode::Sidecar;
@@ -1537,7 +1659,8 @@ fn build_bound_oauth_local_gateway_collection_for_profile(
     }
 
     collection.enabled = true;
-    collection.port = allocate_random_local_port(CODEX_LOCAL_ACCESS_LOCALHOST_BIND_HOST)?;
+    // 同 provider gateway：复用 profile 级持久端口，保证宿主重启后端点不变。
+    collection.port = provider_gateway_profile_port(profile_dir, &account.id)?;
     collection.access_scope = CodexLocalAccessScope::Localhost;
     collection.client_base_url_host = CodexLocalAccessClientBaseUrlHost::default();
     collection.gateway_mode = CodexLocalAccessGatewayMode::Sidecar;
@@ -2876,6 +2999,9 @@ pub async fn ensure_provider_gateway_for_dir(
     let _guard = provider_gateway_lifecycle_lock().lock().await;
     let account = codex_account::load_account(account_id)
         .ok_or_else(|| format!("供应商网关账号不存在: {}", account_id))?;
+    // 持久端口可能已被其它实例/进程占用：先放弃该端口，下面的构建会重新分配一个空闲端口，
+    // 避免带着冲突端口启动 sidecar 失败后，后续每次尝试都继续失败。
+    release_occupied_provider_gateway_profile_port(profile_dir, account_id).await;
     let (collection, key, provider_gateway) =
         build_provider_gateway_collection_for_profile(profile_dir, &account)?;
     let model_slots = provider_gateway_model_slots(&provider_gateway.upstream_models);
@@ -3000,6 +3126,10 @@ pub(crate) async fn ensure_mixed_model_gateway_for_dir_if_current(
     let routing = validate_mixed_model_routing_config(Some(oauth_account_id), routing)?;
     let _guard = provider_gateway_lifecycle_lock().lock().await;
     if !is_current() { return Ok(()); }
+    // 混合模型路由的端口同样按 profile 持久化：被其它进程占用时先放弃，
+    // 让下面的构建重新分配一个空闲端口，而不是直接以 bind 失败告终。
+    release_occupied_provider_gateway_profile_port(profile_dir, MIXED_MODEL_ROUTING_RUNTIME_ID)
+        .await;
     let (collection, key) =
         build_mixed_model_gateway_collection_for_profile(profile_dir, &oauth_account, &routing)?;
     stop_provider_gateways_for_profile_locked(profile_dir).await;
@@ -3067,10 +3197,27 @@ pub(crate) async fn ensure_mixed_model_gateway_for_dir_if_current(
             }
         };
 
+    // 混合路由的可见模型清单直接从路由配置推导，因此不依赖、也不修改用户的「模型管理」开关。
+    let catalog_definitions = mixed_model_catalog_definitions(&routing)?;
+    let catalog_model_ids = catalog_definitions
+        .iter()
+        .map(|(model_id, _)| model_id.clone())
+        .collect::<Vec<_>>();
     let takeover_result = async {
         save_profile_takeover_backup(profile_dir, &key)?;
         cleanup_provider_gateway_profile_model_overrides(profile_dir)?;
+        // 记录本次接管前的模型目录状态：停止实例或退出 Cockpit 时按它恢复。
+        if !catalog_model_ids.is_empty() {
+            backup_current_profile_model_before_provider_gateway(profile_dir, &catalog_model_ids)?;
+        }
         write_local_access_profile_takeover(profile_dir, &collection, Some(&key)).await?;
+        if !catalog_definitions.is_empty() {
+            write_local_access_profile_model_catalog_with_definitions(
+                profile_dir,
+                false,
+                Some(catalog_definitions.clone()),
+            )?;
+        }
         codex_account::reapply_experimental_model_policy_if_enabled(profile_dir)
     }
     .await;
@@ -3118,6 +3265,8 @@ pub async fn ensure_bound_oauth_local_gateway_for_dir(
     let _guard = provider_gateway_lifecycle_lock().lock().await;
     let account = codex_account::load_account(account_id)
         .ok_or_else(|| format!("绑定 OAuth 本地网关账号不存在: {}", account_id))?;
+    // 同 provider gateway：持久端口被其它进程占用时先放弃，改用新的空闲端口。
+    release_occupied_provider_gateway_profile_port(profile_dir, account_id).await;
     let (collection, key) =
         build_bound_oauth_local_gateway_collection_for_profile(profile_dir, &account)?;
     save_profile_takeover_backup(profile_dir, &key)?;

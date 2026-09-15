@@ -8,7 +8,10 @@ import { summarizeCodexQuotaErrorMessage } from "../utils/codexQuotaError";
 import { buildCodexAccountPresentation } from "../presentation/platformAccountPresentation";
 import { buildCodexAccountWindowStatQueries, formatCodexWindowStatsText, type CodexWindowStats } from "../utils/codexWindowStats";
 import { type CodexLaunchPreviewAction, type CodexLaunchPreviewSummary } from "../components/codex/CodexLaunchPreviewModal";
-import { CodexSpeedSelect } from "../components/codex/CodexSpeedSelect";
+import {
+  CODEX_SPEED_DESCRIPTION,
+  CodexSpeedSelect,
+} from "../components/codex/CodexSpeedSelect";
 import { CodexImageModelConfig } from "../components/CodexImageModelConfig";
 import { useEscClose } from "../hooks/useEscClose";
 import { useEnterConfirm } from "../hooks/useEnterConfirm";
@@ -706,15 +709,15 @@ export function useCodexAccountsOverviewController(context: Pick<ReturnType<type
           },
         });
       }
-  
+
+      const speedDescription = CODEX_SPEED_DESCRIPTION[account.app_speed ?? "standard"] ??
+        CODEX_SPEED_DESCRIPTION.standard;
+
       actions.push(
         {
           id: "speed",
           label: t("codex.speed.title", "速度"),
-          description:
-            account.app_speed === "fast"
-              ? t("codex.speed.fastDesc", "1.5 倍速，用量增加")
-              : t("codex.speed.standardDesc", "默认速度，常规用量"),
+          description: t(speedDescription.key, speedDescription.fallback),
           control: renderAccountSpeedSelect(account),
         },
         {
@@ -911,6 +914,8 @@ export function useCodexAccountsOverviewController(context: Pick<ReturnType<type
       (): CodexLaunchPreviewAction[] => {
         if (!localAccessCollection) return [];
         const baseUrl = resolveLocalAccessBaseUrl() || "-";
+        const apiServiceSpeedDescription = CODEX_SPEED_DESCRIPTION[apiServiceAppSpeed] ??
+          CODEX_SPEED_DESCRIPTION.standard;
         const actions: CodexLaunchPreviewAction[] = [
           {
             id: "image-model",
@@ -983,10 +988,10 @@ export function useCodexAccountsOverviewController(context: Pick<ReturnType<type
           {
             id: "speed",
             label: t("codex.speed.title", "速度"),
-            description:
-              apiServiceAppSpeed === "fast"
-                ? t("codex.speed.fastDesc", "1.5 倍速，用量增加")
-                : t("codex.speed.standardDesc", "默认速度，常规用量"),
+            description: t(
+              apiServiceSpeedDescription.key,
+              apiServiceSpeedDescription.fallback,
+            ),
             control: (
               <CodexSpeedSelect
                 value={apiServiceAppSpeed}

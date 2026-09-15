@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Wyniki testu",
+    "usageTokens": "{{tokens}} tokenów",
+    "quotaUsed": "5h zużyto {{percent}}%",
+    "quotaLeft": "5h zostało {{percent}}%",
     "openBrowser": "Otwórz w przeglądarce",
     "error": {
       "stateUnavailable": "Stan zadania jest niedostępny. Spróbuj ponownie.",
@@ -854,7 +857,7 @@
       "codexSyncWsl": "Synchronizuj Codex z WSL",
       "codexSyncWslDesc": "Po przełączeniu domyślnego konta Codex pliki auth.json i config.toml są też zapisywane w katalogu Codex w WSL.",
       "codexAppUiInjection": "Limit usługi API",
-      "codexAppUiInjectionDesc": "Po ponownym uruchomieniu instancji Codex pokaż pod kompozytorem liczbę kont oraz tygodniowy i 5-godzinny limit usługi API Cockpit Tools. Cockpit Tools musi działać w tle; aktualizacje zatrzymują się po całkowitym zamknięciu aplikacji lub przy braku sieci.",
+      "codexAppUiInjectionDesc": "Po ponownym uruchomieniu instancji Codex pokaż pod kompozytorem liczbę kont oraz tygodniowy i 5-godzinny limit usługi API Cockpit Tools; instancje powiązane z kontem DeepSeek pokazują zamiast tego saldo tego konta. Cockpit Tools musi działać w tle; aktualizacje zatrzymują się po całkowitym zamknięciu aplikacji lub przy braku sieci.",
       "codexAppUiInjectionPoolLabel": "Konta",
       "codexAppUiInjectionWeeklyLabel": "Tydzień",
       "codexAppUiInjectionFiveHourLabel": "5 godz.",
@@ -2097,6 +2100,7 @@
       "manage": "Zarządzaj modelami",
       "disabledDescription": "Domyślnie wyłączone. Modele, kolejność i poziomy rozumowania są zgodne z oficjalnym katalogiem.",
       "enabledDescription": "Skonfigurowany katalog jest aktywny. Możesz dodawać i usuwać modele, a lista nie będzie już automatycznie aktualizowana.",
+      "routingManagedHint": "Routing mieszany używa tego katalogu modeli tylko podczas działania instancji i przywraca go po jej zatrzymaniu. Ten przełącznik nie zmienia się.",
       "enableConfirmTitle": "Włączyć zarządzanie modelami?",
       "enableConfirmDescription": "Codex użyje skonfigurowanego tutaj katalogu. Możesz dostosowywać modele, ale lista nie będzie automatycznie aktualizowana.",
       "enableConfirmAction": "Włącz i skonfiguruj"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "Tak",
       "imageGenSwitchNo": "Nie",
       "imageGenTitle": "Włącz generowanie obrazów GPT",
+      "oauthBindingHint": "Po powiązaniu uruchamianie wygląda tak samo jak w przypadku zwykłego konta i dostępne są wszystkie funkcje OAuth (zdalna kompresja, sterowanie przeglądarką, różne wtyczki itd.); rozmowy nadal obsługuje bieżący dostawca klucza API.",
+      "oauthBindingChange": "Zmień",
       "title": "Podgląd uruchomienia Codex",
       "description": "Najpierw sprawdź ustawienia; klient zmieni się dopiero po wybraniu przełączenia lub uruchomienia.",
       "notApplied": "Jeszcze nie zastosowano",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "Do synchronizacji sesji wymagane są co najmniej dwie instancje",
         "pickRestoreOne": "Wybierz co najmniej jedną sesję do przywrócenia",
         "repairVisibilitySkippedOnly": "Nie znaleziono zapisywalnych różnic provider; pominięto {{count}} nieprawidłowych lub uszkodzonych plików state_5.sqlite. Codex musi je ponownie wygenerować, zanim będzie można naprawić ich rekordy SQLite.",
-        "repairVisibilitySkippedWithBase": "{{message}}; pominięto {{count}} nieprawidłowych lub uszkodzonych plików state_5.sqlite. Codex musi je ponownie wygenerować, zanim będzie można naprawić ich rekordy SQLite."
+        "repairVisibilitySkippedWithBase": "{{message}}; pominięto {{count}} nieprawidłowych lub uszkodzonych plików state_5.sqlite. Codex musi je ponownie wygenerować, zanim będzie można naprawić ich rekordy SQLite.",
+        "trashSummary": "Przeniesiono {{count}} rozmów do kosza i usunięto je w oficjalnym Codex",
+        "trashSummaryFallback": "Przeniesiono {{count}} rozmów do kosza i uruchomiono odbudowę indeksu sesji oficjalnego Codex",
+        "trashSummaryRunningHint": "Działające instancje mogą wymagać odświeżenia lub ponownego uruchomienia, aby zmiana była widoczna",
+        "trashSummaryFallbackHint": "Oficjalne usuwanie nie zakończyło się dla {{count}} instancji; pliki usunięto bezpośrednio, a Codex zsynchronizuje się po ponownym uruchomieniu",
+        "trashSummaryRebuildFailedHint": "Odbudowa oficjalnego indeksu panelu bocznego nie zakończyła się dla {{count}} instancji; Codex wczyta go ponownie po restarcie",
+        "trashSummaryEmpty": "Wybranych rozmów nie ma w bieżącym zestawie instancji, nie ma nic do zrobienia"
       },
       "groupCount": "{{count}} sesji",
       "updatedAt": "Zaktualizowano",
@@ -3273,7 +3285,12 @@
         "subagent": "Podagent",
         "all": "Wszystkie"
       },
-      "pickInstancePrompt": "Sesja jest na wielu instancjach. Podaj ID instancji:"
+      "locationPicker": {
+        "title": "Wybierz instancję",
+        "hint": "Ta sesja jest na wielu instancjach. Wybierz instancję, w której otworzyć lokalizację pliku:",
+        "rolloutHint": "Ta sesja jest na wielu instancjach. Wybierz instancję, w której otworzyć plik sesji:",
+        "running": "Uruchomiona"
+      }
     },
     "sessionUsage": {
       "tab": "Zużycie",
@@ -3758,6 +3775,9 @@
           "planName": "Pakiet",
           "remaining": "Pozostało",
           "balance": "Saldo",
+          "totalBalance": "Saldo łączne",
+          "grantedBalance": "Saldo bonusowe",
+          "toppedUpBalance": "Saldo doładowane",
           "todayRequests": "Dzisiejsze żądania",
           "todayTokens": "Dzisiejsze Tokeny",
           "todayCost": "Dzisiejszy koszt",
@@ -3983,6 +4003,8 @@
       "standardDesc": "Domyślna szybkość, zwykłe użycie",
       "fast": "Szybka",
       "fastDesc": "Szybkość 1,5x, większe użycie",
+      "ultrafast": "Ultra szybka",
+      "ultrafastDesc": "Najszybsze odpowiedzi, większe użycie",
       "saveSuccess": "Szybkość zaktualizowana",
       "saveFailed": "Nie udało się zapisać szybkości: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "Pokaż limit relay",
       "hideRelayQuota": "Ukryj limit relay"
+    },
+    "instanceGateways": {
+      "entry": "Bramy instancji",
+      "entryCount": "Bramy instancji {{count}}",
+      "issueCount": "{{count}} z problemem",
+      "title": "Bramy instancji",
+      "subtitle": "Lokalne bramy uruchamiane wraz z instancjami Codex",
+      "summary": "Razem {{total}} · aktywne {{running}} · z problemem {{issues}}",
+      "empty": "Brak bram na poziomie instancji",
+      "emptyHint": "Pojawiają się automatycznie po powiązaniu konta z kluczem API w protokole Chat lub włączeniu routingu modeli mieszanych.",
+      "kindProviderGateway": "Brama dostawcy",
+      "kindMixedModel": "Routing modeli mieszanych",
+      "kindBoundOauth": "Lokalna brama OAuth",
+      "statusUnreachable": "Uruchomiona, ale niedostępna",
+      "statusPortConflict": "Port zajęty",
+      "statusNotStarted": "Nie uruchomiona",
+      "fieldAccount": "Konto",
+      "fieldAddress": "Adres lokalny",
+      "fieldProtocol": "Protokół",
+      "fieldModels": "Modele źródłowe",
+      "loadFailed": "Nie udało się wczytać bram instancji",
+      "stop": "Zatrzymaj",
+      "restart": "Uruchom ponownie",
+      "stopConfirmTitle": "Zatrzymać tę bramę instancji?",
+      "stopConfirmDescription": "Zatrzymanie bramy routingu mieszanego wyłącza także routing mieszany tej instancji (konfiguracja kanałów zostaje zachowana); pozostałe bramy można uruchomić ponownie przyciskiem „Uruchom ponownie”.",
+      "stopFailed": "Nie udało się zatrzymać bramy: {{error}}",
+      "restartFailed": "Nie udało się ponownie uruchomić bramy: {{error}}"
     }
   },
   "githubCopilot": {

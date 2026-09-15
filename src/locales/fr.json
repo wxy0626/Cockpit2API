@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Résultats du test",
+    "usageTokens": "{{tokens}} jetons",
+    "quotaUsed": "5h utilisées {{percent}}%",
+    "quotaLeft": "5h restantes {{percent}}%",
     "openBrowser": "Ouvrir dans le navigateur",
     "error": {
       "stateUnavailable": "État de la tâche indisponible. Réessayez.",
@@ -850,7 +853,7 @@
       "codexSyncWsl": "Synchroniser Codex vers WSL",
       "codexSyncWslDesc": "Après le changement du compte Codex par défaut, auth.json et config.toml sont aussi écrits dans le dossier Codex de WSL.",
       "codexAppUiInjection": "Quota du service API",
-      "codexAppUiInjectionDesc": "Après le redémarrage d’une instance Codex, afficher sous le compositeur le nombre de comptes et les quotas hebdomadaire et de 5 heures du service API Cockpit Tools. Cockpit Tools doit rester actif en arrière-plan ; les mises à jour s’arrêtent après sa fermeture complète ou si le réseau est indisponible.",
+      "codexAppUiInjectionDesc": "Après le redémarrage d’une instance Codex, afficher sous le compositeur le nombre de comptes et les quotas hebdomadaire et de 5 heures du service API Cockpit Tools ; les instances liées à un compte DeepSeek affichent à la place le solde de ce compte. Cockpit Tools doit rester actif en arrière-plan ; les mises à jour s’arrêtent après sa fermeture complète ou si le réseau est indisponible.",
       "codexAppUiInjectionPoolLabel": "Comptes",
       "codexAppUiInjectionWeeklyLabel": "Semaine",
       "codexAppUiInjectionFiveHourLabel": "5 h",
@@ -2097,6 +2100,7 @@
       "manage": "Gérer les modèles",
       "disabledDescription": "Désactivée par défaut. Les modèles, leur ordre et les niveaux de raisonnement suivent le catalogue officiel.",
       "enabledDescription": "Le catalogue configuré est actif. Vous pouvez ajouter ou retirer des modèles, et la liste ne suit plus automatiquement le catalogue officiel.",
+      "routingManagedHint": "Le routage multi-modèles utilise ce catalogue de modèles uniquement pendant l'exécution de l'instance et le restaure à l'arrêt. Ce commutateur n'est pas modifié.",
       "enableConfirmTitle": "Activer la gestion des modèles ?",
       "enableConfirmDescription": "Codex utilisera le catalogue configuré ici. Vous pourrez ajuster les modèles, mais la liste ne sera plus mise à jour automatiquement.",
       "enableConfirmAction": "Activer et configurer"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "Oui",
       "imageGenSwitchNo": "Non",
       "imageGenTitle": "Activer la génération d'images GPT",
+      "oauthBindingHint": "Après la liaison, le démarrage est identique à celui d’un compte normal et toutes les capacités OAuth (compression à distance, contrôle du navigateur, divers plugins, etc.) sont disponibles ; les conversations passent toujours par le fournisseur de la clé API actuelle.",
+      "oauthBindingChange": "Changer",
       "title": "Aperçu du lancement de Codex",
       "description": "Configurez et vérifiez d’abord ; le client ne change qu’après avoir choisi Basculer ou Démarrer.",
       "notApplied": "Pas encore appliqué",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "Au moins deux instances sont nécessaires pour synchroniser les sessions",
         "pickRestoreOne": "Veuillez sélectionner au moins une session à restaurer",
         "repairVisibilitySkippedOnly": "Aucune différence de fournisseur inscriptible n’a été trouvée ; {{count}} fichier(s) state_5.sqlite invalides ou corrompus ont été ignorés. Codex doit les régénérer avant que leurs enregistrements SQLite puissent être réparés.",
-        "repairVisibilitySkippedWithBase": "{{message}} ; {{count}} fichier(s) state_5.sqlite invalides ou corrompus ont été ignorés. Codex doit les régénérer avant que leurs enregistrements SQLite puissent être réparés."
+        "repairVisibilitySkippedWithBase": "{{message}} ; {{count}} fichier(s) state_5.sqlite invalides ou corrompus ont été ignorés. Codex doit les régénérer avant que leurs enregistrements SQLite puissent être réparés.",
+        "trashSummary": "{{count}} conversations déplacées dans la corbeille et supprimées dans Codex officiel",
+        "trashSummaryFallback": "{{count}} conversations déplacées dans la corbeille et reconstruction de l'index des sessions de Codex officiel déclenchée",
+        "trashSummaryRunningHint": "Les instances en cours d'exécution peuvent nécessiter un rafraîchissement ou un redémarrage",
+        "trashSummaryFallbackHint": "La suppression officielle n'a pas abouti pour {{count}} instances ; les fichiers ont été supprimés directement et Codex se synchronisera après un redémarrage",
+        "trashSummaryRebuildFailedHint": "La reconstruction de l'index officiel de la barre latérale n'a pas abouti pour {{count}} instances ; Codex le rechargera après un redémarrage",
+        "trashSummaryEmpty": "Les conversations sélectionnées n'existent pas dans les instances actuelles, rien à faire"
       },
       "groupCount": "{{count}} sessions​",
       "updatedAt": "Mis à jour",
@@ -3273,7 +3285,12 @@
         "subagent": "Sous-agent",
         "all": "Tous types"
       },
-      "pickInstancePrompt": "Session présente sur plusieurs instances. Saisir l’ID d’instance :"
+      "locationPicker": {
+        "title": "Choisir l’instance",
+        "hint": "Cette session existe sur plusieurs instances. Choisissez l’instance dont ouvrir l’emplacement du fichier :",
+        "rolloutHint": "Cette session existe sur plusieurs instances. Choisissez l’instance dont ouvrir le fichier de session :",
+        "running": "En cours"
+      }
     },
     "sessionUsage": {
       "tab": "Usage",
@@ -3758,6 +3775,9 @@
           "planName": "Forfait",
           "remaining": "Crédit restant",
           "balance": "Solde",
+          "totalBalance": "Solde total",
+          "grantedBalance": "Solde offert",
+          "toppedUpBalance": "Solde rechargé",
           "todayRequests": "Requêtes du jour",
           "todayTokens": "Tokens du jour",
           "todayCost": "Coût du jour",
@@ -3983,6 +4003,8 @@
       "standardDesc": "Vitesse par défaut, usage normal",
       "fast": "Rapide",
       "fastDesc": "Vitesse 1,5x, usage accru",
+      "ultrafast": "Ultra rapide",
+      "ultrafastDesc": "Réponses les plus rapides, usage accru",
       "saveSuccess": "Vitesse mise à jour",
       "saveFailed": "Impossible d’enregistrer la vitesse : {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "Afficher quota relais",
       "hideRelayQuota": "Masquer quota relais"
+    },
+    "instanceGateways": {
+      "entry": "Passerelles d'instance",
+      "entryCount": "Passerelles d'instance {{count}}",
+      "issueCount": "{{count}} en anomalie",
+      "title": "Passerelles d'instance",
+      "subtitle": "Passerelles locales démarrées avec les instances Codex",
+      "summary": "{{total}} au total · {{running}} en cours · {{issues}} en anomalie",
+      "empty": "Aucune passerelle au niveau de l'instance",
+      "emptyHint": "Elles apparaissent automatiquement après la liaison d'un compte à clé API en protocole Chat ou l'activation du routage multi-modèles.",
+      "kindProviderGateway": "Passerelle du fournisseur",
+      "kindMixedModel": "Routage multi-modèles",
+      "kindBoundOauth": "Passerelle OAuth locale",
+      "statusUnreachable": "Démarrée mais inaccessible",
+      "statusPortConflict": "Port occupé",
+      "statusNotStarted": "Non démarrée",
+      "fieldAccount": "Compte",
+      "fieldAddress": "Adresse locale",
+      "fieldProtocol": "Protocole",
+      "fieldModels": "Modèles amont",
+      "loadFailed": "Échec du chargement des passerelles d'instance",
+      "stop": "Arrêter",
+      "restart": "Redémarrer",
+      "stopConfirmTitle": "Arrêter cette passerelle d'instance ?",
+      "stopConfirmDescription": "Arrêter une passerelle de routage multi-modèles désactive aussi le routage multi-modèles de cette instance (la configuration des canaux est conservée) ; les autres passerelles peuvent être relancées avec « Redémarrer ».",
+      "stopFailed": "Échec de l'arrêt de la passerelle : {{error}}",
+      "restartFailed": "Échec du redémarrage de la passerelle : {{error}}"
     }
   },
   "githubCopilot": {

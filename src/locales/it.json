@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Risultati del test",
+    "usageTokens": "{{tokens}} token",
+    "quotaUsed": "5h usate {{percent}}%",
+    "quotaLeft": "5h rimaste {{percent}}%",
     "openBrowser": "Apri nel browser",
     "error": {
       "stateUnavailable": "Stato dell’attività non disponibile. Riprova.",
@@ -850,7 +853,7 @@
       "codexSyncWsl": "Sincronizza Codex con WSL",
       "codexSyncWslDesc": "Dopo il cambio dell'account Codex predefinito, anche auth.json e config.toml vengono scritti nella directory Codex in WSL.",
       "codexAppUiInjection": "Quota del servizio API",
-      "codexAppUiInjectionDesc": "Dopo il riavvio di un’istanza Codex, mostra sotto il composer il numero di account e le quote settimanale e di 5 ore del servizio API Cockpit Tools. Cockpit Tools deve restare in esecuzione in background; gli aggiornamenti si interrompono se viene chiuso del tutto o se la rete non è disponibile.",
+      "codexAppUiInjectionDesc": "Dopo il riavvio di un’istanza Codex, mostra sotto il composer il numero di account e le quote settimanale e di 5 ore del servizio API Cockpit Tools; le istanze associate a un account DeepSeek mostrano invece il saldo di quell’account. Cockpit Tools deve restare in esecuzione in background; gli aggiornamenti si interrompono se viene chiuso del tutto o se la rete non è disponibile.",
       "codexAppUiInjectionPoolLabel": "Account",
       "codexAppUiInjectionWeeklyLabel": "Settimana",
       "codexAppUiInjectionFiveHourLabel": "5 h",
@@ -2097,6 +2100,7 @@
       "manage": "Gestisci modelli",
       "disabledDescription": "Disattivata per impostazione predefinita. Modelli, ordine e livelli di ragionamento seguono il catalogo ufficiale.",
       "enabledDescription": "Il catalogo configurato è attivo. Puoi aggiungere o rimuovere modelli e l’elenco non si aggiorna più con il catalogo ufficiale.",
+      "routingManagedHint": "Il routing misto usa questo catalogo modelli solo durante l'esecuzione dell'istanza e lo ripristina all'arresto. Questo interruttore non cambia.",
       "enableConfirmTitle": "Attivare la gestione modelli?",
       "enableConfirmDescription": "Codex userà il catalogo configurato qui. Puoi regolare i modelli, ma l’elenco non si aggiornerà più automaticamente.",
       "enableConfirmAction": "Attiva e configura"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "Sì",
       "imageGenSwitchNo": "No",
       "imageGenTitle": "Attiva generazione immagini GPT",
+      "oauthBindingHint": "Dopo il collegamento l’avvio è identico a quello di un account normale e sono disponibili tutte le funzionalità OAuth (compressione remota, controllo del browser, vari plugin e altro); le conversazioni restano sul provider dell’API Key corrente.",
+      "oauthBindingChange": "Cambia",
       "title": "Anteprima avvio Codex",
       "description": "Configura e verifica prima; il client cambia solo dopo aver scelto Cambia o Avvia.",
       "notApplied": "Non ancora applicato",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "Sono necessarie almeno due istanze per sincronizzare le sessioni",
         "pickRestoreOne": "Seleziona almeno una sessione da ripristinare",
         "repairVisibilitySkippedOnly": "Non sono state trovate differenze provider scrivibili; sono stati ignorati {{count}} file state_5.sqlite non validi o danneggiati. Codex deve rigenerarli prima di poter riparare i relativi record SQLite.",
-        "repairVisibilitySkippedWithBase": "{{message}}; sono stati ignorati {{count}} file state_5.sqlite non validi o danneggiati. Codex deve rigenerarli prima di poter riparare i relativi record SQLite."
+        "repairVisibilitySkippedWithBase": "{{message}}; sono stati ignorati {{count}} file state_5.sqlite non validi o danneggiati. Codex deve rigenerarli prima di poter riparare i relativi record SQLite.",
+        "trashSummary": "{{count}} conversazioni spostate nel cestino ed eliminate in Codex ufficiale",
+        "trashSummaryFallback": "{{count}} conversazioni spostate nel cestino e ricostruzione dell'indice delle sessioni di Codex ufficiale avviata",
+        "trashSummaryRunningHint": "Le istanze in esecuzione potrebbero richiedere un aggiornamento o un riavvio per mostrare la modifica",
+        "trashSummaryFallbackHint": "L'eliminazione ufficiale non è stata completata per {{count}} istanze; i file sono stati rimossi direttamente e Codex si sincronizzerà dopo il riavvio",
+        "trashSummaryRebuildFailedHint": "La ricostruzione dell'indice ufficiale della barra laterale non è stata completata per {{count}} istanze; Codex lo ricaricherà dopo il riavvio",
+        "trashSummaryEmpty": "Le conversazioni selezionate non esistono nell'insieme di istanze corrente, nessuna azione necessaria"
       },
       "groupCount": "{{count}} sessioni",
       "updatedAt": "Aggiornato",
@@ -3273,7 +3285,12 @@
         "subagent": "Sub-agente",
         "all": "Tutti"
       },
-      "pickInstancePrompt": "Sessione presente su più istanze. Inserisci ID istanza:"
+      "locationPicker": {
+        "title": "Scegli istanza",
+        "hint": "Questa sessione esiste su più istanze. Scegli da quale istanza aprire la posizione del file:",
+        "rolloutHint": "Questa sessione esiste su più istanze. Scegli da quale istanza aprire il file di sessione:",
+        "running": "In esecuzione"
+      }
     },
     "sessionUsage": {
       "tab": "Uso",
@@ -3758,6 +3775,9 @@
           "planName": "Piano",
           "remaining": "Credito residuo",
           "balance": "Saldo",
+          "totalBalance": "Saldo totale",
+          "grantedBalance": "Saldo bonus",
+          "toppedUpBalance": "Saldo ricaricato",
           "todayRequests": "Richieste oggi",
           "todayTokens": "Token oggi",
           "todayCost": "Costo oggi",
@@ -3983,6 +4003,8 @@
       "standardDesc": "Velocità predefinita, uso normale",
       "fast": "Rapida",
       "fastDesc": "Velocità 1,5x, uso maggiore",
+      "ultrafast": "Ultraveloce",
+      "ultrafastDesc": "Risposte più rapide, uso maggiore",
       "saveSuccess": "Velocità aggiornata",
       "saveFailed": "Impossibile salvare la velocità: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "Mostra quota relay",
       "hideRelayQuota": "Nascondi quota relay"
+    },
+    "instanceGateways": {
+      "entry": "Gateway di istanza",
+      "entryCount": "Gateway di istanza {{count}}",
+      "issueCount": "{{count}} con problemi",
+      "title": "Gateway di istanza",
+      "subtitle": "Gateway locali avviati con le istanze Codex",
+      "summary": "{{total}} in totale · {{running}} attivi · {{issues}} con problemi",
+      "empty": "Nessun gateway a livello di istanza",
+      "emptyHint": "Compaiono automaticamente dopo il collegamento di un account con chiave API in protocollo Chat o l'attivazione del routing multi-modello.",
+      "kindProviderGateway": "Gateway del fornitore",
+      "kindMixedModel": "Routing multi-modello",
+      "kindBoundOauth": "Gateway OAuth locale",
+      "statusUnreachable": "Avviato ma non raggiungibile",
+      "statusPortConflict": "Porta occupata",
+      "statusNotStarted": "Non avviato",
+      "fieldAccount": "Account",
+      "fieldAddress": "Indirizzo locale",
+      "fieldProtocol": "Protocollo",
+      "fieldModels": "Modelli upstream",
+      "loadFailed": "Impossibile caricare i gateway di istanza",
+      "stop": "Arresta",
+      "restart": "Riavvia",
+      "stopConfirmTitle": "Arrestare questo gateway dell'istanza?",
+      "stopConfirmDescription": "Arrestare un gateway di routing misto disattiva anche il routing misto di quell'istanza (la configurazione dei canali viene mantenuta); gli altri gateway si riavviano con «Riavvia».",
+      "stopFailed": "Arresto del gateway non riuscito: {{error}}",
+      "restartFailed": "Riavvio del gateway non riuscito: {{error}}"
     }
   },
   "githubCopilot": {

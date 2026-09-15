@@ -788,10 +788,14 @@ func (t *requestUsageTracker) recordSelectedAccount(requestID string, account *a
 
 func normalizedUsageServiceTier(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "priority":
+	case "priority", "fast":
 		return "priority"
-	case "", "default", "standard":
-		return ""
+	case "ultrafast":
+		return "ultrafast"
+	case "flex":
+		return "flex"
+	case "standard", "default":
+		return "standard"
 	default:
 		return ""
 	}

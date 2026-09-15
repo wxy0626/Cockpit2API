@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Test sonuçları",
+    "usageTokens": "{{tokens}} token",
+    "quotaUsed": "5h kullanıldı {{percent}}%",
+    "quotaLeft": "5h kaldı {{percent}}%",
     "openBrowser": "Tarayıcıda aç",
     "error": {
       "stateUnavailable": "Görev durumu kullanılamıyor. Yeniden deneyin.",
@@ -854,7 +857,7 @@
       "codexSyncWsl": "Codex'i WSL ile eşitle",
       "codexSyncWslDesc": "Varsayılan Codex hesabı değiştirildikten sonra auth.json ve config.toml WSL içindeki Codex dizinine de yazılır.",
       "codexAppUiInjection": "API hizmeti kotası",
-      "codexAppUiInjectionDesc": "Codex örneği yeniden başlatıldıktan sonra Cockpit Tools API hizmetinin hesap sayısını, haftalık ve 5 saatlik kotasını oluşturucunun altında gösterir. Cockpit Tools arka planda çalışmaya devam etmelidir; uygulama tamamen kapatıldığında veya ağ kullanılamadığında güncellemeler durur.",
+      "codexAppUiInjectionDesc": "Codex örneği yeniden başlatıldıktan sonra Cockpit Tools API hizmetinin hesap sayısını, haftalık ve 5 saatlik kotasını oluşturucunun altında gösterir; DeepSeek hesabına bağlı örnekler bunun yerine o hesabın bakiyesini gösterir. Cockpit Tools arka planda çalışmaya devam etmelidir; uygulama tamamen kapatıldığında veya ağ kullanılamadığında güncellemeler durur.",
       "codexAppUiInjectionPoolLabel": "Hesaplar",
       "codexAppUiInjectionWeeklyLabel": "Hafta",
       "codexAppUiInjectionFiveHourLabel": "5 sa",
@@ -2097,6 +2100,7 @@
       "manage": "Modelleri yönet",
       "disabledDescription": "Varsayılan olarak kapalıdır. Modeller, sıralama ve akıl yürütme düzeyleri resmi kataloğu izler.",
       "enabledDescription": "Yapılandırılmış katalog etkin. Model ekleyip kaldırabilirsiniz; liste artık resmi katalogla otomatik güncellenmez.",
+      "routingManagedHint": "Karma yönlendirme bu model kataloğunu yalnızca örnek çalışırken geçici olarak kullanır ve örnek durduğunda geri yükler. Buradaki anahtarın durumu değişmez.",
       "enableConfirmTitle": "Model yönetimi açılsın mı?",
       "enableConfirmDescription": "Codex burada yapılandırılan kataloğu kullanır. Modelleri ayarlayabilirsiniz; ancak liste artık otomatik güncellenmez.",
       "enableConfirmAction": "Aç ve yapılandır"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "Evet",
       "imageGenSwitchNo": "Hayır",
       "imageGenTitle": "GPT görsel üretimini etkinleştir",
+      "oauthBindingHint": "Bağladıktan sonra başlatma normal bir hesapla tamamen aynıdır ve tüm OAuth özellikleri (uzaktan sıkıştırma, tarayıcı denetimi, çeşitli eklentiler vb.) kullanılabilir; görüşmeler yine geçerli API Key sağlayıcısı üzerinden yürür.",
+      "oauthBindingChange": "Değiştir",
       "title": "Codex Başlatma Önizlemesi",
       "description": "Önce yapılandırın ve denetleyin; istemci yalnızca Değiştir veya Başlat seçildikten sonra değişir.",
       "notApplied": "Henüz uygulanmadı",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "Oturumları eşitlemek için en az iki örnek gerekir",
         "pickRestoreOne": "Lütfen geri yüklenecek en az bir oturum seçin",
         "repairVisibilitySkippedOnly": "Yazılabilir provider farkı bulunamadı; geçersiz veya bozuk {{count}} state_5.sqlite dosyası atlandı. Bu SQLite kayıtları onarılmadan önce Codex bu dosyaları yeniden oluşturmalıdır.",
-        "repairVisibilitySkippedWithBase": "{{message}}; geçersiz veya bozuk {{count}} state_5.sqlite dosyası atlandı. Bu SQLite kayıtları onarılmadan önce Codex bu dosyaları yeniden oluşturmalıdır."
+        "repairVisibilitySkippedWithBase": "{{message}}; geçersiz veya bozuk {{count}} state_5.sqlite dosyası atlandı. Bu SQLite kayıtları onarılmadan önce Codex bu dosyaları yeniden oluşturmalıdır.",
+        "trashSummary": "{{count}} sohbet çöp kutusuna taşındı ve resmi Codex'te silindi",
+        "trashSummaryFallback": "{{count}} sohbet çöp kutusuna taşındı ve resmi Codex oturum dizini yeniden oluşturma başlatıldı",
+        "trashSummaryRunningHint": "Çalışan örneklerde değişikliğin görünmesi için yenileme veya yeniden başlatma gerekebilir",
+        "trashSummaryFallbackHint": "{{count}} örnekte resmi silme tamamlanmadı; dosyalar doğrudan kaldırıldı ve Codex yeniden başlatıldığında eşitlenecek",
+        "trashSummaryRebuildFailedHint": "{{count}} örnekte resmi kenar çubuğu dizini yeniden oluşturulamadı; Codex yeniden başlatıldığında tekrar yükleyecek",
+        "trashSummaryEmpty": "Seçilen sohbetler mevcut örnek kümesinde yok, yapılacak bir şey yok"
       },
       "groupCount": "{{count}} oturum",
       "updatedAt": "Güncellendi",
@@ -3273,7 +3285,12 @@
         "subagent": "Alt ajan",
         "all": "Tüm türler"
       },
-      "pickInstancePrompt": "Oturum birden fazla örnekte var. Örnek kimliğini girin:"
+      "locationPicker": {
+        "title": "Örnek seç",
+        "hint": "Bu oturum birden fazla örnekte var. Dosya konumunun açılacağı örneği seçin:",
+        "rolloutHint": "Bu oturum birden fazla örnekte var. Oturum dosyasının açılacağı örneği seçin:",
+        "running": "Çalışıyor"
+      }
     },
     "sessionUsage": {
       "tab": "Kullanım",
@@ -3758,6 +3775,9 @@
           "planName": "Paket",
           "remaining": "Kalan kota",
           "balance": "Bakiye",
+          "totalBalance": "Toplam bakiye",
+          "grantedBalance": "Hediye bakiye",
+          "toppedUpBalance": "Yüklenen bakiye",
           "todayRequests": "Bugünkü istek",
           "todayTokens": "Bugünkü Token",
           "todayCost": "Bugünkü maliyet",
@@ -3983,6 +4003,8 @@
       "standardDesc": "Varsayılan hız, normal kullanım",
       "fast": "Hızlı",
       "fastDesc": "1,5x hız, daha yüksek kullanım",
+      "ultrafast": "Ultra hızlı",
+      "ultrafastDesc": "En hızlı yanıtlar, daha yüksek kullanım",
       "saveSuccess": "Hız güncellendi",
       "saveFailed": "Hız kaydedilemedi: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "Röle kotasını göster",
       "hideRelayQuota": "Röle kotasını gizle"
+    },
+    "instanceGateways": {
+      "entry": "Örnek ağ geçitleri",
+      "entryCount": "Örnek ağ geçitleri {{count}}",
+      "issueCount": "{{count}} sorunlu",
+      "title": "Örnek ağ geçitleri",
+      "subtitle": "Codex örnekleriyle birlikte başlatılan yerel ağ geçitleri",
+      "summary": "Toplam {{total}} · çalışan {{running}} · sorunlu {{issues}}",
+      "empty": "Örnek düzeyinde ağ geçidi yok",
+      "emptyHint": "Chat protokolünde API anahtarı hesabı bağlandığında veya karma model yönlendirmesi açıldığında otomatik olarak görünür.",
+      "kindProviderGateway": "Sağlayıcı ağ geçidi",
+      "kindMixedModel": "Karma model yönlendirmesi",
+      "kindBoundOauth": "Yerel OAuth ağ geçidi",
+      "statusUnreachable": "Başlatıldı ancak erişilemiyor",
+      "statusPortConflict": "Bağlantı noktası kullanımda",
+      "statusNotStarted": "Başlatılmadı",
+      "fieldAccount": "Hesap",
+      "fieldAddress": "Yerel adres",
+      "fieldProtocol": "Protokol",
+      "fieldModels": "Kaynak modeller",
+      "loadFailed": "Örnek ağ geçitleri yüklenemedi",
+      "stop": "Durdur",
+      "restart": "Yeniden başlat",
+      "stopConfirmTitle": "Bu örnek ağ geçidi durdurulsun mu?",
+      "stopConfirmDescription": "Karma model yönlendirme ağ geçidini durdurmak, o örneğin karma model yönlendirmesini de kapatır (kanal yapılandırması korunur); diğer ağ geçitleri “Yeniden başlat” ile geri getirilebilir.",
+      "stopFailed": "Ağ geçidi durdurulamadı: {{error}}",
+      "restartFailed": "Ağ geçidi yeniden başlatılamadı: {{error}}"
     }
   },
   "githubCopilot": {

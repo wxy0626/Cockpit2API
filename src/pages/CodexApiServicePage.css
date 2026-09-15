@@ -125,6 +125,12 @@
   color: #15803d;
 }
 
+.codex-api-service-pill.fast {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--primary);
+}
+
 .codex-api-service-status.stopped,
 .codex-api-service-message.warning {
   border-color: color-mix(in srgb, var(--warning) 28%, transparent);

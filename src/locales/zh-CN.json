@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "测试结果",
+    "usageTokens": "{{tokens}} Token",
+    "quotaUsed": "5h 消耗 {{percent}}%",
+    "quotaLeft": "5h 剩余 {{percent}}%",
     "openBrowser": "浏览器打开",
     "error": {
       "stateUnavailable": "任务状态不可用，请重试",
@@ -1062,7 +1065,7 @@
       "codexSyncWsl": "同步 Codex 到 WSL",
       "codexSyncWslDesc": "切换默认 Codex 账号后，同时把 auth.json 和 config.toml 写入 WSL 的 Codex 配置目录。",
       "codexAppUiInjection": "显示 API 服务额度",
-      "codexAppUiInjectionDesc": "重启 Codex 实例后，在输入框下方显示 Cockpit Tools API 服务的账号数、周额度和 5h 额度。需保持 Cockpit Tools 在后台运行；完全退出或网络不可用时，额度不会继续刷新。",
+      "codexAppUiInjectionDesc": "重启 Codex 实例后，在输入框下方显示 Cockpit Tools API 服务的账号数、周额度和 5h 额度；绑定 DeepSeek 账号的实例改为显示该账号余额。需保持 Cockpit Tools 在后台运行；完全退出或网络不可用时，额度不会继续刷新。",
       "codexAppUiInjectionPoolLabel": "账号",
       "codexAppUiInjectionWeeklyLabel": "周",
       "codexAppUiInjectionFiveHourLabel": "5h",
@@ -2296,6 +2299,7 @@
       "manage": "管理模型",
       "disabledDescription": "默认关闭；关闭时模型列表、顺序、默认模型和推理强度均跟随官方。",
       "enabledDescription": "当前以配置模型目录为准，可添加或减少模型，不再自动跟随官方目录。",
+      "routingManagedHint": "混合模型路由只在实例运行时临时使用这份模型目录，停止后自动恢复；它不会改动这里的开关状态。",
       "enableConfirmTitle": "开启模型管理？",
       "enableConfirmDescription": "开启后，Codex 将以这里配置的模型目录为准。你可以添加、删除和调整模型，但模型列表不会再自动跟随官方变化。",
       "enableConfirmAction": "开启并配置"
@@ -2416,6 +2420,8 @@
       "imageGenSwitchYes": "是",
       "imageGenSwitchNo": "否",
       "imageGenTitle": "启用 GPT 生图",
+      "oauthBindingHint": "绑定后启动与普通账号没有任何差异，可使用 OAuth 的全部能力（远端压缩，浏览器操作，各类插件等）；对话仍由当前 API Key 供应商处理。",
+      "oauthBindingChange": "更换",
       "title": "Codex 启动预览",
       "description": "先配置和检查；只有点击切换或启动后才会修改客户端状态。",
       "notApplied": "尚未应用",
@@ -3468,6 +3474,9 @@
           "planName": "订阅",
           "remaining": "剩余额度",
           "balance": "余额",
+          "totalBalance": "总余额",
+          "grantedBalance": "赠金余额",
+          "toppedUpBalance": "充值余额",
           "todayRequests": "今日请求",
           "todayTokens": "今日 Token",
           "todayCost": "今日消耗",
@@ -3920,7 +3929,13 @@
         "pickRestoreOne": "请至少选择一条待恢复会话",
         "syncNeedTwo": "至少需要两个实例才能同步会话",
         "repairVisibilitySkippedOnly": "未发现需要写入的会话索引差异；已跳过 {{count}} 个无效或损坏的 SQLite 会话库，需由 Codex 重新生成后才能修复其中的记录",
-        "repairVisibilitySkippedWithBase": "{{message}}；已跳过 {{count}} 个无效或损坏的 SQLite 会话库，需由 Codex 重新生成后才能修复其中的记录"
+        "repairVisibilitySkippedWithBase": "{{message}}；已跳过 {{count}} 个无效或损坏的 SQLite 会话库，需由 Codex 重新生成后才能修复其中的记录",
+        "trashSummary": "已将 {{count}} 条会话移到废纸篓，并已在官方 Codex 中删除",
+        "trashSummaryFallback": "已将 {{count}} 条会话移到废纸篓，并已触发官方 Codex 重建会话索引",
+        "trashSummaryRunningHint": "运行中的实例可能需要刷新或重启后显示",
+        "trashSummaryFallbackHint": "{{count}} 个实例的官方删除未完成，已按文件方式移除，Codex 重启后会同步",
+        "trashSummaryRebuildFailedHint": "{{count}} 个实例的官方侧边栏索引重建未完成，重启 Codex 后会重新加载",
+        "trashSummaryEmpty": "所选会话在当前实例集合中不存在，无需处理"
       },
       "groupCount": "{{count}} 条会话",
       "updatedAt": "最近更新",
@@ -4107,7 +4122,12 @@
         "subagent": "子代理",
         "all": "全部类型"
       },
-      "pickInstancePrompt": "该会话存在于多个实例，请输入实例 ID（可在位置列查看）："
+      "locationPicker": {
+        "title": "选择实例",
+        "hint": "该会话存在于多个实例，请选择要打开文件所在位置的实例：",
+        "rolloutHint": "该会话存在于多个实例，请选择要打开会话文件的实例：",
+        "running": "运行中"
+      }
     },
     "sessionUsage": {
       "tab": "会话用量",
@@ -4194,6 +4214,8 @@
       "standardDesc": "默认速度，常规用量",
       "fast": "快速",
       "fastDesc": "1.5 倍速，用量增加",
+      "ultrafast": "超高速",
+      "ultrafastDesc": "最快响应，用量最高",
       "saveSuccess": "速度已更新",
       "saveFailed": "保存速度失败：{{error}}"
     },
@@ -4641,6 +4663,33 @@
     "accounts": {
       "showRelayQuota": "显示中转额度",
       "hideRelayQuota": "隐藏中转额度"
+    },
+    "instanceGateways": {
+      "entry": "实例网关",
+      "entryCount": "实例网关 {{count}}",
+      "issueCount": "{{count}} 异常",
+      "title": "实例网关",
+      "subtitle": "随 Codex 实例启动的本地网关",
+      "summary": "共 {{total}} · 运行中 {{running}} · 异常 {{issues}}",
+      "empty": "当前没有实例级网关",
+      "emptyHint": "绑定 Chat 协议 API Key 账号或开启混合模型路由后会自动出现。",
+      "kindProviderGateway": "供应商网关",
+      "kindMixedModel": "混合模型路由",
+      "kindBoundOauth": "OAuth 本地网关",
+      "statusUnreachable": "已启动但不可用",
+      "statusPortConflict": "端口被占用",
+      "statusNotStarted": "未启动",
+      "fieldAccount": "账号",
+      "fieldAddress": "本地地址",
+      "fieldProtocol": "协议",
+      "fieldModels": "上游模型",
+      "loadFailed": "读取实例网关失败",
+      "stop": "关闭",
+      "restart": "重启",
+      "stopConfirmTitle": "关闭该实例网关？",
+      "stopConfirmDescription": "混合模型路由网关会同时停用该实例的混合模型路由（渠道配置保留）；其他网关关闭后可在需要时点击“重启”。",
+      "stopFailed": "关闭网关失败：{{error}}",
+      "restartFailed": "重启网关失败：{{error}}"
     }
   },
   "codebuddy": {

@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "測試結果",
+    "usageTokens": "{{tokens}} Token",
+    "quotaUsed": "5h 消耗 {{percent}}%",
+    "quotaLeft": "5h 剩餘 {{percent}}%",
     "openBrowser": "瀏覽器開啟",
     "error": {
       "stateUnavailable": "工作狀態無法取得，請重試",
@@ -850,7 +853,7 @@
       "codexSyncWsl": "同步 Codex 到 WSL",
       "codexSyncWslDesc": "切換預設 Codex 帳號後，也會把 auth.json 和 config.toml 寫入 WSL 的 Codex 設定目錄。",
       "codexAppUiInjection": "顯示 API 服務額度",
-      "codexAppUiInjectionDesc": "重新啟動 Codex 實例後，在輸入框下方顯示 Cockpit Tools API 服務的帳號數、週額度和 5 小時額度。需保持 Cockpit Tools 在背景執行；完全結束或網路無法使用時，額度不會繼續更新。",
+      "codexAppUiInjectionDesc": "重新啟動 Codex 實例後，在輸入框下方顯示 Cockpit Tools API 服務的帳號數、週額度和 5 小時額度；綁定 DeepSeek 帳號的實例改為顯示該帳號餘額。需保持 Cockpit Tools 在背景執行；完全結束或網路無法使用時，額度不會繼續更新。",
       "codexAppUiInjectionPoolLabel": "帳號",
       "codexAppUiInjectionWeeklyLabel": "週",
       "codexAppUiInjectionFiveHourLabel": "5 小時",
@@ -2097,6 +2100,7 @@
       "manage": "管理模型",
       "disabledDescription": "預設關閉；關閉時模型、排序、預設模型與推理強度皆跟隨官方目錄。",
       "enabledDescription": "目前以設定的模型目錄為準，可新增或移除模型，不再自動跟隨官方目錄。",
+      "routingManagedHint": "混合模型路由只在執行個體時暫時使用這份模型目錄，停止後自動還原；不會更動這裡的開關狀態。",
       "enableConfirmTitle": "啟用模型管理？",
       "enableConfirmDescription": "啟用後，Codex 將以這裡設定的模型目錄為準。你可以新增、刪除及調整模型，但清單不會再自動跟隨官方變更。",
       "enableConfirmAction": "啟用並設定"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "是",
       "imageGenSwitchNo": "否",
       "imageGenTitle": "啟用 GPT 生圖",
+      "oauthBindingHint": "綁定後啟動與一般帳號沒有任何差異，可使用 OAuth 的全部能力（遠端壓縮，瀏覽器操作，各類外掛等）；對話仍由目前的 API Key 供應商處理。",
+      "oauthBindingChange": "更換",
       "title": "Codex 啟動預覽",
       "description": "先設定與檢查；只有點擊切換或啟動後才會修改客戶端狀態。",
       "notApplied": "尚未套用",
@@ -3217,7 +3223,13 @@
         "syncNeedTwo": "至少需要兩個實例才能同步會話",
         "pickRestoreOne": "請至少選擇一個要還原的工作階段",
         "repairVisibilitySkippedOnly": "未發現需要寫入的 provider 差異；已略過 {{count}} 個無效或損毀的 state_5.sqlite，需由 Codex 重新產生後才能修復其中的 SQLite 記錄。",
-        "repairVisibilitySkippedWithBase": "{{message}}；已略過 {{count}} 個無效或損毀的 state_5.sqlite，需由 Codex 重新產生後才能修復其中的 SQLite 記錄。"
+        "repairVisibilitySkippedWithBase": "{{message}}；已略過 {{count}} 個無效或損毀的 state_5.sqlite，需由 Codex 重新產生後才能修復其中的 SQLite 記錄。",
+        "trashSummary": "已將 {{count}} 個工作階段移到垃圾桶，並已在官方 Codex 中刪除",
+        "trashSummaryFallback": "已將 {{count}} 個工作階段移到垃圾桶，並已觸發官方 Codex 重建工作階段索引",
+        "trashSummaryRunningHint": "執行中的執行個體可能需要重新整理或重新啟動後才會顯示",
+        "trashSummaryFallbackHint": "{{count}} 個執行個體的官方刪除未完成，已改以檔案方式移除，Codex 重新啟動後會同步",
+        "trashSummaryRebuildFailedHint": "{{count}} 個執行個體的官方側邊欄索引重建未完成，重新啟動 Codex 後會重新載入",
+        "trashSummaryEmpty": "所選工作階段不存在於目前的執行個體集合中，無需處理"
       },
       "groupCount": "{{count}} 條會話",
       "updatedAt": "最近更新",
@@ -3404,7 +3416,12 @@
         "subagent": "子代理",
         "all": "全部類型"
       },
-      "pickInstancePrompt": "此工作階段存在於多個實例，請輸入實例 ID："
+      "locationPicker": {
+        "title": "選擇實例",
+        "hint": "此工作階段存在於多個實例，請選擇要開啟檔案位置的實例：",
+        "rolloutHint": "此工作階段存在於多個實例，請選擇要開啟工作階段檔案的實例：",
+        "running": "執行中"
+      }
     },
     "sessionUsage": {
       "tab": "會話用量",
@@ -3758,6 +3775,9 @@
           "planName": "訂閱",
           "remaining": "剩餘額度",
           "balance": "餘額",
+          "totalBalance": "總餘額",
+          "grantedBalance": "贈金餘額",
+          "toppedUpBalance": "儲值餘額",
           "todayRequests": "今日請求",
           "todayTokens": "今日 Token",
           "todayCost": "今日消耗",
@@ -3983,6 +4003,8 @@
       "standardDesc": "預設速度，常規用量",
       "fast": "快速",
       "fastDesc": "1.5 倍速，用量增加",
+      "ultrafast": "超高速",
+      "ultrafastDesc": "最快回應，用量最高",
       "saveSuccess": "速度已更新",
       "saveFailed": "儲存速度失敗：{{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "顯示中轉額度",
       "hideRelayQuota": "隱藏中轉額度"
+    },
+    "instanceGateways": {
+      "entry": "執行個體閘道",
+      "entryCount": "執行個體閘道 {{count}}",
+      "issueCount": "{{count}} 異常",
+      "title": "執行個體閘道",
+      "subtitle": "隨 Codex 執行個體啟動的本機閘道",
+      "summary": "共 {{total}} · 執行中 {{running}} · 異常 {{issues}}",
+      "empty": "目前沒有執行個體層級閘道",
+      "emptyHint": "綁定 Chat 協定 API Key 帳號或開啟混合模型路由後會自動出現。",
+      "kindProviderGateway": "供應商閘道",
+      "kindMixedModel": "混合模型路由",
+      "kindBoundOauth": "OAuth 本機閘道",
+      "statusUnreachable": "已啟動但無法使用",
+      "statusPortConflict": "連接埠被占用",
+      "statusNotStarted": "未啟動",
+      "fieldAccount": "帳號",
+      "fieldAddress": "本機位址",
+      "fieldProtocol": "通訊協定",
+      "fieldModels": "上游模型",
+      "loadFailed": "讀取執行個體閘道失敗",
+      "stop": "關閉",
+      "restart": "重新啟動",
+      "stopConfirmTitle": "關閉這個實例閘道？",
+      "stopConfirmDescription": "混合模型路由閘道會同時停用該實例的混合模型路由（渠道設定保留）；其他閘道關閉後可隨時按「重新啟動」恢復。",
+      "stopFailed": "關閉閘道失敗：{{error}}",
+      "restartFailed": "重新啟動閘道失敗：{{error}}"
     }
   },
   "githubCopilot": {

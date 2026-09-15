@@ -89,7 +89,12 @@ fn codex_model_provider_usage_url(base_url: &str) -> Result<String, String> {
     Ok(url.to_string())
 }
 
-fn codex_model_provider_deepseek_balance_url(base_url: &str) -> Result<Option<String>, String> {
+/// DeepSeek 官方 `/user/balance` 地址。
+///
+/// 只有官方 host（`api.deepseek.com` + https）才有这个接口，自定义中转地址返回 `None`。
+pub(crate) fn codex_model_provider_deepseek_balance_url(
+    base_url: &str,
+) -> Result<Option<String>, String> {
     let mut url = reqwest::Url::parse(base_url.trim())
         .map_err(|_| "PROVIDER_BASE_URL_INVALID".to_string())?;
     if url.scheme() != "https"
@@ -844,11 +849,24 @@ fn summarize_model_provider_usage(
     }
 }
 
-fn summarize_deepseek_balance(
+/// DeepSeek 官方 `/user/balance` 的关键字段快照。
+///
+/// 除了「服务面板」的完整用量详情，Codex 客户端底部还会注入一个余额徽标；
+/// 两者共用这里的解析口径，避免同一个接口出现两套解析实现。
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeepSeekBalanceSnapshot {
+    pub is_available: bool,
+    pub currency: Option<String>,
+    pub total_balance: Option<f64>,
+    pub granted_balance: Option<f64>,
+    pub topped_up_balance: Option<f64>,
+}
+
+pub(crate) fn deepseek_balance_snapshot_from_body(
     body: &serde_json::Value,
-    latency_ms: u64,
-) -> CodexModelProviderUsageSummary {
-    let is_available = json_bool_at(body, &["is_available"]).unwrap_or(false);
+) -> DeepSeekBalanceSnapshot {
+    // 官方可能返回多种币种，优先展示人民币账户，与用量面板保持一致。
     let balance_info = body
         .get("balance_infos")
         .and_then(serde_json::Value::as_array)
@@ -861,8 +879,23 @@ fn summarize_deepseek_balance(
                 })
                 .or_else(|| items.first())
         });
-    let currency = balance_info.and_then(|item| json_string_at(item, &["currency"]));
-    let total_balance = balance_info.and_then(|item| json_f64_at(item, &["total_balance"]));
+    DeepSeekBalanceSnapshot {
+        is_available: json_bool_at(body, &["is_available"]).unwrap_or(false),
+        currency: balance_info.and_then(|item| json_string_at(item, &["currency"])),
+        total_balance: balance_info.and_then(|item| json_f64_at(item, &["total_balance"])),
+        granted_balance: balance_info.and_then(|item| json_f64_at(item, &["granted_balance"])),
+        topped_up_balance: balance_info.and_then(|item| json_f64_at(item, &["topped_up_balance"])),
+    }
+}
+
+fn summarize_deepseek_balance(
+    body: &serde_json::Value,
+    latency_ms: u64,
+) -> CodexModelProviderUsageSummary {
+    let snapshot = deepseek_balance_snapshot_from_body(body);
+    let is_available = snapshot.is_available;
+    let currency = snapshot.currency.clone();
+    let total_balance = snapshot.total_balance;
     let mut details = Vec::new();
     push_usage_detail(
         &mut details,
@@ -871,23 +904,20 @@ fn summarize_deepseek_balance(
         Some(is_available.to_string()),
     );
     push_usage_detail(&mut details, "currency", "Currency", currency.clone());
-    for (key, label) in [
-        ("total_balance", "Total Balance"),
-        ("granted_balance", "Granted Balance"),
-        ("topped_up_balance", "Topped-up Balance"),
+    for (key, label, value) in [
+        ("totalBalance", "Total Balance", snapshot.total_balance),
+        (
+            "grantedBalance",
+            "Granted Balance",
+            snapshot.granted_balance,
+        ),
+        (
+            "toppedUpBalance",
+            "Topped-up Balance",
+            snapshot.topped_up_balance,
+        ),
     ] {
-        push_usage_detail(
-            &mut details,
-            match key {
-                "total_balance" => "totalBalance",
-                "granted_balance" => "grantedBalance",
-                _ => "toppedUpBalance",
-            },
-            label,
-            balance_info
-                .and_then(|item| json_f64_at(item, &[key]))
-                .map(format_usage_number),
-        );
+        push_usage_detail(&mut details, key, label, value.map(format_usage_number));
     }
 
     CodexModelProviderUsageSummary {
@@ -1790,11 +1820,12 @@ pub async fn codex_query_model_provider_usage(
     }
 }
 
-async fn query_deepseek_model_provider_balance(
+/// 请求 DeepSeek 官方余额接口，返回原始响应与耗时。
+async fn fetch_deepseek_balance_body(
     client: &reqwest::Client,
     url: &str,
     key: &str,
-) -> Result<CodexModelProviderUsageSummary, String> {
+) -> Result<(serde_json::Value, u64), String> {
     let started = Instant::now();
     let response = client
         .get(url)
@@ -1815,7 +1846,26 @@ async fn query_deepseek_model_provider_balance(
     }
     let parsed = serde_json::from_str::<serde_json::Value>(&text)
         .map_err(|e| format!("PROVIDER_USAGE_PARSE_FAILED: {}", e))?;
-    Ok(summarize_deepseek_balance(&parsed, latency_ms))
+    Ok((parsed, latency_ms))
+}
+
+async fn query_deepseek_model_provider_balance(
+    client: &reqwest::Client,
+    url: &str,
+    key: &str,
+) -> Result<CodexModelProviderUsageSummary, String> {
+    let (body, latency_ms) = fetch_deepseek_balance_body(client, url, key).await?;
+    Ok(summarize_deepseek_balance(&body, latency_ms))
+}
+
+/// 查询 DeepSeek 账号余额快照（供 Codex 客户端底部余额注入使用）。
+pub(crate) async fn query_deepseek_balance_snapshot(
+    client: &reqwest::Client,
+    url: &str,
+    key: &str,
+) -> Result<DeepSeekBalanceSnapshot, String> {
+    let (body, _) = fetch_deepseek_balance_body(client, url, key).await?;
+    Ok(deepseek_balance_snapshot_from_body(&body))
 }
 
 async fn query_token_plan_model_provider_usage(

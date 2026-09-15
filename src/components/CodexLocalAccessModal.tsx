@@ -2176,7 +2176,7 @@ export function CodexLocalAccessModal({
         <div
           className={`modal codex-local-access-modal${
             isMembersMode
-              ? " codex-local-access-modal-members group-account-picker-modal"
+              ? " codex-local-access-modal-members"
               : " codex-local-access-modal-panel"
           }`}
           onClick={(event) => event.stopPropagation()}

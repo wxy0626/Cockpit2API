@@ -1920,17 +1920,121 @@ fn backup_current_desktop_profile(target_dir: &Path) -> Result<Option<PathBuf>, 
     if !target_dir.exists() {
         return Ok(None);
     }
+    ensure_desktop_profile_ready_for_backup(target_dir)?;
     let backup_dir = crate::modules::backup_storage::behavior_backup_dir(
         "claude",
         &crate::modules::backup_storage::scope_for_path(target_dir),
         &format!("{}", now_ts_ms()),
     )?;
-    copy_desktop_profile_snapshot(target_dir, &backup_dir)?;
+    if let Err(error) = copy_desktop_profile_snapshot(target_dir, &backup_dir) {
+        // 备份期间被重新抢占（Claude 启动、进程退出竞态）时同样给出可读原因，而不是底层 os error。
+        if let Some((path, locked_error)) = find_locked_desktop_profile_path(target_dir) {
+            return Err(format!(
+                "Claude 仍在运行或登录态文件被占用，无法备份当前账号，请完全退出 Claude Desktop 后重试: file={}, error={}, copy_error={}",
+                path.display(),
+                locked_error,
+                error
+            ));
+        }
+        return Err(error);
+    }
     let _ = crate::modules::backup_storage::prune_behavior_backups(
         "claude",
         &crate::modules::backup_storage::scope_for_path(target_dir),
     );
     Ok(Some(backup_dir))
+}
+
+/// Chromium 独占锁定、且最能代表「Claude Desktop 是否真的退出」的文件。
+///
+/// 只放体积很小的 SQLite / LevelDB 文件；整目录复制仍由快照流程负责。
+const CLAUDE_DESKTOP_LOCK_SENSITIVE_PATHS: &[&str] = &[
+    "Network/Cookies",
+    "Network/Cookies-journal",
+    "Local Storage/leveldb/LOCK",
+    "Session Storage/LOCK",
+];
+
+/// 用与备份完全相同的 `fs::copy` 路径探测独占锁：复制到临时文件成功才算解锁。
+///
+/// 不能用 `File::open` 之类的宽松探测代替——Windows 上 Chromium 允许共享读，
+/// 真正会失败的是复制（`CopyFileEx`），只有走同一条路径才能反映备份的真实结果。
+fn find_locked_desktop_profile_path(target_dir: &Path) -> Option<(PathBuf, String)> {
+    for (index, relative) in CLAUDE_DESKTOP_LOCK_SENSITIVE_PATHS.iter().enumerate() {
+        let source = target_dir.join(relative);
+        if !source.is_file() {
+            continue;
+        }
+        let probe_path = std::env::temp_dir().join(format!(
+            "cockpit-claude-profile-probe-{}-{}-{}",
+            std::process::id(),
+            now_ts_ms(),
+            index
+        ));
+        let result = fs::copy(&source, &probe_path);
+        let _ = fs::remove_file(&probe_path);
+        if let Err(error) = result {
+            return Some((source, error.to_string()));
+        }
+    }
+    None
+}
+
+fn wait_for_desktop_profile_release(
+    target_dir: &Path,
+    attempts: usize,
+    interval_ms: u64,
+) -> bool {
+    for _ in 0..attempts {
+        if find_locked_desktop_profile_path(target_dir).is_none() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(interval_ms));
+    }
+    find_locked_desktop_profile_path(target_dir).is_none()
+}
+
+/// 备份前确认 Claude Desktop 已经真正退出登录态文件。
+///
+/// Windows 上 Store / MSIX 版进程探测很容易漏掉持有 `Network\Cookies` 的子进程，漏判后
+/// 备份会用 `os error 32` 直接中止整次切号。这里改为由文件本身说话：先探测，必要时按 Store
+/// 包路径结束仍占用的进程并复检；仍被占用时返回可读错误，明确要求用户退出 Claude。
+fn ensure_desktop_profile_ready_for_backup(target_dir: &Path) -> Result<(), String> {
+    let Some(locked) = find_locked_desktop_profile_path(target_dir) else {
+        return Ok(());
+    };
+    logger::log_warn(&format!(
+        "[Claude] 备份前检测到登录态文件被占用: file={}, error={}",
+        locked.0.display(),
+        locked.1
+    ));
+
+    #[cfg(target_os = "windows")]
+    {
+        match crate::modules::claude_instance::force_close_windows_claude_desktop_processes(8) {
+            Ok(count) if count > 0 => logger::log_info(&format!(
+                "[Claude] 已结束仍占用登录态的 Store 版 Claude Desktop 进程: count={}",
+                count
+            )),
+            Ok(_) => {}
+            Err(error) => logger::log_warn(&format!(
+                "[Claude] 结束 Store 版 Claude Desktop 进程失败: {}",
+                error
+            )),
+        }
+    }
+
+    // 正在退出的进程通常几百毫秒内释放句柄；Windows 上更强的兜底已在上一步执行。
+    if wait_for_desktop_profile_release(target_dir, 8, 250) {
+        return Ok(());
+    }
+
+    let (path, error) = find_locked_desktop_profile_path(target_dir).unwrap_or(locked);
+    Err(format!(
+        "Claude 仍在运行或登录态文件被占用，无法备份当前账号，请完全退出 Claude Desktop 后重试: file={}, error={}",
+        path.display(),
+        error
+    ))
 }
 
 fn get_desktop_auth_resource_dir() -> Option<PathBuf> {

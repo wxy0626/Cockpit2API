@@ -1,6 +1,9 @@
 {
   "pelican": {
     "results": "Výsledky testu",
+    "usageTokens": "{{tokens}} tokenů",
+    "quotaUsed": "5h vyčerpáno {{percent}}%",
+    "quotaLeft": "5h zbývá {{percent}}%",
     "openBrowser": "Otevřít v prohlížeči",
     "error": {
       "stateUnavailable": "Stav úlohy není dostupný. Zkuste to znovu.",
@@ -850,7 +853,7 @@
       "codexSyncWsl": "Synchronizovat Codex do WSL",
       "codexSyncWslDesc": "Po přepnutí výchozího účtu Codex se auth.json a config.toml zapíší také do adresáře Codex ve WSL.",
       "codexAppUiInjection": "Kvóta API služby",
-      "codexAppUiInjectionDesc": "Po restartování instance Codex zobrazí pod kompozitorem počet účtů API služby Cockpit Tools a kvóty za týden a 5 hodin. Cockpit Tools musí běžet na pozadí; po úplném ukončení nebo bez sítě se údaje neobnovují.",
+      "codexAppUiInjectionDesc": "Po restartování instance Codex zobrazí pod kompozitorem počet účtů API služby Cockpit Tools a kvóty za týden a 5 hodin; instance s připojeným účtem DeepSeek místo toho zobrazují zůstatek tohoto účtu. Cockpit Tools musí běžet na pozadí; po úplném ukončení nebo bez sítě se údaje neobnovují.",
       "codexAppUiInjectionPoolLabel": "Účty",
       "codexAppUiInjectionWeeklyLabel": "Týden",
       "codexAppUiInjectionFiveHourLabel": "5 h",
@@ -2097,6 +2100,7 @@
       "manage": "Spravovat modely",
       "disabledDescription": "Ve výchozím stavu je vypnuto. Modely, pořadí, výchozí model a úrovně uvažování se řídí oficiálním katalogem.",
       "enabledDescription": "Používá se nakonfigurovaný katalog. Modely lze přidávat či odebírat a seznam se již automaticky neaktualizuje.",
+      "routingManagedHint": "Smíšené směrování používá tento katalog modelů pouze po dobu běhu instance a po zastavení jej obnoví. Tento přepínač se nemění.",
       "enableConfirmTitle": "Zapnout správu modelů?",
       "enableConfirmDescription": "Codex použije zde nakonfigurovaný katalog. Modely můžete přidávat, odebírat a upravovat, ale seznam se již nebude automaticky měnit podle oficiálního katalogu.",
       "enableConfirmAction": "Zapnout a nastavit"
@@ -2217,6 +2221,8 @@
       "imageGenSwitchYes": "Ano",
       "imageGenSwitchNo": "Ne",
       "imageGenTitle": "Zapnout generování obrázků GPT",
+      "oauthBindingHint": "Po propojení probíhá spuštění stejně jako u běžného účtu a jsou dostupné všechny funkce OAuth (vzdálená komprese, ovládání prohlížeče, různá rozšíření atd.); konverzace stále zpracovává současný poskytovatel API Key.",
+      "oauthBindingChange": "Změnit",
       "title": "Náhled spuštění Codexu",
       "description": "Nejprve zkontrolujte nastavení; klient se změní až po volbě přepnutí nebo spuštění.",
       "notApplied": "Dosud nepoužito",
@@ -3086,7 +3092,13 @@
         "syncNeedTwo": "Pro synchronizaci relací jsou potřeba alespoň dvě instance",
         "pickRestoreOne": "Vyberte prosím alespoň jednu relaci k obnovení",
         "repairVisibilitySkippedOnly": "Nebyly nalezeny žádné zapisovatelné rozdíly provideru; přeskočeno {{count}} neplatných nebo poškozených souborů state_5.sqlite. Codex je musí znovu vygenerovat, než bude možné opravit jejich záznamy SQLite.",
-        "repairVisibilitySkippedWithBase": "{{message}}; přeskočeno {{count}} neplatných nebo poškozených souborů state_5.sqlite. Codex je musí znovu vygenerovat, než bude možné opravit jejich záznamy SQLite."
+        "repairVisibilitySkippedWithBase": "{{message}}; přeskočeno {{count}} neplatných nebo poškozených souborů state_5.sqlite. Codex je musí znovu vygenerovat, než bude možné opravit jejich záznamy SQLite.",
+        "trashSummary": "{{count}} konverzací přesunuto do koše a smazáno v oficiálním Codex",
+        "trashSummaryFallback": "{{count}} konverzací přesunuto do koše a spuštěno přegenerování indexu relací oficiálního Codex",
+        "trashSummaryRunningHint": "Spuštěné instance mohou vyžadovat obnovení nebo restart, aby se změna zobrazila",
+        "trashSummaryFallbackHint": "Oficiální smazání se nedokončilo u {{count}} instancí; soubory byly odstraněny přímo a Codex se synchronizuje po restartu",
+        "trashSummaryRebuildFailedHint": "Přegenerování oficiálního indexu postranního panelu se nedokončilo u {{count}} instancí; Codex jej po restartu načte znovu",
+        "trashSummaryEmpty": "Vybrané konverzace v aktuální sadě instancí neexistují, není co dělat"
       },
       "groupCount": "{{count}} relací",
       "updatedAt": "Aktualizováno",
@@ -3273,7 +3285,12 @@
         "subagent": "Podagent",
         "all": "Všechny"
       },
-      "pickInstancePrompt": "Relace je na více instancích. Zadejte ID instance:"
+      "locationPicker": {
+        "title": "Vybrat instanci",
+        "hint": "Tato relace je na více instancích. Vyberte instanci, ve které otevřít umístění souboru:",
+        "rolloutHint": "Tato relace je na více instancích. Vyberte instanci, ve které otevřít soubor relace:",
+        "running": "Běží"
+      }
     },
     "sessionUsage": {
       "tab": "Spotřeba",
@@ -3758,6 +3775,9 @@
           "planName": "Tarif",
           "remaining": "Zbývá",
           "balance": "Zůstatek",
+          "totalBalance": "Celkový zůstatek",
+          "grantedBalance": "Bonusový zůstatek",
+          "toppedUpBalance": "Dobitý zůstatek",
           "todayRequests": "Dnešní požadavky",
           "todayTokens": "Dnešní tokeny",
           "todayCost": "Dnešní náklady",
@@ -3983,6 +4003,8 @@
       "standardDesc": "Výchozí rychlost, běžné využití",
       "fast": "Rychlá",
       "fastDesc": "Rychlost 1,5x, vyšší využití",
+      "ultrafast": "Ultra rychlá",
+      "ultrafastDesc": "Nejrychlejší odpovědi, vyšší využití",
       "saveSuccess": "Rychlost aktualizována",
       "saveFailed": "Rychlost se nepodařilo uložit: {{error}}"
     },
@@ -4442,6 +4464,33 @@
     "accounts": {
       "showRelayQuota": "Zobrazit relay kvótu",
       "hideRelayQuota": "Skrýt relay kvótu"
+    },
+    "instanceGateways": {
+      "entry": "Brány instancí",
+      "entryCount": "Brány instancí {{count}}",
+      "issueCount": "{{count}} s potížemi",
+      "title": "Brány instancí",
+      "subtitle": "Lokální brány spouštěné s instancemi Codex",
+      "summary": "Celkem {{total}} · běží {{running}} · s potížemi {{issues}}",
+      "empty": "Žádné brány na úrovni instance",
+      "emptyHint": "Zobrazí se automaticky po propojení účtu s klíčem API v protokolu Chat nebo po zapnutí směrování smíšených modelů.",
+      "kindProviderGateway": "Brána poskytovatele",
+      "kindMixedModel": "Směrování smíšených modelů",
+      "kindBoundOauth": "Lokální brána OAuth",
+      "statusUnreachable": "Spuštěna, ale nedostupná",
+      "statusPortConflict": "Port je obsazen",
+      "statusNotStarted": "Nespouštěna",
+      "fieldAccount": "Účet",
+      "fieldAddress": "Místní adresa",
+      "fieldProtocol": "Protokol",
+      "fieldModels": "Zdrojové modely",
+      "loadFailed": "Brány instancí se nepodařilo načíst",
+      "stop": "Zastavit",
+      "restart": "Restartovat",
+      "stopConfirmTitle": "Zastavit tuto bránu instance?",
+      "stopConfirmDescription": "Zastavením brány smíšeného směrování se vypne i smíšené směrování této instance (konfigurace kanálů zůstává); ostatní brány lze spustit tlačítkem „Restartovat“.",
+      "stopFailed": "Bránu se nepodařilo zastavit: {{error}}",
+      "restartFailed": "Bránu se nepodařilo restartovat: {{error}}"
     }
   },
   "githubCopilot": {

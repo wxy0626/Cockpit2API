@@ -115,6 +115,7 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
     quickSwitchAccount,
     quickSwitchSubmitting,
     reloadManagedProviders,
+    reloadCodexGroups,
     resetBatchImportState,
     resolveManagedProviderIdForAccount,
     resolveValidCodexGroupId,
@@ -1785,6 +1786,8 @@ export function useCodexAccountsAccessController(context: CodexAccountsAccessCon
           result.imported,
           batchImportTargetGroupId,
         );
+        // 导入文件自带分组（文件夹）归类时，Rust 侧会落盘新分组，这里刷新分组缓存（#2213）。
+        await reloadCodexGroups();
         // Optional bulk tags for this import batch (#1166)
         const batchTags = Array.from(
           new Set(

@@ -952,6 +952,39 @@ pub async fn codex_clear_client_auth_observation(account_id: String) -> Result<b
 }
 
 /// 切换 Codex 账号（包含 token 刷新检查）
+/// 默认实例切换到非 OAuth 账号时，关闭它的混合模型路由并释放对应的实例网关。
+///
+/// 混合路由只在绑定「可直接登录的 OAuth 订阅账号」时有意义，切换账号不应该被它拦住。
+async fn disable_default_model_routing_for_non_oauth_switch() {
+    let routing_enabled = crate::modules::codex_instance::load_default_settings()
+        .ok()
+        .and_then(|settings| settings.model_routing)
+        .is_some_and(|routing| routing.enabled);
+    if !routing_enabled {
+        return;
+    }
+    if let Err(error) = crate::modules::codex_instance::disable_model_routing(
+        crate::modules::codex_instance::CODEX_DEFAULT_INSTANCE_ID,
+    ) {
+        logger::log_warn(&format!(
+            "[Codex切号] 关闭默认实例混合模型路由失败: {}",
+            error
+        ));
+        return;
+    }
+    if let Ok(default_dir) = crate::modules::codex_instance::get_default_codex_home() {
+        if let Err(error) =
+            crate::modules::codex_local_access::release_instance_gateway_for_profile(&default_dir)
+                .await
+        {
+            logger::log_warn(&format!(
+                "[Codex切号] 停止默认实例混合模型路由网关失败: {}",
+                error
+            ));
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn switch_codex_account(
     app: AppHandle,
@@ -989,6 +1022,11 @@ pub async fn switch_codex_account(
     let is_oauth_account = !initial_account.is_api_key_auth()
         && !initial_account.is_agent_identity_auth()
         && !initial_account.is_web_session_auth();
+    if !is_oauth_account {
+        // 默认实例切到普通 API Key / 其他非 OAuth 账号时，混合模型路由必须自动关闭：
+        // 路由的底座账号已经不存在，继续保留会拦住启动，并让后台监控反复尝试恢复网关。
+        disable_default_model_routing_for_non_oauth_switch().await;
+    }
     let access_token_present = !initial_account.tokens.access_token.trim().is_empty();
     let refresh_token_present = codex_account::account_has_refresh_token(&initial_account);
     let access_token_expires_at =

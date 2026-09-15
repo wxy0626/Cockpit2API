@@ -6,6 +6,7 @@ import {
   CircleAlert,
   ImagePlus,
   KeyRound,
+  Link2,
   Play,
   RefreshCw,
   Route,
@@ -49,6 +50,11 @@ import {
 import { forceRefreshCodexTokens } from "../../services/codexService";
 import { requestCodexOpenAddAccount } from "../../utils/codexAddAccountRequest";
 import { areCodexModelRoutingsEqual, resolveRoutingCatalog } from "../../utils/codexModelRoutingValue";
+import {
+  resolveInstanceEffectiveBindAccountId,
+  resolveLaunchPreviewRoutingBaseAccount,
+  resolveLaunchPreviewRoutingBindAccountId,
+} from "../../utils/codexLaunchPreviewRoutingBinding";
 import type {
   CodexAccount,
   CodexExperimentalModelDefinition,
@@ -136,10 +142,22 @@ export interface CodexLaunchPreviewLaunchOptions {
   imageGenerationAccountIds?: string[];
 }
 
+/** 启动预览里的 OAuth 绑定状态（仅 API Key 账号展示）。 */
+export interface CodexLaunchPreviewOAuthBinding {
+  /** 已绑定的 OAuth 账号展示名；未绑定时为 null。 */
+  boundAccountLabel?: string | null;
+  /** 绑定的 OAuth 账号需要重新授权。 */
+  needsReauth?: boolean;
+  reauthDescription?: string | null;
+}
+
 interface CodexLaunchPreviewModalProps {
   account?: CodexAccount | null;
   accountLabel: string;
   accountMetaLabel?: string;
+  oauthBinding?: CodexLaunchPreviewOAuthBinding | null;
+  onBindOAuth?: () => void;
+  onReauthorizeOAuth?: () => void;
   summary?: CodexLaunchPreviewSummary;
   actions?: CodexLaunchPreviewAction[];
   instanceId?: string;
@@ -170,6 +188,9 @@ export function CodexLaunchPreviewModal({
   account,
   accountLabel,
   accountMetaLabel,
+  oauthBinding,
+  onBindOAuth,
+  onReauthorizeOAuth,
   summary,
   actions,
   instanceId = DEFAULT_CODEX_INSTANCE_ID,
@@ -423,19 +444,49 @@ export function CodexLaunchPreviewModal({
     [accounts, routingRoutes],
   );
   const effectiveLaunchAccount = account ?? currentAccount;
+  // 混合模型路由只在实例绑定「可直接登录的 OAuth 订阅账号」时生效。
+  // 预览/切换到一个普通账号（API Key、API 服务等）时，路由必须自动让位：
+  // 不再把实例绑定改回 OAuth 底座账号，也不能用路由校验拦住这次切换。
+  const launchSubjectIsOAuthAccount = Boolean(
+    account
+      ? isStandardCodexOAuthAccount(account)
+      : mode === "apiService"
+        ? false
+        : currentAccount && isStandardCodexOAuthAccount(currentAccount),
+  );
+  const routingEnabledForSave = routingEnabled && launchSubjectIsOAuthAccount;
+  // 后端保存路由配置时校验的是「目标实例当前生效的绑定账号」，不是正在预览的账号，
+  // 所以必须按实例当前绑定判断是否需要一并下发路由底座账号（与实例表单行为一致）。
+  const instanceEffectiveBindAccountId = useMemo(
+    () =>
+      resolveInstanceEffectiveBindAccountId({
+        isDefaultInstance: instanceId === DEFAULT_CODEX_INSTANCE_ID,
+        followLocalAccount: Boolean(selectedInstance?.followLocalAccount),
+        bindAccountId: selectedInstance?.bindAccountId ?? null,
+        localCurrentAccountId: currentAccount?.id ?? null,
+      }),
+    [currentAccount?.id, instanceId, selectedInstance],
+  );
   const mixedRoutingOAuthAccount = useMemo(() => {
-    if (!routingEnabled) return null;
-    if (effectiveLaunchAccount && isStandardCodexOAuthAccount(effectiveLaunchAccount)) {
-      return effectiveLaunchAccount;
-    }
-    return accounts.find((item) => isStandardCodexOAuthAccount(item)) ?? null;
-  }, [accounts, effectiveLaunchAccount, routingEnabled]);
-  const mixedRoutingBindAccountId =
-    routingEnabled && mixedRoutingOAuthAccount?.id !== effectiveLaunchAccount?.id
-      ? mixedRoutingOAuthAccount?.id
-      : undefined;
+    if (!routingEnabledForSave) return null;
+    return resolveLaunchPreviewRoutingBaseAccount(
+      accounts,
+      effectiveLaunchAccount,
+      instanceEffectiveBindAccountId,
+    );
+  }, [
+    accounts,
+    effectiveLaunchAccount,
+    instanceEffectiveBindAccountId,
+    routingEnabledForSave,
+  ]);
+  const mixedRoutingBindAccountId = resolveLaunchPreviewRoutingBindAccountId({
+    routingEnabled: routingEnabledForSave,
+    routingBaseAccountId: mixedRoutingOAuthAccount?.id ?? null,
+    instanceEffectiveBindAccountId,
+  });
   const routingBindingNeedsRepair =
-    routingEnabled && mixedRoutingOAuthAccount == null;
+    routingEnabledForSave && mixedRoutingOAuthAccount == null;
   const contextOverridePreset = resolveCodexContextOverridePreset(
     contextOverrideEnabled,
     contextWindowInput,
@@ -443,8 +494,12 @@ export function CodexLaunchPreviewModal({
   );
 
   const nextModelRouting = useMemo(
-    () => buildCodexModelRoutingValue(routingEnabled, normalizedRoutingRoutes),
-    [normalizedRoutingRoutes, routingEnabled],
+    () =>
+      buildCodexModelRoutingValue(
+        routingEnabledForSave,
+        normalizedRoutingRoutes,
+      ),
+    [normalizedRoutingRoutes, routingEnabledForSave],
   );
   const routingDirty = useMemo(
     () =>
@@ -524,7 +579,20 @@ export function CodexLaunchPreviewModal({
       setError(t("codex.experimentalModelCatalog.models.validation.autoCompactRange"));
       return false;
     }
-    if (routingEnabled) {
+    // 只有本次保存/启动仍然启用路由时才校验路由底座；
+    // 目标是普通账号（API Key / API 服务）时路由会在保存时自动关闭，不能再拦住启动。
+    if (routingEnabledForSave) {
+      // 与实例表单一致：没有可直接登录的 OAuth 订阅账号时直接给出可读提示，
+      // 不要等后端用实例旧绑定校验失败后再抛出难懂的报错。
+      if (!mixedRoutingOAuthAccount) {
+        setError(
+          t(
+            "instances.form.modelRouting.oauthRequired",
+            "混合模型路由需要绑定一个直接登录的 OAuth 订阅账号。",
+          ),
+        );
+        return false;
+      }
       if (routingRoutes.length === 0) {
         setError(
           t(
@@ -571,17 +639,15 @@ export function CodexLaunchPreviewModal({
     setError(null);
     try {
       let nextModels = models;
-      let nextCatalogEnabled = catalogEnabled;
-      if (routingEnabled) {
+      if (routingEnabledForSave) {
         nextModels = syncExperimentalModelsWithRouting(
           models,
           normalizedRoutingRoutes,
           accounts,
           true,
         );
-        nextCatalogEnabled = true;
       }
-      const nextCatalog = resolveRoutingCatalog(nextModels, nextCatalogEnabled, defaultModelId);
+      const nextCatalog = resolveRoutingCatalog(nextModels, catalogEnabled, defaultModelId);
       const saved = routingDirty
         ? (
             await saveCodexInstanceConfiguration({
@@ -643,7 +709,9 @@ export function CodexLaunchPreviewModal({
     nextModelRouting,
     routingDirty,
     routingEnabled,
+    routingEnabledForSave,
     mixedRoutingBindAccountId,
+    mixedRoutingOAuthAccount,
     normalizedRoutingRoutes,
     setError,
     t,
@@ -902,7 +970,9 @@ export function CodexLaunchPreviewModal({
 
   const openModelConfig = useCallback(async () => {
     if (busy || unavailable) return;
-    if (!catalogEnabled) {
+    // 混合模型路由需要实例自己的可见模型清单，但不应替用户开启「模型管理」：
+    // 这种情况下只打开编辑器维护路由模型，开关状态保持不变。
+    if (!catalogEnabled && !routingEnabled) {
       const confirmed = await confirmDialog(
         t(
           "codex.modelManagement.enableConfirmDescription",
@@ -927,7 +997,9 @@ export function CodexLaunchPreviewModal({
       })),
       defaultModelId,
     });
-    setCatalogEnabled(true);
+    if (!routingEnabled) {
+      setCatalogEnabled(true);
+    }
     setNotice(null);
     setError(null);
     setModelConfigOpen(true);
@@ -936,6 +1008,7 @@ export function CodexLaunchPreviewModal({
     catalogEnabled,
     defaultModelId,
     models,
+    routingEnabled,
     setError,
     unavailable,
   ]);
@@ -969,7 +1042,10 @@ export function CodexLaunchPreviewModal({
   const closeModelConfig = useCallback(
     (apply: boolean) => {
       if (apply) {
-        setCatalogEnabled(true);
+        // 混合模型路由下这里只应用路由模型改动，不替用户打开「模型管理」。
+        if (!routingEnabled) {
+          setCatalogEnabled(true);
+        }
       } else if (modelConfigSnapshot) {
         setCatalogEnabled(modelConfigSnapshot.enabled);
         setModels(modelConfigSnapshot.models);
@@ -979,7 +1055,7 @@ export function CodexLaunchPreviewModal({
       setModelConfigOpen(false);
       setModelsError(null);
     },
-    [modelConfigSnapshot],
+    [modelConfigSnapshot, routingEnabled],
   );
 
   const openContextConfig = useCallback(() => {
@@ -1484,7 +1560,7 @@ export function CodexLaunchPreviewModal({
                     onEnabledChange={(nextEnabled) => {
                       const catalog = resolveRoutingCatalog(
                         syncExperimentalModelsWithRouting(models, routingRoutes, accounts, nextEnabled),
-                        nextEnabled || catalogEnabled,
+                        catalogEnabled,
                         defaultModelId,
                       );
                       setCatalogEnabled(catalog.enabled);
@@ -1536,6 +1612,64 @@ export function CodexLaunchPreviewModal({
                   >
                     {t("nav.settings")}
                   </button>
+                </section>
+              )}
+              {oauthBinding && account && isCodexApiKeyAccount(account) && (
+                <section className="codex-launch-preview-tool-row">
+                  <div className="codex-launch-preview-tool-icon">
+                    <Link2 size={16} />
+                  </div>
+                  <div className="codex-launch-preview-tool-copy">
+                    <h3>{t("codex.api.oauthBinding.label", "OAuth 绑定")}</h3>
+                    <p>
+                      {t(
+                        "codex.launchPreview.oauthBindingHint",
+                        "绑定后启动与普通账号没有任何差异，可使用 OAuth 的全部能力（远端压缩，浏览器操作，各类插件等）；对话仍由当前 API Key 供应商处理。",
+                      )}
+                    </p>
+                    <div className="codex-launch-preview-tool-meta">
+                      <span>
+                        {oauthBinding.boundAccountLabel ||
+                          t("codex.api.oauthBinding.unbound", "未绑定")}
+                      </span>
+                      {oauthBinding.needsReauth && (
+                        <span
+                          className="codex-status-pill quota-error"
+                          title={oauthBinding.reauthDescription || undefined}
+                        >
+                          <CircleAlert size={12} />
+                          {t("codex.authError.badge", "授权异常")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="codex-launch-preview-tool-controls">
+                    {oauthBinding.needsReauth && onReauthorizeOAuth && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm codex-launch-preview-tool-action"
+                        onClick={onReauthorizeOAuth}
+                        disabled={busy}
+                      >
+                        {t("common.reauthorize", "重新授权")}
+                      </button>
+                    )}
+                    {onBindOAuth && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm codex-launch-preview-tool-action"
+                        onClick={onBindOAuth}
+                        disabled={busy}
+                      >
+                        {oauthBinding.boundAccountLabel
+                          ? t(
+                              "codex.launchPreview.oauthBindingChange",
+                              "更换",
+                            )
+                          : t("codex.api.oauthBinding.action", "绑定 OAuth")}
+                      </button>
+                    )}
+                  </div>
                 </section>
               )}
               {!isDeepSeekSubject && (
@@ -1633,6 +1767,14 @@ export function CodexLaunchPreviewModal({
                             "默认关闭；关闭时模型列表、顺序、默认模型和推理强度均跟随官方。",
                           )}
                     </p>
+                    {routingEnabled && (
+                      <p>
+                        {t(
+                          "codex.modelManagement.routingManagedHint",
+                          "混合模型路由只在实例运行时临时使用这份模型目录，停止后自动恢复；它不会改动这里的开关状态。",
+                        )}
+                      </p>
+                    )}
                     <div className="codex-launch-preview-tool-meta">
                       <span className={catalogEnabled ? "is-enabled" : ""}>
                         {loading
@@ -2072,7 +2214,14 @@ export function CodexLaunchPreviewModal({
             <div className="modal-header">
               <div>
                 <h2>{t("codex.modelManagement.title", "模型管理")}</h2>
-                <p>{t("codex.modelManagement.enabledDescription")}</p>
+                <p>
+                  {routingEnabled && !catalogEnabled
+                    ? t(
+                        "codex.modelManagement.routingManagedHint",
+                        "混合模型路由只在实例运行时临时使用这份模型目录，停止后自动恢复；它不会改动这里的开关状态。",
+                      )
+                    : t("codex.modelManagement.enabledDescription")}
+                </p>
               </div>
               <button
                 type="button"
@@ -2124,19 +2273,21 @@ export function CodexLaunchPreviewModal({
               />
             </div>
             <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => {
-                  setCatalogEnabled(false);
-                  setModelConfigSnapshot(null);
-                  setModelConfigOpen(false);
-                  setModelsError(null);
-                }}
-                disabled={busy}
-              >
-                {t("codex.modelManagement.disable", "关闭模型管理")}
-              </button>
+              {catalogEnabled && (
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => {
+                    setCatalogEnabled(false);
+                    setModelConfigSnapshot(null);
+                    setModelConfigOpen(false);
+                    setModelsError(null);
+                  }}
+                  disabled={busy}
+                >
+                  {t("codex.modelManagement.disable", "关闭模型管理")}
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-secondary"
