@@ -407,6 +407,7 @@ pub fn run() {
             modules::workbuddy_gateway::ensure_started();
             modules::workbuddy_keepalive::ensure_started();
             modules::workbuddy_auto_travel::ensure_started();
+            modules::workbuddy_auto_tasks::ensure_started(app.handle().clone());
 
             // Wakeup restore/start and Deep Link registration/read can hit disk or OS
             // APIs — never block setup (window + skeleton tray first).
@@ -1111,6 +1112,11 @@ pub fn run() {
             commands::workbuddy::get_workbuddy_auto_checkin_logs,
             commands::workbuddy::clear_workbuddy_auto_checkin_logs,
             commands::workbuddy::run_workbuddy_auto_checkin_now,
+            commands::workbuddy::get_workbuddy_auto_tasks_config,
+            commands::workbuddy::save_workbuddy_auto_tasks_config,
+            commands::workbuddy::get_workbuddy_auto_tasks_logs,
+            commands::workbuddy::clear_workbuddy_auto_tasks_logs,
+            commands::workbuddy::run_workbuddy_auto_tasks_now,
             // WorkBuddy Instance Commands
             commands::workbuddy_instance::workbuddy_get_instance_defaults,
             commands::workbuddy_instance::workbuddy_list_instances,

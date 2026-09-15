@@ -594,3 +594,54 @@ pub async fn run_workbuddy_auto_checkin_now(
     )
     .await
 }
+
+// ---------------------------------------------------------------------------
+// WorkBuddy 自动任务（成长中心任务 + 互动玩法）
+//
+// 说明：本组命令服务于项目上游之外的独立增量模块 workbuddy_auto_tasks。
+// 配置与日志由该模块自带的独立 JSON 文件承载，不经过全局 user config，
+// 目的是让该功能在上游合并更新时保持零冲突。
+// ---------------------------------------------------------------------------
+
+/// 读取自动任务配置
+#[tauri::command]
+pub fn get_workbuddy_auto_tasks_config(
+) -> Result<crate::modules::workbuddy_auto_tasks::WorkbuddyAutoTasksConfig, String> {
+    crate::modules::workbuddy_auto_tasks::get_config_checked()
+}
+
+/// 保存自动任务配置
+#[tauri::command]
+pub fn save_workbuddy_auto_tasks_config(
+    config: crate::modules::workbuddy_auto_tasks::WorkbuddyAutoTasksConfig,
+) -> Result<(), String> {
+    crate::modules::workbuddy_auto_tasks::save_config(&config)
+}
+
+/// 读取自动任务运行日志
+#[tauri::command]
+pub fn get_workbuddy_auto_tasks_logs() -> Result<
+    Vec<crate::modules::workbuddy_auto_tasks::WorkbuddyAutoTasksLogRecord>,
+    String,
+> {
+    crate::modules::workbuddy_auto_tasks::get_logs_checked()
+}
+
+/// 清空自动任务运行日志
+#[tauri::command]
+pub fn clear_workbuddy_auto_tasks_logs() -> Result<(), String> {
+    crate::modules::workbuddy_auto_tasks::clear_logs()
+}
+
+/// 手动立即执行一轮自动任务（force=true 时忽略执行窗口与今日已跑判断）
+#[tauri::command]
+pub async fn run_workbuddy_auto_tasks_now(
+    app: AppHandle,
+    force: Option<bool>,
+) -> Result<String, String> {
+    crate::modules::workbuddy_auto_tasks::run_workbuddy_auto_tasks_cycle_if_needed(
+        &app,
+        force.unwrap_or(false),
+    )
+    .await
+}

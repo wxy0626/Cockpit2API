@@ -46,6 +46,9 @@ src-tauri/native/macos-native-menu/.build/
 
 # Rust
 target/
+# 备用/临时 cargo target 目录（如 CARGO_TARGET_DIR=target-release-fix-2），
+# 避免误提交数 GB 构建产物
+/target-*/
 **/*.rs.bk
 docs/plugin-architecture-proposal.md
 .aitasks

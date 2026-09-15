@@ -125,6 +125,7 @@ pub mod windsurf_oauth;
 pub mod instance_lock;
 pub mod workbuddy_account;
 pub mod workbuddy_auto_checkin;
+pub mod workbuddy_auto_tasks;
 pub mod workbuddy_auto_travel;
 pub mod workbuddy_gateway;
 pub mod workbuddy_instance;

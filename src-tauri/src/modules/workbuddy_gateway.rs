@@ -1037,6 +1037,10 @@ const SANITIZE_FEATURES: &[&str] = &[
 /// 净化改写对（每句只改一个词，语义不变）
 const SANITIZE_REWRITES: &[(&str, &str)] = &[
     (
+        "You are Claude Code, Anthropic's official CLI for Claude, running within the Claude Agent SDK.",
+        "You are a coding assistant running within an agent SDK.",
+    ),
+    (
         "You are Claude Code, Anthropic's official CLI for Claude.",
         "You are Claude Code, Anthropic's official CLI tool for Claude.",
     ),

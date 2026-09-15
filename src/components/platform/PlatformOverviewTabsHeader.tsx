@@ -1,6 +1,6 @@
 import { ReactNode, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Clock3, FolderOpen, Github, Layers, Server } from 'lucide-react';
+import { Clock3, FolderOpen, Github, Layers, ListChecks, Server } from 'lucide-react';
 import { CodexIcon } from '../icons/CodexIcon';
 import { ClaudeIcon } from '../icons/ClaudeIcon';
 import { WindsurfIcon } from '../icons/WindsurfIcon';
@@ -29,7 +29,8 @@ export type PlatformOverviewTab =
   | 'wakeup'
   | 'instances'
   | 'sessions'
-  | 'providers';
+  | 'providers'
+  | 'tasks';
 export type PlatformOverviewHeaderId =
   | 'codex'
   | 'claude'
@@ -218,6 +219,12 @@ export function PlatformOverviewTabsHeader({
       key: 'providers',
       label: platform === 'workbuddy' ? 'API 网关' : t('codex.modelProviders.tab', '模型供应商'),
       icon: <Server className="tab-icon" />,
+    },
+    // WorkBuddy 专属：成长中心任务与互动玩法的自动化（独立模块，见 modules/workbuddy_auto_tasks.rs）
+    tasks: {
+      key: 'tasks',
+      label: t('workbuddy.autoTasks.title', '自动任务'),
+      icon: <ListChecks className="tab-icon" />,
     },
   };
   const tabSpecs: TabSpec[] = tabOrder.map((tab) => tabLabels[tab]);

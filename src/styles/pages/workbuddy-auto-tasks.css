@@ -1,0 +1,326 @@
+/**
+ * WorkBuddy「自动任务」面板样式。
+ *
+ * 独立文件：由 WorkbuddyAutoTasksPanel.tsx 直接 import，
+ * 不修改共享的 pages.css / workbuddy.css，避免上游合并冲突。
+ * 全部使用项目既有 CSS 变量，自动跟随主题。
+ */
+
+.workbuddy-auto-tasks-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px 24px;
+}
+
+.wb-tasks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wb-tasks-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wb-tasks-state {
+  padding: 2px 8px;
+  border-radius: var(--radius-full, 999px);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-state.on {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.wb-tasks-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wb-tasks-header-actions button,
+.wb-tasks-actions button,
+.wb-tasks-logs-header button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.wb-tasks-header-actions button:hover,
+.wb-tasks-actions button:hover,
+.wb-tasks-logs-header button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-light);
+}
+
+.wb-tasks-header-actions button:disabled,
+.wb-tasks-actions button:disabled,
+.wb-tasks-logs-header button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wb-tasks-actions button.primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.wb-tasks-actions button.primary:hover {
+  background: var(--primary-hover, var(--primary));
+}
+
+.wb-tasks-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  border: 1px solid var(--border);
+}
+
+.wb-tasks-notice.ok {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.wb-tasks-notice.err {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.wb-tasks-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.wb-tasks-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.wb-tasks-row > strong {
+  min-width: 108px;
+  padding-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-toggle {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.wb-tasks-toggle input {
+  margin-top: 2px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.wb-tasks-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wb-tasks-toggle-text b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.wb-tasks-toggle-text em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-window {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wb-tasks-window input[type='time'] {
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.wb-tasks-window em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wb-tasks-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.wb-tasks-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-note {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wb-tasks-logs-header strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-tasks-log {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.wb-tasks-log.failed {
+  border-color: var(--danger);
+}
+
+.wb-tasks-log-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.wb-tasks-log-head:hover {
+  background: var(--bg-hover);
+}
+
+.wb-tasks-log-time {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.wb-tasks-log-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.wb-tasks-log-summary em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.wb-tasks-log-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 4px 12px 12px;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.wb-tasks-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.wb-tasks-detail-progress {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--primary);
+}
+
+.wb-tasks-detail-message {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  word-break: break-word;
+}

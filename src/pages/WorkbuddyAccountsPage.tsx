@@ -15,6 +15,8 @@ import { useProviderAccountsPage } from '../hooks/useProviderAccountsPage';
 import { WorkbuddyCheckinModal } from '../components/codebuddy-suite/CodebuddySuiteCheckinModal';
 import { CodebuddySessionManager } from '../components/codebuddy/CodebuddySessionManager';
 import { CodebuddySuiteAccountsSharedView, type CodebuddySuiteAccountsPlatformConfig } from '../components/codebuddy-suite/CodebuddySuiteAccountsSharedView';
+// WorkBuddy「自动任务」面板（独立模块，与上游代码解耦）
+import { WorkbuddyAutoTasksPanel } from '../components/codebuddy-suite/WorkbuddyAutoTasksPanel';
 import { compareCurrentAccountFirst } from '../utils/currentAccountSort';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -455,9 +457,11 @@ export function WorkbuddyAccountsPage() {
         platform="workbuddy"
         active={activeTab}
         onTabChange={setActiveTab}
-        tabs={['overview', 'sessions', 'instances', 'providers']}
+        tabs={['overview', 'sessions', 'instances', 'providers', 'tasks']}
       />
-      {activeTab === 'providers' ? (
+      {activeTab === 'tasks' ? (
+        <WorkbuddyAutoTasksPanel />
+      ) : activeTab === 'providers' ? (
         <WorkbuddyApiGatewayPanel />
       ) : activeTab === 'sessions' ? (
         <CodebuddySessionManager platform="workbuddy" accounts={store.accounts as any} />
