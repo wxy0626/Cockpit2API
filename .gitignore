@@ -56,6 +56,8 @@ docs/plugin-architecture-proposal.md
 
 # wb2api gateway build artifacts and runtime state (contains account tokens)
 sidecars/wb2api/bin/
+sidecars/cindy2api/bin/
+sidecars/cindy2api/runtime/
 sidecars/wb2api/runtime/
 # compiled login tool binary (build from sidecars/wb2api/cmd/login instead)
 sidecars/wb2api/login

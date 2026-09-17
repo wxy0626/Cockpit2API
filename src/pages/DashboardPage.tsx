@@ -2679,6 +2679,7 @@ export function DashboardPage({
     trae_cn: stats.trae_cn,
     trae_solo_cn: stats.trae_solo_cn,
     workbuddy: stats.workbuddy,
+    cindy: 0, // Cindy 账号由 sidecar 从本机登录态自动发现，不进本地账号库
   };
 
   const entryCounts = useMemo(() => {

@@ -230,6 +230,8 @@ function resolveInstanceStoreApi(platformId: PlatformId): FloatingCardInstanceSt
       return useZcodeInstanceStore.getState();
     case 'zed':
       return null;
+    case 'cindy':
+      return null; // Cindy 平台没有实例存储（账号即实例）
   }
 }
 

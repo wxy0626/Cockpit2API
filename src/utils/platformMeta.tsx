@@ -58,6 +58,8 @@ export function getPlatformLabel(platformId: PlatformId, _t: TFunction): string 
       return _t('nav.traeSoloCn', 'TRAE SOLO CN');
     case 'workbuddy':
       return 'WorkBuddy';
+    case 'cindy':
+      return 'Cindy';
     default:
       return platformId;
   }
@@ -105,6 +107,25 @@ export function renderPlatformIcon(platformId: PlatformId, size = 20): ReactNode
       return <TraeSoloCnIcon style={{ width: size, height: size }} />;
     case 'workbuddy':
       return <WorkbuddyIcon style={{ width: size, height: size }} />;
+    case 'cindy':
+      // Cindy 暂无品牌图标资源，用与「反代网关」语义一致的线缆图形占位
+      return (
+        <svg
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M6 8h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Z" />
+          <path d="M9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8" />
+          <path d="M12 16v4" />
+        </svg>
+      );
     default:
       return null;
   }

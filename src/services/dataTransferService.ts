@@ -302,6 +302,7 @@ const ACCOUNT_LOADERS: Record<PlatformId, AccountLoader> = {
   trae_cn: async () => (await traeService.listTraeAccounts()) as unknown as TransferAccountRecord[],
   trae_solo_cn: async () => (await traeService.listTraeAccounts()) as unknown as TransferAccountRecord[],
   workbuddy: async () => (await workbuddyService.listWorkbuddyAccounts()) as unknown as TransferAccountRecord[],
+  cindy: async () => [], // Cindy 账号来源在本机登录态（由 sidecar 解密），不参与本地账号导出
 };
 
 const LEGACY_IMPORTERS: Record<PlatformId, ((jsonContent: string) => Promise<unknown[]>) | undefined> = {
@@ -325,6 +326,7 @@ const LEGACY_IMPORTERS: Record<PlatformId, ((jsonContent: string) => Promise<unk
   trae_cn: traeService.importTraeFromJson,
   trae_solo_cn: traeService.importTraeFromJson,
   workbuddy: workbuddyService.importWorkbuddyFromJson,
+  cindy: undefined, // 不支持从本地 JSON 导入：Cindy 账号始终来自本机登录态
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

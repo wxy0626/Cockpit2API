@@ -22,6 +22,7 @@ export type Page =
   | 'trae-cn'
   | 'trae-solo-cn'
   | 'workbuddy'
+  | 'cindy'
   | 'codex-instances'
   | 'instances'
   | 'accounts'

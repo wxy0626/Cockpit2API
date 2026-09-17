@@ -152,6 +152,9 @@ const TraeAccountsPage = lazy(() =>
 const WorkbuddyAccountsPage = lazy(() =>
   import('./pages/WorkbuddyAccountsPage').then((module) => ({ default: module.WorkbuddyAccountsPage })),
 );
+const CindyAccountsPage = lazy(() =>
+  import('./pages/CindyAccountsPage').then((module) => ({ default: module.CindyAccountsPage })),
+);
 const ZedAccountsPage = lazy(() =>
   import('./pages/ZedAccountsPage').then((module) => ({ default: module.ZedAccountsPage })),
 );;
@@ -222,6 +225,7 @@ const RENDERABLE_PAGE_VALUES: readonly Page[] = [
   'trae-cn',
   'trae-solo-cn',
   'workbuddy',
+  'cindy',
   'zed',
   'instances',
   'wakeup',
@@ -4079,6 +4083,9 @@ function MainApp() {
           </VisibleBootPage>
           <VisibleBootPage when={page === 'workbuddy'}>
             <WorkbuddyAccountsPage />
+          </VisibleBootPage>
+          <VisibleBootPage when={page === 'cindy'}>
+            <CindyAccountsPage />
           </VisibleBootPage>
           <VisibleBootPage when={page === 'zed'}>
             <ZedAccountsPage />

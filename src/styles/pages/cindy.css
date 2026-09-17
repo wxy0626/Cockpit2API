@@ -1,0 +1,358 @@
+/* Cindy 平台页样式（自包含，由组件直接 import，不修改共享样式文件） */
+
+/* ── 顶部页签栏（复刻平台页页签形态，独立实现） ────────── */
+.cindy-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 0 6px;
+}
+
+.cindy-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.cindy-tabs button.active {
+  background: var(--surface-tertiary);
+  color: var(--text-primary);
+  border-color: var(--primary, #2f6df6);
+}
+
+.cindy-accounts-view {
+  padding: 24px 32px;
+  color: var(--text-primary);
+  max-width: 1280px;
+}
+
+/* ── 说明卡 ───────────────────────────────────────────── */
+.cindy-notice {
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 18px;
+}
+
+.cindy-notice strong {
+  font-size: 14px;
+}
+
+.cindy-notice p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* ── 工具栏 ───────────────────────────────────────────── */
+.cindy-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.cindy-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 180px;
+  background: var(--surface-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  padding: 8px 12px;
+  color: var(--text-secondary);
+}
+
+.cindy-search input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.cindy-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.cindy-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.cindy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 8px 11px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.cindy-btn:hover:not(:disabled) {
+  background: var(--surface-hover, var(--surface-tertiary));
+}
+
+.cindy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cindy-btn.primary {
+  background: var(--primary, #2f6df6);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* ── 提示行 ───────────────────────────────────────────── */
+.cindy-notice-line {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  background: var(--surface-tertiary);
+  color: var(--text-secondary);
+}
+
+.cindy-notice-line.error {
+  color: #ff8a80;
+}
+
+/* ── 卡片网格 ─────────────────────────────────────────── */
+.cindy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.cindy-grid.list {
+  grid-template-columns: 1fr;
+}
+
+.cindy-card {
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cindy-card.selected {
+  border-color: var(--primary, #2f6df6);
+}
+
+.cindy-card.current {
+  box-shadow: inset 0 0 0 1px var(--primary, #2f6df6);
+}
+
+.cindy-card header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cindy-check {
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+}
+
+.cindy-name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cindy-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--surface-tertiary);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.cindy-badge.oauth {
+  background: rgba(47, 109, 246, 0.18);
+  color: #7fa6ff;
+}
+
+.cindy-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.cindy-row b {
+  color: var(--text-primary);
+}
+
+.cindy-row b.ok {
+  color: #56e0b0;
+}
+
+.cindy-quota {
+  background: var(--surface-tertiary);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.cindy-quota-grid {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.cindy-quota-grid b {
+  color: var(--text-primary);
+}
+
+.cindy-quota-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+/* 额度进度条（已用/总量） */
+.cindy-progress {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--surface-hover, rgba(128, 128, 128, 0.25));
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.cindy-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--primary, #2f6df6);
+  transition: width 0.3s ease;
+}
+
+/* 区域角标：CN 人民币 / 国际 美元 */
+.cindy-badge.cn {
+  background: rgba(255, 106, 61, 0.18);
+  color: #ff8a5c;
+  font-weight: 600;
+}
+
+.cindy-badge.intl {
+  background: rgba(86, 224, 176, 0.15);
+  color: #56e0b0;
+}
+
+.cindy-quota-empty {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.6;
+}
+
+.cindy-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cindy-card footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+  margin-top: auto;
+}
+
+.cindy-time,
+.cindy-usage {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cindy-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.cindy-actions button {
+  background: var(--surface-tertiary);
+  border: 0;
+  color: var(--text-secondary);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cindy-actions button:hover {
+  color: var(--text-primary);
+}
+
+/* ── 空状态与分页 ─────────────────────────────────────── */
+.cindy-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 0;
+  color: var(--text-secondary);
+  background: var(--surface-secondary);
+  border: 1px dashed var(--border-subtle);
+  border-radius: 14px;
+}
+
+.cindy-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.cindy-pager > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

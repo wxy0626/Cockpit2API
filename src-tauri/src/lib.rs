@@ -542,6 +542,7 @@ pub fn run() {
             modules::workbuddy_keepalive::ensure_started();
             modules::workbuddy_auto_travel::ensure_started();
             modules::workbuddy_auto_tasks::ensure_started(app.handle().clone());
+            modules::cindy_gateway_sidecar::ensure_started();
 
             // Wakeup restore/start and Deep Link registration/read can hit disk or OS
             // APIs — never block setup (window + skeleton tray first).

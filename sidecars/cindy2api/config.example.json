@@ -1,0 +1,8 @@
+{
+  "listen": "127.0.0.1:7865",
+  "api_key": "",
+  "max_account_attempts": 3,
+  "check_interval_seconds": 300,
+  "refresh_interval_seconds": 60,
+  "upstream_timeout_seconds": 0
+}
