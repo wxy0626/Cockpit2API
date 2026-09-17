@@ -57,3 +57,8 @@ incremental = true
 # 剥离符号表：显著减小 exe 体积（86MB 起），链接写入更快，分发更小。
 # 代价：release 崩溃时拿不到符号名（日常使用无影响）。
 strip = "symbols"
+# 编译提速：opt 3→2（桌面工具运行时几乎无感），codegen-units 16→256
+# 把代码切成更多并行编译单元，20 核机器吃得满。两者叠加让全量构建的
+# 主 crate 编译明显变快；代价是运行时性能轻微下降（对本工具无感）。
+opt-level = 2
+codegen-units = 256

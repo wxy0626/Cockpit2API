@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "prebuild": "npm run typecheck",
     "build": "npm run sync-version && tsc && vite build",
+    "build:fast": "npm run sync-version && vite build",
     "release:preflight": "node scripts/release/preflight.cjs",
     "preview": "vite preview",
     "pretauri:dev": "npm run typecheck",

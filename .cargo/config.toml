@@ -1,0 +1,12 @@
+# 构建提速：把默认的 MSVC link.exe 换成 rust-lld。
+#
+# 为什么要换：本仓 release 产物是 72MB 级别的 exe，MSVC 链接器单独就要
+# 1~2 分钟；rust-lld 是 Rust 工具链自带的高性能链接器，链接大 exe 通常快数倍。
+#
+# 注意：
+#   - 换链接器会使全部编译缓存失效（rustflags 变化），切换后第一次构建是全量慢构建，
+#     属预期，一次性的。
+#   - 若某个依赖在 lld 下链接失败（个别 crates 需要 link.exe 特有行为），
+#     删掉本文件即可回退默认链接器。
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld"
