@@ -312,7 +312,9 @@ fn summarize_deep_link_args(args: &[String]) -> Vec<String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+// context 由 bin 侧传入（src-tauri/context crate 生成）：
+// 前端 dist 变化只重编 context crate + bin，本 lib（28 万行）不依赖它、不被牵连重编。
+pub fn run(context: tauri::Context<tauri::Wry>) {
     logger::init_logger();
     modules::diagnostics::install_panic_hook();
     modules::diagnostics::start_frontend_ready_watchdog();
@@ -1548,7 +1550,7 @@ pub fn run() {
             commands::antigravity_legacy_instance::antigravity_legacy_open_instance_window,
             commands::antigravity_legacy_instance::antigravity_legacy_close_all_instances,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application");
 
     app.run(|app_handle, event| {

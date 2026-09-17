@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src-tauri",
+    "src-tauri/context",
     "crates/cockpit-core",
     "crates/cockpit-cli",
 ]

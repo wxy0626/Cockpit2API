@@ -1,0 +1,39 @@
+[package]
+name = "cockpit-app-context"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# 与主 crate 的 custom-protocol 联动：开着 = 内嵌 dist 资源；关着 = 用 devUrl
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+swift-rs = { version = "1.0.7", features = ["build"] }
+
+# ⚠️ tauri-plugin-* 是 ACL 编译的硬性要求：插件权限清单通过插件 build 脚本的
+# DEP_* 环境变量传递（tauri-utils acl/build.rs:114），只有**直接依赖**才能拿到。
+# 缺一个，capabilities 里对应权限就报 "Permission xxx not found"。
+# 必须与 src-tauri/Cargo.toml 的插件清单保持同步。
+[dependencies]
+cockpit-tools = { path = ".." }
+
+# tauri features 必须与 src-tauri 的保持一致（tauri-build 校验 conf 的 allowlist）
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png", "unstable"] }
+serde = "1"
+serde_json = "1"
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-deep-link = "2"
+tauri-plugin-process = "2.3.1"
+tauri-plugin-updater = "2.10.0"
+
+# 真正的应用 bin。Windows 资源（图标/版本/manifest）经本包 build 脚本的
+# rustc-link-arg-bins 嵌入到这里 —— 这就是资源必须跟 bin 同包的原因。
+[[bin]]
+name = "cockpit-tools"
+path = "src/bin/cockpit-tools.rs"

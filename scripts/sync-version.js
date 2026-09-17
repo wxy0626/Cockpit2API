@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'fs';
 
 // Paths
 const PACKAGE_JSON_PATH = 'package.json';
-const TAURI_CONF_PATH = 'src-tauri/tauri.conf.json';
+const TAURI_CONF_PATH = 'src-tauri/context/tauri.conf.json';
 const CARGO_TOML_PATH = 'src-tauri/Cargo.toml';
 
 try {

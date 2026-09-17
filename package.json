@@ -20,7 +20,8 @@
     "pretauri": "npm run typecheck",
     "tauri": "node scripts/tauri.cjs",
     "sync-version": "node scripts/sync-version.js",
-    "test:rust:core": "cargo test --package cockpit-core -- --test-threads=1"
+    "test:rust:core": "cargo test --package cockpit-core -- --test-threads=1",
+    "build:app": "node scripts/build-app.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
