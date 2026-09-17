@@ -515,9 +515,15 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
         return write_openai_error(request, 400, "invalid_request", "read body failed");
     }
     // Responses 入站：翻译为 chat 请求体后再走统一链路；翻译失败即报 400
+    // 工具命名空间映射：Responses 入站的 namespace 容器被摊平后，回传 function_call
+    // 时需按此映射补回 namespace，客户端才能按「namespace+工具名」匹配执行器
+    let mut tool_ns_map: ToolNamespaceMap = ToolNamespaceMap::new();
     let body = if protocol == InboundProtocol::Responses {
         match responses_to_chat(&body) {
-            Ok(translated) => translated,
+            Ok((translated, ns_map)) => {
+                tool_ns_map = ns_map;
+                translated
+            }
             Err(error) => {
                 return write_openai_error(request, 400, "invalid_request", &error);
             }
@@ -610,7 +616,9 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
         if client_wants_stream {
             return match protocol {
                 InboundProtocol::Chat => stream_response(request, response),
-                InboundProtocol::Responses => stream_responses(request, response),
+                InboundProtocol::Responses => {
+                    stream_responses(request, response, tool_ns_map.clone())
+                }
             };
         }
         // 非流式：聚合 SSE 为单个 chat.completion（Responses 再包装为 Responses 结构）
@@ -1268,11 +1276,16 @@ fn pump_upstream_stream(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking::
 /// - `tools[].{name,parameters}` → `tools[].{type:"function",function:{name,parameters}}`。
 /// - `tool_choice` / `max_output_tokens` / `temperature` 等直通或改名。
 /// 失败时返回中文错误信息，由调用方以 400 回写。
-fn responses_to_chat(src: &[u8]) -> Result<Vec<u8>, String> {
+/// chat 工具名 → 所属命名空间。响应回传 function_call 时必须补回 namespace 字段，
+/// 否则 Codex 客户端按「namespace + 工具名」匹配执行器会失败（表现为 unsupported call）。
+type ToolNamespaceMap = std::collections::HashMap<String, String>;
+
+fn responses_to_chat(src: &[u8]) -> Result<(Vec<u8>, ToolNamespaceMap), String> {
     let Ok(Value::Object(obj)) = serde_json::from_slice::<Value>(src) else {
         return Err("请求体不是合法 JSON 对象".into());
     };
     let mut out = Map::new();
+    let mut ns_map: ToolNamespaceMap = HashMap::new();
 
     // 模型名直通
     if let Some(model) = obj.get("model") {
@@ -1312,28 +1325,14 @@ fn responses_to_chat(src: &[u8]) -> Result<Vec<u8>, String> {
     }
     out.insert("messages".into(), Value::Array(messages));
 
-    // 工具定义：Responses 为扁平结构，chat 需嵌一层 function
+    // 工具定义：Responses 为扁平结构，chat 需嵌一层 function。
+    // 注意 namespace 容器（如 functions.collaboration）内的工具必须递归展开，
+    // 否则上游只收到一个无参数的命名空间空壳，子代理等工具会整体消失。
     if let Some(Value::Array(tools)) = obj.get("tools") {
-        let converted: Vec<Value> = tools
-            .iter()
-            .filter_map(|t| {
-                let map = t.as_object()?;
-                // 已是 chat 格式则原样保留
-                if map.contains_key("function") {
-                    return Some(t.clone());
-                }
-                let name = map.get("name").and_then(Value::as_str)?;
-                let mut func = Map::new();
-                func.insert("name".into(), Value::String(name.to_string()));
-                if let Some(desc) = map.get("description") {
-                    func.insert("description".into(), desc.clone());
-                }
-                if let Some(params) = map.get("parameters") {
-                    func.insert("parameters".into(), params.clone());
-                }
-                Some(json!({ "type": "function", "function": Value::Object(func) }))
-            })
-            .collect();
+        let mut converted: Vec<Value> = Vec::new();
+        for tool in tools {
+            collect_chat_tools(tool, &mut converted, "", &mut ns_map);
+        }
         if !converted.is_empty() {
             out.insert("tools".into(), Value::Array(converted));
         }
@@ -1342,7 +1341,55 @@ fn responses_to_chat(src: &[u8]) -> Result<Vec<u8>, String> {
     if let Some(tc) = obj.get("tool_choice") {
         out.insert("tool_choice".into(), tc.clone());
     }
-    serde_json::to_vec(&Value::Object(out)).map_err(|e| format!("序列化翻译结果失败: {e}"))
+    let encoded = serde_json::to_vec(&Value::Object(out))
+        .map_err(|e| format!("序列化翻译结果失败: {e}"))?;
+    Ok((encoded, ns_map))
+}
+
+/// 递归收集 chat 可用的工具定义。
+///
+/// Codex 会用 `{type:"namespace", name:"functions.collaboration", tools:[...]}` 这类容器
+/// 包裹协作类工具（spawn_agent / wait_agent / send_message 等）。chat 协议没有命名空间
+/// 概念，必须把容器内的函数工具逐项摊平，否则它们对上游模型完全不可见
+/// —— 表现为「模型声称没有可调用的子代理」。
+fn collect_chat_tools(
+    tool: &Value,
+    out: &mut Vec<Value>,
+    ns: &str,
+    ns_map: &mut ToolNamespaceMap,
+) {
+    let Some(map) = tool.as_object() else { return };
+    let kind = map.get("type").and_then(Value::as_str).unwrap_or("");
+    // 命名空间容器：递归展开其 tools 子数组（可能多层嵌套），并向下传递容器名
+    if kind.eq_ignore_ascii_case("namespace") {
+        let container_ns = map.get("name").and_then(Value::as_str).unwrap_or(ns);
+        if let Some(Value::Array(inner)) = map.get("tools") {
+            for sub in inner {
+                collect_chat_tools(sub, out, container_ns, ns_map);
+            }
+        }
+        return;
+    }
+    // 已是 chat 格式则原样保留
+    if map.contains_key("function") {
+        out.push(tool.clone());
+        return;
+    }
+    // 标准 Responses 扁平工具 → chat 嵌套格式；无 name 的项直接跳过
+    let Some(name) = map.get("name").and_then(Value::as_str) else { return };
+    // 记录「工具名 → 命名空间」，供响应侧还原 function_call.namespace
+    if !ns.is_empty() {
+        ns_map.insert(name.to_string(), ns.to_string());
+    }
+    let mut func = Map::new();
+    func.insert("name".into(), Value::String(name.to_string()));
+    if let Some(desc) = map.get("description") {
+        func.insert("description".into(), desc.clone());
+    }
+    if let Some(params) = map.get("parameters") {
+        func.insert("parameters".into(), params.clone());
+    }
+    out.push(json!({ "type": "function", "function": Value::Object(func) }));
 }
 
 /// 单个 Responses input item → chat message；无法映射时返回 None。
@@ -1478,12 +1525,10 @@ fn chat_to_responses(chat: &Value) -> Value {
         "status": if finish == "length" { "incomplete" } else { "completed" },
         "output": output,
     });
-    if let Some(usage) = chat.get("usage") {
-        result["usage"] = json!({
-            "input_tokens": usage.get("prompt_tokens").cloned().unwrap_or(json!(0)),
-            "output_tokens": usage.get("completion_tokens").cloned().unwrap_or(json!(0)),
-            "total_tokens": usage.get("total_tokens").cloned().unwrap_or(json!(0)),
-        });
+    // usage 必须是对象才转换：上游缺 usage 时为 null，直接透传会产出 input_tokens:null。
+    // 复用流式同款转换，保证 GLM 风格缓存字段（prompt_cache_hit_tokens）不丢失。
+    if let Some(usage) = chat.get("usage").filter(|v| v.is_object()) {
+        result["usage"] = responses_usage_from_chat(usage);
     }
     result
 }
@@ -1492,7 +1537,11 @@ fn chat_to_responses(chat: &Value) -> Value {
 ///
 /// 与 `stream_response` 同样遵守 tiny_http 的阻塞式 respond 契约：
 /// **先 spawn 泵线程，再 respond**，否则死锁。
-fn stream_responses(request: tiny_http::Request, upstream: reqwest::blocking::Response) {
+fn stream_responses(
+    request: tiny_http::Request,
+    upstream: reqwest::blocking::Response,
+    tool_ns_map: ToolNamespaceMap,
+) {
     let (tx, rx) = mpsc::channel::<Vec<u8>>();
     let reader = PipeReader { rx, leftover: Vec::new(), offset: 0 };
     let response = tiny_http::Response::new(
@@ -1506,7 +1555,7 @@ fn stream_responses(request: tiny_http::Request, upstream: reqwest::blocking::Re
         None::<usize>,
         None::<mpsc::Receiver<tiny_http::Header>>,
     );
-    std::thread::spawn(move || pump_chat_to_responses(tx, upstream));
+    std::thread::spawn(move || pump_chat_to_responses(tx, upstream, tool_ns_map));
     logger::log_info("[WorkBuddyGateway] responses → 200 (SSE 流式回传)");
     let _ = request.respond(response);
 }
@@ -1547,7 +1596,11 @@ struct ToolItemState {
 /// `response.created` → `response.output_item.added` → 若干
 /// `response.output_text.delta` / `response.function_call_arguments.delta`
 /// → `response.output_item.done` → `response.completed`。
-fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking::Response) {
+fn pump_chat_to_responses(
+    tx: mpsc::Sender<Vec<u8>>,
+    upstream: reqwest::blocking::Response,
+    tool_ns_map: ToolNamespaceMap,
+) {
     let mut reader = BufReader::new(upstream);
     let mut line = String::new();
     let resp_id = format!("resp_{}", now_ms());
@@ -1558,8 +1611,15 @@ fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking
     // message 项的稳定 item_id：所有 output_text.delta 复用，避免每帧新生成
     let mut message_item_id = String::new();
     let mut text_index: u32 = 0;
+    // 累积 message 项正文：协议要求收尾的 output_item.done 与 response.completed
+    // 必须携带完整文本，否则客户端只看得到 delta、拿不到最终内容（表现为界面空白无响应）
+    let mut message_text = String::new();
     // 工具项状态：按上游 tool_calls[].index 定位，跨帧复用同一 output_index/item_id
     let mut tool_items: Vec<ToolItemState> = Vec::new();
+    // 上游 chat usage：流末尾的 usage 专用块（choices 缺省）也含真实用量，
+    // 捕获最新一条，收尾注入 response.completed —— 否则 sub2api 等计费网关
+    // 拿不到用量，WB2 账号使用记录全部为 0
+    let mut upstream_usage: Option<Value> = None;
 
     // response.created 起始事件
     let created = json!({
@@ -1594,6 +1654,10 @@ fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking
         let Ok(chunk) = serde_json::from_str::<Value>(payload) else {
             continue;
         };
+        // 先捕获 usage 再判 choices：usage 专用块没有 delta，漏捕获即计费为 0
+        if let Some(u) = chunk.get("usage").filter(|v| v.is_object()) {
+            upstream_usage = Some(u.clone());
+        }
         if model.is_null() {
             if let Some(m) = chunk.get("model") {
                 model = m.clone();
@@ -1630,7 +1694,20 @@ fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking
                     if !send_responses_event(&tx, "response.output_item.added", added) {
                         return;
                     }
+                    // 补充 content_part.added：官方序列在 message 项宣告后紧接内容部件
+                    let part_added = json!({
+                        "type": "response.content_part.added",
+                        "item_id": message_item_id.clone(),
+                        "output_index": text_index,
+                        "content_index": 0,
+                        "part": { "type": "output_text", "text": "", "annotations": [] }
+                    });
+                    if !send_responses_event(&tx, "response.content_part.added", part_added) {
+                        return;
+                    }
                 }
+                // 累积正文，供收尾事件回填完整文本
+                message_text.push_str(text);
                 let event = json!({
                     "type": "response.output_text.delta",
                     "item_id": message_item_id.clone(),
@@ -1683,17 +1760,22 @@ fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking
                 // 拿到函数名后才能构造合法的 function_call item，故此时才发 added（每项仅一次）
                 if !item.announced && !item.name.is_empty() {
                     item.announced = true;
+                    let mut added_item = json!({
+                        "id": item.item_id.clone(),
+                        "type": "function_call",
+                        "call_id": item.call_id.clone(),
+                        "name": item.name.clone(),
+                        "arguments": "",
+                        "status": "in_progress"
+                    });
+                    // 按「工具名→命名空间」映射补回 namespace，客户端据此路由执行器
+                    if let Some(ns) = tool_ns_map.get(item.name.as_str()) {
+                        added_item["namespace"] = json!(ns);
+                    }
                     let added = json!({
                         "type": "response.output_item.added",
                         "output_index": item.output_index,
-                        "item": {
-                            "id": item.item_id.clone(),
-                            "type": "function_call",
-                            "call_id": item.call_id.clone(),
-                            "name": item.name.clone(),
-                            "arguments": "",
-                            "status": "in_progress"
-                        }
+                        "item": added_item
                     });
                     if !send_responses_event(&tx, "response.output_item.added", added) {
                         return;
@@ -1722,8 +1804,24 @@ fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking
         }
     }
 
-    // 收尾：output_item.done + response.completed
+    // 收尾：output_text.done / content_part.done / output_item.done + response.completed
     if message_item_open {
+        let text_done = json!({
+            "type": "response.output_text.done",
+            "item_id": message_item_id.clone(),
+            "output_index": text_index,
+            "content_index": 0,
+            "text": message_text.clone()
+        });
+        let _ = send_responses_event(&tx, "response.output_text.done", text_done);
+        let part_done = json!({
+            "type": "response.content_part.done",
+            "item_id": message_item_id.clone(),
+            "output_index": text_index,
+            "content_index": 0,
+            "part": { "type": "output_text", "text": message_text.clone(), "annotations": [] }
+        });
+        let _ = send_responses_event(&tx, "response.content_part.done", part_done);
         let done = json!({
             "type": "response.output_item.done",
             "output_index": text_index,
@@ -1732,7 +1830,7 @@ fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking
                 "type": "message",
                 "role": "assistant",
                 "status": "completed",
-                "content": []
+                "content": [{ "type": "output_text", "text": message_text.clone(), "annotations": [] }]
             }
         });
         let _ = send_responses_event(&tx, "response.output_item.done", done);
@@ -1749,21 +1847,56 @@ fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking
             "arguments": item.arguments.clone()
         });
         let _ = send_responses_event(&tx, "response.function_call_arguments.done", args_done);
+        let mut done_item = json!({
+            "id": item.item_id.clone(),
+            "type": "function_call",
+            "call_id": item.call_id.clone(),
+            "name": item.name.clone(),
+            "arguments": item.arguments.clone(),
+            "status": "completed"
+        });
+        // 回传 namespace：客户端按「namespace+工具名」路由执行器
+        if let Some(ns) = tool_ns_map.get(item.name.as_str()) {
+            done_item["namespace"] = json!(ns);
+        }
         let item_done = json!({
             "type": "response.output_item.done",
             "output_index": item.output_index,
-            "item": {
-                "id": item.item_id.clone(),
-                "type": "function_call",
-                "call_id": item.call_id.clone(),
-                "name": item.name.clone(),
-                "arguments": item.arguments.clone(),
-                "status": "completed"
-            }
+            "item": done_item
         });
         let _ = send_responses_event(&tx, "response.output_item.done", item_done);
     }
-    let completed = json!({
+    // 汇总所有已宣告的 output 项：客户端以 completed.output 作为最终结果来渲染，
+    // 此前写死为空数组会导致「请求成功但界面一片空白、看似毫无响应」
+    let mut output_items: Vec<Value> = Vec::new();
+    if message_item_open {
+        output_items.push(json!({
+            "id": message_item_id.clone(),
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [{ "type": "output_text", "text": message_text.clone(), "annotations": [] }]
+        }));
+    }
+    for item in &tool_items {
+        if !item.announced {
+            continue;
+        }
+        let mut ns_item = json!({
+            "id": item.item_id.clone(),
+            "type": "function_call",
+            "call_id": item.call_id.clone(),
+            "name": item.name.clone(),
+            "arguments": item.arguments.clone(),
+            "status": "completed"
+        });
+        // completed.output 是客户端渲染最终结果的依据，同样需要 namespace
+        if let Some(ns) = tool_ns_map.get(item.name.as_str()) {
+            ns_item["namespace"] = json!(ns);
+        }
+        output_items.push(ns_item);
+    }
+    let mut completed = json!({
         "type": "response.completed",
         "response": {
             "id": resp_id,
@@ -1771,10 +1904,38 @@ fn pump_chat_to_responses(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking
             "created_at": created_at,
             "model": model,
             "status": "completed",
-            "output": []
+            "output": output_items
         }
     });
+    if let Some(u) = &upstream_usage {
+        completed["response"]["usage"] = responses_usage_from_chat(u);
+    }
     let _ = send_responses_event(&tx, "response.completed", completed);
+}
+
+/// 上游 chat usage → Responses usage 形状：缺失字段补 0，保证 sub2api 等下游计费网关可解析。
+fn responses_usage_from_chat(chat_usage: &Value) -> Value {
+    let input = chat_usage.get("prompt_tokens").and_then(Value::as_i64).unwrap_or(0);
+    let output = chat_usage.get("completion_tokens").and_then(Value::as_i64).unwrap_or(0);
+    // 缓存命中：优先 OpenAI 标准字段；GLM 风格上游两者恒为 0，回退 prompt_cache_hit_tokens
+    let cached = chat_usage
+        .pointer("/prompt_tokens_details/cached_tokens")
+        .or_else(|| chat_usage.get("cached_tokens"))
+        .and_then(Value::as_i64)
+        .filter(|&v| v > 0)
+        .or_else(|| chat_usage.get("prompt_cache_hit_tokens").and_then(Value::as_i64))
+        .unwrap_or(0);
+    let reasoning = chat_usage
+        .pointer("/completion_tokens_details/reasoning_tokens")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    json!({
+        "input_tokens": input,
+        "output_tokens": output,
+        "total_tokens": chat_usage.get("total_tokens").and_then(Value::as_i64).unwrap_or(input + output),
+        "input_tokens_details": { "cached_tokens": cached },
+        "output_tokens_details": { "reasoning_tokens": reasoning }
+    })
 }
 
 /// 非流式聚合：读取上游 SSE 全部帧，合成单个 chat.completion（对齐 Go 版 Aggregate）
