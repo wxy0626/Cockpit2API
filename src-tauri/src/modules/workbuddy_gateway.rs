@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{mpsc, Mutex, OnceLock};
+use std::sync::{mpsc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Map, Value};
@@ -38,6 +38,8 @@ const MAX_ROTATE: usize = 3;
 const SOFT_COOLDOWN: Duration = Duration::from_secs(60);
 /// 连续 5xx 达到该次数触发 30 分钟熔断
 const BREAKER_THRESHOLD: u32 = 3;
+/// 单账号并发上限全局默认（对齐 Go 版 pool.max_in_flight；0 = 不限）
+const DEFAULT_MAX_IN_FLIGHT: u32 = 3;
 /// token 提前刷新窗口（毫秒）：距过期不足 10 分钟先刷新
 const REFRESH_SKEW_MS: i64 = 10 * 60 * 1000;
 /// 请求体上限 8MB
@@ -69,7 +71,7 @@ fn models_cache() -> &'static Mutex<ModelsCache> {
     })
 }
 
-/// 账号运行态：冷却 / 禁用 / 连续错误计数（内存态，重启即复位）
+/// 账号运行态：冷却 / 禁用 / 连续错误计数（内存态，重启即复位）/ 在途租约
 #[derive(Default, Clone)]
 struct AccountRuntime {
     /// 软/硬冷却截止时间（本地时钟）
@@ -78,11 +80,81 @@ struct AccountRuntime {
     disabled: bool,
     /// 连续 5xx 计数（成功清零；达阈值触发熔断）
     err_streak: u32,
+    /// 在途请求数（运行态；由 InFlightGuard 保证增减配对）
+    in_flight: usize,
 }
 static ACCOUNT_STATES: OnceLock<Mutex<HashMap<String, AccountRuntime>>> = OnceLock::new();
 
 fn account_states() -> &'static Mutex<HashMap<String, AccountRuntime>> {
     ACCOUNT_STATES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// 单账号并发上限覆盖（account.id → limit；缺省/0 = 跟随全局 DEFAULT_MAX_IN_FLIGHT）。
+/// 持久化到 data_dir/workbuddy_gateway_limits.json，重启后仍生效。
+static ACCOUNT_LIMITS: OnceLock<RwLock<HashMap<String, u32>>> = OnceLock::new();
+
+fn account_limits() -> &'static RwLock<HashMap<String, u32>> {
+    ACCOUNT_LIMITS.get_or_init(|| RwLock::new(load_account_limits()))
+}
+
+/// 从 data_dir/workbuddy_gateway_limits.json 读取覆盖表（缺失/损坏返回空表）
+fn load_account_limits() -> HashMap<String, u32> {
+    let Ok(dir) = crate::modules::account::get_data_dir() else {
+        return HashMap::new();
+    };
+    let Ok(raw) = std::fs::read_to_string(dir.join("workbuddy_gateway_limits.json")) else {
+        return HashMap::new();
+    };
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+/// 覆盖表落盘（原子性要求不高，直接覆盖写）
+fn save_account_limits(map: &HashMap<String, u32>) {
+    if let Ok(dir) = crate::modules::account::get_data_dir() {
+        let payload = serde_json::to_string_pretty(map).unwrap_or_else(|_| "{}".into());
+        let _ = std::fs::write(dir.join("workbuddy_gateway_limits.json"), payload);
+    }
+}
+
+/// 账号当前生效的并发上限：账号覆盖 > 全局默认（0 = 不限）
+fn effective_max_in_flight(account_id: &str) -> u32 {
+    let over = account_limits()
+        .read()
+        .ok()
+        .and_then(|m| m.get(account_id).copied())
+        .unwrap_or(0);
+    if over > 0 { over } else { DEFAULT_MAX_IN_FLIGHT }
+}
+
+/// 在途租约：占一个名额（满载返回 false）。锁异常时放行，不因内部错误阻塞请求。
+fn acquire_in_flight(account_id: &str) -> bool {
+    let Ok(mut states) = account_states().lock() else { return true };
+    // 锁序约定：states → limits（pick_account 同序），勿反向嵌套
+    let limit = effective_max_in_flight(account_id);
+    let state = states.entry(account_id.to_string()).or_default();
+    if limit > 0 && state.in_flight >= limit as usize {
+        return false;
+    }
+    state.in_flight += 1;
+    true
+}
+
+/// 在途租约释放（幂等，减到 0 为止）
+fn release_in_flight(account_id: &str) {
+    if let Ok(mut states) = account_states().lock() {
+        if let Some(state) = states.get_mut(account_id) {
+            state.in_flight = state.in_flight.saturating_sub(1);
+        }
+    }
+}
+
+/// 在途租约守卫：acquire 成功后持有，Drop 时自动释放（覆盖换号/提前返回/流式结束所有路径）
+struct InFlightGuard(String);
+
+impl Drop for InFlightGuard {
+    fn drop(&mut self) {
+        release_in_flight(&self.0);
+    }
 }
 
 /// 动态模型信息
@@ -575,6 +647,13 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
             account.clone()
         };
 
+        // 在途租约：满载换号（对齐 Go 版 Acquire/Release）；守卫 Drop 覆盖所有退出路径
+        if !acquire_in_flight(&fresh.id) {
+            last_error = format!("account {} in-flight full", fresh.id);
+            continue;
+        }
+        let _in_flight_lease = InFlightGuard(fresh.id.clone());
+
         // 转发上游
         let payload = prepare_body(&body);
         let response = chat_client().post(format!("{CHAT_BASE}{UPSTREAM_CHAT_PATH}"))
@@ -800,7 +879,9 @@ fn truncate(text: &str, max: usize) -> String {
 /// 选号与冷却策略
 /// ---------------------------------------------------------------------------
 
-/// 轮换选号：跳过冷却 / 禁用 / 已尝试的账号；成功号记一条统计
+/// 轮换选号：跳过冷却 / 禁用 / 在途满载 / 已尝试的账号；成功号记一条统计。
+/// 加权轮询：并发上限即票数（上限 1 → 1 票，默认 3 → 3 票），上限高的号承担更多流量；
+/// 低上限号（如设为 1）基本分不到流量，仅在其他号满载/冷却/熔断或轮询恰好命中其唯一票位时被选中。
 fn pick_account(tried: &[String]) -> Option<crate::models::workbuddy::WorkbuddyAccount> {
     let accounts = workbuddy_account::list_accounts();
     if accounts.is_empty() {
@@ -817,13 +898,28 @@ fn pick_account(tried: &[String]) -> Option<crate::models::workbuddy::WorkbuddyA
                 None => true,
             }
         })
+        // 在途满载过滤：已达生效上限（覆盖>全局）的账号本轮跳过，请求发散到其他号
+        .filter(|a| {
+            states.get(&a.id).map(|s| s.in_flight).unwrap_or(0)
+                < effective_max_in_flight(&a.id) as usize
+        })
         .collect();
     drop(states);
     if candidates.is_empty() {
         return None;
     }
-    let offset = ROUND_ROBIN.fetch_add(1, Ordering::Relaxed) % candidates.len();
-    Some(candidates[offset].clone())
+    // 上限即票数：按生效上限展开候选（0=不限按全局默认计），再对票位做轮询，
+    // 使各账号的流量占比 ≈ 其并发上限占比（对齐用户"上限进权重"的预期）。
+    let mut tickets: Vec<&crate::models::workbuddy::WorkbuddyAccount> = Vec::new();
+    for account in &candidates {
+        let limit = effective_max_in_flight(&account.id);
+        let n = if limit > 0 { limit as usize } else { DEFAULT_MAX_IN_FLIGHT as usize };
+        for _ in 0..n {
+            tickets.push(account);
+        }
+    }
+    let offset = ROUND_ROBIN.fetch_add(1, Ordering::Relaxed) % tickets.len();
+    Some(tickets[offset].clone())
 }
 
 /// 成功：清零连续错误计数
@@ -2075,6 +2171,7 @@ fn handle_admin_request(mut request: tiny_http::Request) {
     let url = request.url().split('?').next().unwrap_or("").to_string();
     match url.as_str() {
         "/api/status" => handle_admin_status(request),
+        "/api/account/max-in-flight" => handle_admin_max_in_flight(request),
         "/api/config" => {
             let key = resolve_api_key();
             // 容器/局域网视角的访问地址：宿主机 LAN IP（供 Docker 容器或局域网内其他机器使用）
@@ -2132,11 +2229,16 @@ fn handle_admin_status(request: tiny_http::Request) {
     let mut items = Vec::new();
     let mut cooling = 0usize;
     let mut disabled = 0usize;
+    let mut in_flight_full = 0usize;
     for account in &accounts {
         let state = states.as_ref().and_then(|s| s.get(&account.id)).cloned().unwrap_or_default();
         let is_cooling = state.cooldown_until.map(|t| t > now).unwrap_or(false);
         if is_cooling { cooling += 1; }
         if state.disabled { disabled += 1; }
+        // 并发维度：生效上限（覆盖>全局，0=不限）+ 是否满载
+        let limit = effective_max_in_flight(&account.id);
+        let full = limit > 0 && state.in_flight >= limit as usize;
+        if full { in_flight_full += 1; }
         items.push(json!({
             "uid": account.uid.clone().unwrap_or_else(|| account.id.clone()),
             "nickname": account.nickname.clone().unwrap_or_else(|| account.email.clone()),
@@ -2144,6 +2246,9 @@ fn handle_admin_status(request: tiny_http::Request) {
             "cooling": is_cooling,
             "disabled": state.disabled,
             "err_streak": state.err_streak,
+            "in_flight": state.in_flight,
+            "max_in_flight": limit,
+            "in_flight_full": full,
         }));
     }
     let healthy = items.iter().filter(|i| {
@@ -2159,9 +2264,57 @@ fn handle_admin_status(request: tiny_http::Request) {
             "healthy": healthy,
             "cooling": cooling,
             "disabled": disabled,
-            "in_flight_full": 0,
+            "in_flight_full": in_flight_full,
             "sticky_sessions": 0,
             "redis_mode": "noop",
         }),
     );
+}
+
+/// 管理端：设置单账号并发上限（POST {uid, limit}）。
+/// limit > 0 覆盖全局默认并持久化；limit <= 0 清除覆盖回落全局。
+fn handle_admin_max_in_flight(mut request: tiny_http::Request) {
+    let mut body = String::new();
+    let _ = request.as_reader().read_to_string(&mut body);
+    let value: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
+    let uid = value.get("uid").and_then(Value::as_str).unwrap_or("").to_string();
+    let limit = value.get("limit").and_then(Value::as_i64).unwrap_or(0).clamp(0, 99) as u32;
+    if uid.is_empty() {
+        write_json_response(request, 200, &json!({ "ok": false, "message": "缺少 uid" }));
+        return;
+    }
+    // uid 与 account.id 都接受（前端拿到的 uid 可能是 id 兜底）
+    let accounts = workbuddy_account::list_accounts();
+    let Some(account_id) = accounts
+        .iter()
+        .find(|a| a.uid.as_deref() == Some(uid.as_str()) || a.id == uid)
+        .map(|a| a.id.clone())
+    else {
+        write_json_response(request, 200, &json!({ "ok": false, "message": "账号不在本地账号库中" }));
+        return;
+    };
+    {
+        let mut map = match account_limits().write() {
+            Ok(map) => map,
+            Err(_) => {
+                write_json_response(request, 200, &json!({ "ok": false, "message": "内部锁异常" }));
+                return;
+            }
+        };
+        if limit > 0 {
+            map.insert(account_id, limit);
+        } else {
+            map.remove(&account_id);
+        }
+        save_account_limits(&map);
+    }
+    let message = if limit > 0 {
+        format!("已设置并发上限 {limit}")
+    } else {
+        "已清除覆盖，回落全局上限".to_string()
+    };
+    logger::log_info(&format!(
+        "[WorkBuddyGateway] account {uid} max_in_flight → {limit}",
+    ));
+    write_json_response(request, 200, &json!({ "ok": true, "uid": uid, "limit": limit, "message": message }));
 }

@@ -964,7 +964,28 @@ func (p *Pool) entryWeight(uid string) float64 {
 			maxCredits = x.credits
 		}
 	}
-	return p.weightOf(e, maxCredits, time.Now())
+	var maxLimit int64
+	for _, x := range p.byUID {
+		if l := int64(x.maxInFlightOverride); l > maxLimit {
+			maxLimit = l
+		}
+	}
+	if maxLimit == 0 && p.maxInFlight > 0 {
+		maxLimit = int64(p.maxInFlight)
+	}
+	return p.weightOf(e, maxCredits, maxLimit, time.Now())
+}
+
+// TestWeightLimitFactorDominates 并发上限进权重：同 credits 同闲置时，上限高的号权重更高。
+func TestWeightLimitFactorDominates(t *testing.T) {
+	p := New("")
+	p.Add(&auth.Auth{UID: "lo"})
+	p.Add(&auth.Auth{UID: "hi"})
+	p.SetAccountMaxInFlight("lo", 1)
+	p.SetAccountMaxInFlight("hi", 3)
+	if wLo, wHi := p.entryWeight("lo"), p.entryWeight("hi"); wLo >= wHi {
+		t.Errorf("higher limit should outweigh lower: lo=%v hi=%v", wLo, wHi)
+	}
 }
 
 func TestWeightHighCreditsDominates(t *testing.T) {
@@ -1107,6 +1128,64 @@ func TestPickSkipsInFlightFull(t *testing.T) {
 		t.Fatalf("after release full should be pickable, got %+v", got)
 	}
 	p.Release("full")
+}
+
+// TestAccountMaxInFlightOverride 单账号覆盖生效：全局不限（0）时，覆盖值为 1 的账号
+// 占满后应被 Pick 跳过、Acquire 拒绝；未覆盖账号不受影响。
+func TestAccountMaxInFlightOverride(t *testing.T) {
+	withNoPickGap(t)
+	p := New("")
+	p.Add(&auth.Auth{UID: "limited"})
+	p.Add(&auth.Auth{UID: "free"})
+	p.SetCredits("limited", 1000)
+	p.SetCredits("free", 1)
+	// 全局 0 = 不限；仅给 limited 覆盖上限 1。
+	if !p.SetAccountMaxInFlight("limited", 1) {
+		t.Fatal("set override should succeed")
+	}
+	if p.SetAccountMaxInFlight("ghost", 1) {
+		t.Fatal("set override on unknown uid should fail")
+	}
+
+	if !p.Acquire("limited") {
+		t.Fatal("first acquire within override limit should succeed")
+	}
+	if p.Acquire("limited") {
+		t.Fatal("second acquire should fail (override limit 1, global unlimited)")
+	}
+	got := p.Pick()
+	if got == nil || got.UID != "free" {
+		t.Fatalf("pick should skip override-full account, got %+v", got)
+	}
+
+	// 清除覆盖（limit<=0 回落全局不限）后可再次 acquire。
+	p.SetAccountMaxInFlight("limited", 0)
+	if !p.Acquire("limited") {
+		t.Fatal("acquire should succeed after override cleared")
+	}
+}
+
+// TestAccountMaxInFlightPersists 覆盖值经 state.json 落盘后重载不丢。
+func TestAccountMaxInFlightPersists(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "state.json")
+	p := New(fp)
+	p.Add(&auth.Auth{UID: "u1"})
+	p.SetMaxInFlight(0) // 全局不限，隔离覆盖值的作用
+	p.SetAccountMaxInFlight("u1", 2)
+	p.Flush()
+	p2 := New(fp)
+	p2.Add(&auth.Auth{UID: "u1"})
+	st, ok := p2.Status("u1")
+	if !ok || st.MaxInFlight != 2 {
+		t.Fatalf("override lost after reload: %+v ok=%v", st, ok)
+	}
+	if !p2.Acquire("u1") || !p2.Acquire("u1") {
+		t.Fatal("acquires within override limit should succeed")
+	}
+	if p2.Acquire("u1") {
+		t.Fatal("third acquire should fail (override limit 2 survived reload)")
+	}
 }
 
 func TestInFlightCountNotExceedLimit(t *testing.T) {

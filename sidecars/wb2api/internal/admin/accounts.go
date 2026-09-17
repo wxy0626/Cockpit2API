@@ -4,6 +4,7 @@ package admin
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -319,6 +320,35 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request) {
 		s.Opt.OnAuthsChanged()
 	}
 	s.writeJSON(w, 200, map[string]any{"ok": true, "message": "已删除，账号池已同步"})
+}
+
+// handleAccountMaxInFlight POST /api/account/max-in-flight {uid, limit}：
+// 设置单账号并发上限（limit>0 生效；<=0 清除覆盖、回落全局 pool.max_in_flight）。
+// 上限打满的账号在 Pick/Acquire 两处都会被跳过，请求自动换其他账号。
+func (s *Server) handleAccountMaxInFlight(w http.ResponseWriter, r *http.Request) {
+	body := s.decodeBody(r)
+	uid := safeUID(str(body["uid"]))
+	if uid == "" {
+		s.writeJSON(w, 200, map[string]any{"ok": false, "message": "缺少 uid"})
+		return
+	}
+	// JSON 数字统一反序列化为 float64，转回 int（兼容字符串传参）。
+	limit := 0
+	switch v := body["limit"].(type) {
+	case float64:
+		limit = int(v)
+	case string:
+		fmt.Sscanf(v, "%d", &limit)
+	}
+	if !s.Opt.Pool.SetAccountMaxInFlight(uid, limit) {
+		s.writeJSON(w, 200, map[string]any{"ok": false, "message": "账号不在池中（尚未登录或已删除）"})
+		return
+	}
+	msg := fmt.Sprintf("已设置并发上限 %d", limit)
+	if limit <= 0 {
+		msg = "已清除覆盖，回落全局上限"
+	}
+	s.writeJSON(w, 200, map[string]any{"ok": true, "uid": uid, "limit": limit, "message": msg})
 }
 
 // shortMsg 截断错误消息便于前端展示。

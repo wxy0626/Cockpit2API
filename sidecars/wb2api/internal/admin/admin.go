@@ -20,6 +20,7 @@
 //	POST /api/credits/one       单账号积分查询
 //	POST /api/keepalive         全账号 token 保活
 //	POST /api/account/delete    删除账号（删文件 + 热同步池）
+//	POST /api/account/max-in-flight {uid, limit} 设置单账号并发上限（limit<=0 回落全局）
 //	POST /api/chat              对话测试（走本进程 /v1 完整链路）
 //
 // 安全：仅监听回环地址；能操作凭证与配置，不对局域网暴露。
@@ -169,6 +170,8 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 		s.handleKeepalive(w)
 	case r.Method == http.MethodPost && path == "/api/account/delete":
 		s.handleAccountDelete(w, r)
+	case r.Method == http.MethodPost && path == "/api/account/max-in-flight":
+		s.handleAccountMaxInFlight(w, r)
 	case r.Method == http.MethodPost && path == "/api/chat":
 		s.handleChat(w, r)
 	case r.Method == http.MethodPost && path == "/api/container":

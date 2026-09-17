@@ -34,7 +34,7 @@ WorkBuddy2API 是一个自托管的 **OpenAI 兼容反向代理网关**，将腾
 |---|---|
 | 🔑 **OAuth 一键登录** | `login.sh` 设备授权流程（无 PKCE），自动落盘凭证并重启容器 |
 | 🔄 **多账号池** | 三因子加权随机选号（积分比例 ×10 + 闲置补偿 + 成功率 ×3），Top-5 候选 + 防惊群 |
-| 🛡️ **熔断与冷却** | 429/404 软冷却、402/余额不足硬冷却至次日 04:00、连续失败指数退避熔断、在途租约限流 |
+| 🛡️ **熔断与冷却** | 429/404 软冷却、402/余额不足硬冷却至次日 04:00、连续失败指数退避熔断、在途租约限流（全局默认 3，可按账号覆盖） |
 | 🧲 **会话粘性** | 同一会话（`conversation_id`）尽量绑定同一账号，TTL 滚动续期，失败自动解绑 |
 | ⏰ **定时任务** | 每日 09:00 / 21:00 自动签到 + 余额查询解冻；22:00 全账号 token 刷新保活 |
 | ⚡ **流式 + 非流式** | 上游 SSE 逐帧规范化透传；出站强制 `stream:true`，非流式由本地聚合为单响应 |
@@ -271,10 +271,17 @@ curl -s http://localhost:7863/v1/chat/completions \
 |---|---|---|
 | `POST /v1/chat/completions` | Bearer（`api_key` 非空时） | OpenAI 兼容补全；流式/非流式；请求体上限 8 MiB |
 | `GET /v1/models` | Bearer（`api_key` 非空时） | 模型列表（动态拉取，缓存 1h；失败回落静态表 + 5min 负缓存） |
-| `GET /status` | Bearer（`api_key` 非空时） | 账号状态汇总 + 每账号详情（积分/冷却/熔断/在途/粘性） |
+| `GET /status` | Bearer（`api_key` 非空时） | 账号状态汇总 + 每账号详情（积分/冷却/熔断/在途/粘性/并发上限与满载标记） |
 | `GET /healthz` | 无 | 健康检查：有 healthy 且未占满账号返回 200，否则 503 |
 
 > 鉴权规则：仅当 `api_key` 非空才校验 `Authorization: Bearer <api_key>`；**`api_key` 为空时上述端点直接放行**；`/healthz` 恒无鉴权。
+
+### 单账号并发上限
+
+- 全局默认 `pool.max_in_flight = 3`（`config.json`，0 = 不限）；打满上限的账号在 **Pick 短名单**与 **Acquire 租约**两处都会被跳过，请求自动换其他账号。
+- 需要单独照顾某个号时，走管理端 `POST /api/account/max-in-flight`，Body `{"uid":"<uid>","limit":2}`：
+  `limit > 0` 覆盖全局（持久化到 `state.json` 的 `max_in_flight` 字段），`limit <= 0` 清除覆盖回落全局。
+- `/status` 每账号新增 `max_in_flight`（生效上限）与 `in_flight_full`（是否满载）字段；App「OpenAI 兼容网关」面板提供同名设置入口。
 
 ### 流式行为细节
 

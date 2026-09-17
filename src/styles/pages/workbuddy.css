@@ -240,6 +240,10 @@
 .ghcp-account-card .card-badge-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:4px}
 .ghcp-account-card .card-badge-row:empty{display:none}
 
+/* WB 卡片首行套餐标签（FREE 等）右对齐：margin-left:auto 推到卡片右边缘，
+   与第二行徽标/并发上限输入框（margin-left:auto）对齐到同一条右边线 */
+.workbuddy-accounts-page .ghcp-account-card .card-top .tier-badge{margin-left:auto}
+
 /* 自定义模型下拉（ModelSelect）：自绘弹层替代原生 select，保证深浅主题下选项均清晰可读 */
 .wb-model-select{position:relative;width:220px;flex-shrink:0}
 .wb-model-trigger{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;background:var(--surface-tertiary);border:1px solid var(--border-subtle);color:var(--text-primary);padding:10px 12px;border-radius:9px;cursor:pointer;font-size:13px}

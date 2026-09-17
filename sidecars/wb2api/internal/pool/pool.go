@@ -63,6 +63,11 @@ type Status struct {
 	InFlight     int       `json:"in_flight"`
 	BreakerFails int       `json:"breaker_fails"`
 	BreakerUntil time.Time `json:"breaker_until,omitempty"`
+
+	// 并发上限：EffectiveMaxInFlight 为该账号当前生效的上限（账号覆盖 > 全局）；
+	// InFlightFull 报告是否已达上限（供 /status 透出满载）。
+	MaxInFlight  int  `json:"max_in_flight,omitempty"`
+	InFlightFull bool `json:"in_flight_full,omitempty"`
 }
 
 type entry struct {
@@ -76,7 +81,8 @@ type entry struct {
 	until        time.Time // 冷却截止（即时冷却：CoolSoft 429 / CoolHard 余额耗尽）
 	disabled     bool
 	reason       string
-	lastUsed     time.Time // 最近被选中时刻（防并发撞号）
+	lastUsed     time.Time // 最近被选中时刻（防并发撞号 + LRU 兜底的次级序）
+	pickSeq      uint64    // 选号序号（运行态，LRU 兜底的主序；0 = 从未被本池选中）
 
 	// breakerUntil / fails / retryCount 为熔断器运行态（不持久化）。
 	// fails 是唯一的"连续失败"计数器：任何错误喂入，达到 breakerThreshold 触发熔断（指数退避），
@@ -87,6 +93,10 @@ type entry struct {
 
 	// inFlight 单账号在途请求数（运行态，不持久化）。用 atomic 避免 Pick 热路径拿写锁。
 	inFlight atomic.Int64
+
+	// maxInFlightOverride 单账号并发上限覆盖（持久化到 state.json 的 max_in_flight）。
+	// 0 = 跟随全局 p.maxInFlight；>0 = 用该值。访问需持 p.mu。
+	maxInFlightOverride int
 }
 
 // healthy 报告账号当前是否可选（未禁用、未处于任一冷却/熔断期）。
@@ -144,6 +154,9 @@ type stateAccount struct {
 	ErrCount    int       `json:"err_count,omitempty"` // 兼容旧文件的迁移源，仅读取
 	LastSuccess time.Time `json:"last_success,omitempty"`
 	LastErr     time.Time `json:"last_err,omitempty"`
+
+	// max_in_flight 单账号并发上限覆盖（0 = 跟随全局 pool.max_in_flight）。
+	MaxInFlight int `json:"max_in_flight,omitempty"`
 }
 
 // stateFile 持久化格式。
@@ -195,6 +208,11 @@ type Pool struct {
 	// persistFails 本地 state.json 连续落盘失败计数（仅 saveLocked 在持锁下读写，无需 atomic）。
 	// 用于落盘失败的日志节流：首败/每 N 次提醒/恢复各打一条，避免磁盘满时刷屏。
 	persistFails int
+
+	// pickSeqCounter 选号序号发生器（仅持锁读写）。Windows 单调时钟粒度粗（~0.5ms+），
+	// 高并发 Pick 落在同一刻度会让 lastUsed 并列，LRU 兜底因此黏死同一账号（cands[0]）。
+	// pickSeq 提供与真实时钟无关的全序，保证兜底轮转。
+	pickSeqCounter uint64
 }
 
 // defaultBreaker* 熔断器默认参数（FreeBuff2API 参考口径）。
@@ -216,6 +234,10 @@ const (
 	defaultIdleWeightPerHour = 0.5
 	defaultIdleWeightMax     = 5.0
 )
+
+// weightLimitFactor 并发上限因子的权重系数：上限比例 ×3（与成功率同量级）。
+// 上限进权重：上限高的号承担更多流量，上限 1 的号主动让位（0=不限按候选集最大上限计）。
+const weightLimitFactor = 3.0
 
 // New 构建池；stateFp 非空时尝试加载旧状态，并启动后台周期性落盘 goroutine。
 func New(stateFp string) *Pool {
@@ -318,7 +340,10 @@ func (p *Pool) RestoreFromSnapshot() {
 func (p *Pool) Acquire(uid string) bool {
 	p.mu.RLock()
 	e, ok := p.byUID[uid]
-	limit := p.maxInFlight
+	var limit int
+	if ok {
+		limit = p.effectiveMaxInFlight(e)
+	}
 	p.mu.RUnlock()
 	if !ok {
 		return false
@@ -479,6 +504,16 @@ func (p *Pool) pick(tried map[string]bool) *auth.Auth {
 			maxCredits = e.credits
 		}
 	}
+	// 并发上限归一化基准：取候选集内最大生效上限（全 0/不限 → 0，权重因子跳过）。
+	var maxLimit int64
+	for _, e := range cands {
+		if l := int64(e.maxInFlightOverride); l > maxLimit {
+			maxLimit = l
+		}
+	}
+	if maxLimit == 0 && p.maxInFlight > 0 {
+		maxLimit = int64(p.maxInFlight)
+	}
 	// 权重只算一次：顶 5 截断要排序，若在 sort 比较器里现算 weightOf 会翻成 O(n log n) 次
 	// 冗余浮点计算（46 账号约 500 次）。先做 O(n) 预计算，再按 (权重, uid) 排序。
 	type weighted struct {
@@ -487,7 +522,7 @@ func (p *Pool) pick(tried map[string]bool) *auth.Auth {
 	}
 	ws := make([]weighted, len(cands))
 	for i, e := range cands {
-		ws[i] = weighted{e: e, w: p.weightOf(e, maxCredits, now)}
+		ws[i] = weighted{e: e, w: p.weightOf(e, maxCredits, maxLimit, now)}
 	}
 	sort.Slice(ws, func(i, j int) bool {
 		if ws[i].w != ws[j].w {
@@ -512,17 +547,34 @@ func (p *Pool) pick(tried map[string]bool) *auth.Auth {
 	var e *entry
 	if len(eligible) == 0 {
 		// top5 全部刚被用过：LRU 兜底，维持发散且不 starve 任一候选。
+		// 用 pickSeq 全序比较（时钟并列时 lastUsed 会黏在 cands[0]）。
 		e = cands[0]
 		for _, c := range cands[1:] {
-			if c.lastUsed.Before(e.lastUsed) {
+			if lruLess(c, e) {
 				e = c
 			}
 		}
 	} else {
 		e = p.pickWeighted(eligible) // eligible 保序 = top5 降序子集
 	}
+	// 记录选号序号 + lastUsed：pickSeq 是 LRU 兜底的唯一权威序（时钟并列也不黏号）。
+	p.pickSeqCounter++
+	e.pickSeq = p.pickSeqCounter
 	e.lastUsed = time.Now()
 	return e.a
+}
+
+// lruLess LRU 兜底排序：pickSeq 小者优先（从未被本池选中的账号 seq=0，最旧）；
+// seq 并列（测试手工注入 lastUsed 的场景）回退 lastUsed 比较，再并列按 uid 稳定序。
+// 调用方必须已持有 p.mu。
+func lruLess(a, b *entry) bool {
+	if a.pickSeq != b.pickSeq {
+		return a.pickSeq < b.pickSeq
+	}
+	if !a.lastUsed.Equal(b.lastUsed) {
+		return a.lastUsed.Before(b.lastUsed)
+	}
+	return a.a.UID < b.a.UID
 }
 
 // pickEarliestExpiryLocked 全冷却兜底：在非禁用的软冷却/熔断账号中选截止最早的一个。
@@ -556,32 +608,64 @@ func (p *Pool) pickEarliestExpiryLocked(tried map[string]bool, now time.Time) *a
 		return nil
 	}
 	log.Printf("pool: fallback_earliest_expiry uid=%s until=%s kind=%s", best.a.UID, best.expiry(now).Format(time.RFC3339), best.fallbackKind(now))
+	p.pickSeqCounter++
+	best.pickSeq = p.pickSeqCounter
 	best.lastUsed = time.Now()
 	return best.a
 }
 
-// inFlightFull 报告账号是否已占满在途名额（max=0 不限 → 恒 false）。
-// 调用方需已持 p.mu（读锁或写锁均可，本方法只读 p.maxInFlight）。
+// inFlightFull 报告账号是否已占满在途名额（上限 0 = 不限 → 恒 false）。
+// 上限取账号覆盖值（maxInFlightOverride），未覆盖时回落全局 p.maxInFlight。
+// 调用方需已持 p.mu（读锁或写锁均可，本方法只读）。
 func (p *Pool) inFlightFull(e *entry) bool {
-	if p.maxInFlight <= 0 {
+	limit := p.effectiveMaxInFlight(e)
+	if limit <= 0 {
 		return false
 	}
-	return e.inFlight.Load() >= int64(p.maxInFlight)
+	return e.inFlight.Load() >= int64(limit)
+}
+
+// effectiveMaxInFlight 返回账号当前生效的并发上限：账号覆盖 > 全局；0 = 不限。
+// 调用方需已持 p.mu。
+func (p *Pool) effectiveMaxInFlight(e *entry) int {
+	if e.maxInFlightOverride > 0 {
+		return e.maxInFlightOverride
+	}
+	return p.maxInFlight
+}
+
+// SetAccountMaxInFlight 设置单账号并发上限覆盖：n>0 生效、n<=0 清除（回落全局）。
+// 账号不存在返回 false；成功后标记 dirty 交由 flusher 落盘（含 Redis 镜像）。
+func (p *Pool) SetAccountMaxInFlight(uid string, n int) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	e, ok := p.byUID[uid]
+	if !ok {
+		return false
+	}
+	if n > 0 {
+		e.maxInFlightOverride = n
+	} else {
+		e.maxInFlightOverride = 0
+	}
+	p.dirty.Store(true)
+	return true
 }
 
 // minPickGap 防并发撞号窗口：同一账号在该窗口内不重复被选中（除非 top5 全部刚被用过）。
 // 生产默认 100ms；纯加权分布测试可临时置 0 关闭防撞号。
 var minPickGap = 100 * time.Millisecond
 
-// pickWeighted 三因子加权随机（claude-api selectWeightedRandom 参考口径）：
+// pickWeighted 加权随机（claude-api selectWeightedRandom 参考口径）：
 //
-//		weight = credits 比例 × 10 + idleWeight + successRate × 3
+//		weight = credits 比例 × 10 + idleWeight + successRate × 3 + limit 比例 × 3
 //
 //	  - credits 比例 = 该号 credits / 候选集内最大 credits（避免量纲爆炸）
 //	  - idleWeight = min(距 lastUsed 小时数 × idleWeightPerHour, idleWeightMax)；从未使用给满分
 //	  - successRate = successCount/(successCount+errTotal)；无请求记录给 1.5（中性偏信任）
+//	  - limit 比例 = 生效并发上限 / 候选集内最大上限（上限进权重：高上限号承担更多流量）
 //
-// credits 全 0 时仍按 idle+successRate 加权（不退化均匀随机）。
+// credits 全 0 时仍按 idle+successRate+limit 加权（不退化均匀随机）。
 // 权重为浮点，用 int64 定点（×1e6）抽签可保持确定性随机源注入（randInt64N 语义不变）。
 // 随机源优先用 p.randInt64N（仅供测试注入确定性），nil 时回退 math/rand/v2 全局源。
 func (p *Pool) pickWeighted(cands []*entry) *entry {
@@ -592,12 +676,21 @@ func (p *Pool) pickWeighted(cands []*entry) *entry {
 			maxCredits = e.credits
 		}
 	}
+	var maxLimit int64
+	for _, e := range cands {
+		if l := int64(e.maxInFlightOverride); l > maxLimit {
+			maxLimit = l
+		}
+	}
+	if maxLimit == 0 && p.maxInFlight > 0 {
+		maxLimit = int64(p.maxInFlight)
+	}
 
 	const scale = 1_000_000 // 定点放大：int64 累加权重大整数抽签
 	weights := make([]int64, len(cands))
 	var total int64
 	for i, e := range cands {
-		w := p.weightOf(e, maxCredits, now)
+		w := p.weightOf(e, maxCredits, maxLimit, now)
 		weights[i] = int64(w * scale)
 		total += weights[i]
 	}
@@ -620,8 +713,8 @@ func (p *Pool) pickWeighted(cands []*entry) *entry {
 	return cands[len(cands)-1]
 }
 
-// weightOf 计算单个账号的三因子权重。
-func (p *Pool) weightOf(e *entry, maxCredits int64, now time.Time) float64 {
+// weightOf 计算单账号的四因子权重（credits / 闲置 / 成功率 / 并发上限）。
+func (p *Pool) weightOf(e *entry, maxCredits int64, maxLimit int64, now time.Time) float64 {
 	w := 1.0
 
 	// 1. credits 比例 ×10（会计入 mid-credit 锚点，避免全员 0 时 credits 项为 0）。
@@ -650,6 +743,19 @@ func (p *Pool) weightOf(e *entry, maxCredits int64, now time.Time) float64 {
 		w += float64(e.successCount) / float64(totalReq) * 3
 	} else {
 		w += 1.5 // 无请求记录 → 中性偏信任
+	}
+
+	// 4. 并发上限 ×3：上限比例越高权重越高；不限（<=0）按候选集最大上限计满分。
+	// 调用方需保证 maxLimit 已按候选集归一化（全 0 时跳过本因子）。
+	if maxLimit > 0 {
+		limit := int64(e.maxInFlightOverride)
+		if limit <= 0 {
+			limit = int64(p.maxInFlight)
+		}
+		if limit <= 0 {
+			limit = maxLimit
+		}
+		w += float64(limit) / float64(maxLimit) * weightLimitFactor
 	}
 	return w
 }
@@ -923,6 +1029,11 @@ func (p *Pool) statusOf(uid string, e *entry) Status {
 		}
 		st.CoolKind = e.coolKind.String()
 	}
+	// 并发维度：生效上限（覆盖>全局）+ 是否已满载。limit>0 才透出（0=不限）。
+	if limit := p.effectiveMaxInFlight(e); limit > 0 {
+		st.MaxInFlight = limit
+		st.InFlightFull = int(e.inFlight.Load()) >= limit
+	}
 	return st
 }
 
@@ -963,6 +1074,8 @@ func (p *Pool) applyAccountsLocked(accounts map[string]stateAccount) {
 			errTotal:     errTotal,
 			lastErr:      s.LastErr,
 			lastSuccess:  s.LastSuccess,
+
+			maxInFlightOverride: s.MaxInFlight,
 		}
 	}
 }
@@ -1038,6 +1151,7 @@ func (p *Pool) stateOverviewLocked() stateFile {
 			ErrTotal:     e.errTotal,
 			LastSuccess:  e.lastSuccess,
 			LastErr:      e.lastErr,
+			MaxInFlight:  e.maxInFlightOverride,
 		}
 	}
 	return sf
