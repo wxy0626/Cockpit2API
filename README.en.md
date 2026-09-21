@@ -9,6 +9,8 @@ English · [Portuguese (BR)](README.pt-br.md) · [简体中文](README.md)
 
 > This project is based on the original [CockpitTools](https://github.com/jlcodes99/cockpit-tools). Thanks to the original author.
 
+This project adds `workbuddy2api` and `qoder2api`.
+
 A **universal AI IDE account management tool**, currently supporting **Antigravity IDE**, **Codex**, **GitHub Copilot**, **Windsurf**, **Kiro**, **Cursor**, **Grok CLI**, **CodeBuddy**, **CodeBuddy CN**, **Qoder**, **Trae**, **TRAE SOLO**, **Trae CN**, **TRAE SOLO CN**, **Zed**, and **ZCode**, with multi-instance parallel workflows.
 
 > Designed to help users efficiently manage multiple AI IDE accounts, this tool supports one-click switching, quota monitoring, wake-up tasks, and multi-instance parallel runs, helping you fully utilize resources from different accounts.

@@ -9,6 +9,8 @@
 
 > 本项目基于原项目 [CockpitTools](https://github.com/jlcodes99/cockpit-tools) 制作，感谢原作者的贡献。
 
+本项目新增 `workbuddy2api` 和 `qoder2api`。
+
 一款**通用的 AI IDE 账号管理工具**，目前支持 **Antigravity IDE**、**Codex**、**GitHub Copilot**、**Windsurf**、**Kiro**、**Cursor**、**Grok CLI**、**CodeBuddy**、**CodeBuddy CN**、**Qoder**、**Trae**、**TRAE SOLO**、**Trae CN**、**TRAE SOLO CN**、**Zed** 和 **ZCode**，并支持多账号多实例并行运行。
 
 
