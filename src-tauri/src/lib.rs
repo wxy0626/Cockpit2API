@@ -373,7 +373,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
                     lock_error,
                 )) as Box<dyn std::error::Error>);
             }
-            info!("Cockpit Tools 启动...");
+            info!("Cockpit2API 启动...");
             let current_exe = std::env::current_exe()
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|err| format!("unknown: {}", err));

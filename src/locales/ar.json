@@ -372,7 +372,7 @@
       "desc": "تُثبَّت هذه المنطقة في أعلى يمين جميع الصفحات لعرض الحملات أو إعلانات العلامة التجارية.",
       "action": "عرض التفاصيل"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "Cockpit2API​",
     "collapse": "طي",
     "confirmDelete": "تأكيد الحذف",
     "confirmDeleteTag": "تأكيد حذف الوسم",
@@ -403,7 +403,7 @@
       "backToCurrent": "رجوع",
       "switchToThisAccount": "تبديل",
       "openDetails": "فتح التفاصيل",
-      "openCockpitTools": "فتح Cockpit Tools"
+      "openCockpitTools": "فتح Cockpit2API"
     },
     "empty": {
       "title": "لا توجد حسابات",
@@ -472,12 +472,12 @@
   },
   "sponsors": {
     "pageTitle": "الرعاة",
-    "pageDesc": "شكرًا للرعاة التاليين على دعم Cockpit Tools.",
+    "pageDesc": "شكرًا للرعاة التاليين على دعم Cockpit2API.",
     "loading": "جارٍ تحميل الرعاة...",
     "emptyTitle": "لا يوجد رعاة حاليًا",
     "emptyDesc": "وحدة الرعاة البعيدة معطّلة حاليًا.",
     "listAriaLabel": "قائمة الرعاة",
-    "defaultDescription": "شكرًا لدعم Cockpit Tools.",
+    "defaultDescription": "شكرًا لدعم Cockpit2API.",
     "openSponsor": "فتح"
   },
   "platformLayout": {
@@ -675,12 +675,12 @@
         "summary": "تستخدم النماذج بدون بادئة الاشتراك الحالي؛ وتتم إعادة توجيه النماذج ذات البادئة مثل cpa/gpt-5.5 إلى واجهة برمجة تطبيقات تابعة لجهة خارجية. يعتمد كلاهما على خدمة التوجيه المحلية.",
         "rowSummary": "تستخدم النماذج بدون بادئة الاشتراك الحالي؛ وتتم إعادة توجيه النماذج ذات البادئة مثل cpa/gpt-5.5 إلى واجهة برمجة تطبيقات تابعة لجهة خارجية. يعتمد كلاهما على خدمة التوجيه المحلية.",
         "confirmEnableTitle": "هل تريد تمكين توجيه واجهة برمجة تطبيقات الطرف الثالث؟",
-        "confirmEnableMessage": "سيتم توجيه طلبات نموذج Codex عبر خدمة Cockpit Tools المحلية. إذا كانت الخدمة لا تعمل، فقد لا تتوفر نماذج الاشتراك ونماذج الطرف الثالث. سيتم تمكين التشغيل عند تسجيل الدخول عند الحفظ.\n\nهل تريد تمكين التوجيه؟",
+        "confirmEnableMessage": "سيتم توجيه طلبات نموذج Codex عبر خدمة Cockpit2API المحلية. إذا كانت الخدمة لا تعمل، فقد لا تتوفر نماذج الاشتراك ونماذج الطرف الثالث. سيتم تمكين التشغيل عند تسجيل الدخول عند الحفظ.\n\nهل تريد تمكين التوجيه؟",
         "confirmEnableAction": "تمكين",
         "confirmDisableTitle": "هل تريد تعطيل توجيه واجهة برمجة تطبيقات الطرف الثالث؟",
         "confirmDisableMessage": "بعد سريان هذا التغيير، سيتم إيقاف البوابة المحلية، واستعادة الوصول المباشر للاشتراك الرسمي، ولن تتوفر نماذج الطرف الثالث.\n\nهل تريد تعطيل التوجيه؟",
         "confirmDisableAction": "تعطيل",
-        "modalTip": "تمر نماذج الاشتراك والطرف الثالث عبر خدمة التوجيه المحلية. يرجى إبقاء Cockpit Tools قيد التشغيل في الخلفية. تستعيد الخدمة عملها تلقائيًا وتتراجع إلى التكوين الرسمي بعد حالات الفشل المتكررة.",
+        "modalTip": "تمر نماذج الاشتراك والطرف الثالث عبر خدمة التوجيه المحلية. يرجى إبقاء Cockpit2API قيد التشغيل في الخلفية. تستعيد الخدمة عملها تلقائيًا وتتراجع إلى التكوين الرسمي بعد حالات الفشل المتكررة.",
         "modelRequired": "يجب أن يتضمن كل مسار واجهة برمجة تطبيقات مُمكّن نموذجًا واحدًا على الأقل.",
         "runningSaveTitle": "متى يجب أن يسري تكوين التوجيه؟",
         "runningSaveMessage": "نسخة Codex هذه قيد التشغيل حاليًا. سيؤدي استبدال الخدمة المحلية الآن إلى مقاطعة المحادثة الحالية.\n\nاختر «حفظ وإعادة تشغيل Codex» للتطبيق الآن، أو «حفظ لوقت لاحق» للاحتفاظ بالجلسة الحالية دون تغيير.",
@@ -823,7 +823,7 @@
   },
   "settings": {
     "title": "إعدادات التطبيق",
-    "subtitle": "قم بتخصيص تجربة Antigravity Cockpit Tools الخاصة بك.",
+    "subtitle": "قم بتخصيص تجربة Antigravity Cockpit2API الخاصة بك.",
     "tabs": {
       "general": "عام",
       "network": "خدمات الشبكة",
@@ -902,7 +902,7 @@
       "codexSyncWsl": "مزامنة Codex مع WSL",
       "codexSyncWslDesc": "بعد تبديل حساب Codex الافتراضي، تتم كتابة auth.json و config.toml أيضًا إلى مجلد إعدادات Codex في WSL.",
       "codexAppUiInjection": "عرض حصة خدمة API",
-      "codexAppUiInjectionDesc": "بعد إعادة تشغيل مثيل Codex، اعرض عدد حسابات خدمة API في Cockpit Tools وحصتي الأسبوع و5 ساعات أسفل منطقة الكتابة؛ تعرض المثيلات المرتبطة بحساب DeepSeek رصيد ذلك الحساب بدلاً من ذلك. يجب إبقاء Cockpit Tools قيد التشغيل في الخلفية؛ يتوقف التحديث عند إغلاقه تمامًا أو عند عدم توفر الشبكة.",
+      "codexAppUiInjectionDesc": "بعد إعادة تشغيل مثيل Codex، اعرض عدد حسابات خدمة API في Cockpit2API وحصتي الأسبوع و5 ساعات أسفل منطقة الكتابة؛ تعرض المثيلات المرتبطة بحساب DeepSeek رصيد ذلك الحساب بدلاً من ذلك. يجب إبقاء Cockpit2API قيد التشغيل في الخلفية؛ يتوقف التحديث عند إغلاقه تمامًا أو عند عدم توفر الشبكة.",
       "codexAppUiInjectionPoolLabel": "الحسابات",
       "codexAppUiInjectionWeeklyLabel": "أسبوع",
       "codexAppUiInjectionFiveHourLabel": "5 س",
@@ -1009,7 +1009,7 @@
       "sideNavLayoutClassic": "التخطيط الكلاسيكي",
       "antigravityDualSwitchNoRestart": "تبديل ثنائي بدون إعادة تشغيل",
       "antigravityDualSwitchNoRestartDesc": "عند تبديل الحساب، يتم تنفيذ كتابة بيانات الحساب محليًا والتبديل السلس عبر الإضافة في تدفق واحد، دون إعادة تشغيل Antigravity IDE.",
-      "appAutoLaunch": "تشغيل Cockpit Tools عند تسجيل الدخول",
+      "appAutoLaunch": "تشغيل Cockpit2API عند تسجيل الدخول",
       "appAutoLaunchDesc": "تشغيل بعد تسجيل الدخول. إذا ظهر خطأ PowerShell عند إقلاع Windows فعطّله.",
       "startupWakeupDisabled": "معطل",
       "startupWakeupImmediate": "تنبيه فوري",
@@ -1172,7 +1172,7 @@
       "proxyUrlRequired": "لا يمكن أن يكون عنوان الوكيل فارغًا عند تفعيل الوكيل العام."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "Cockpit2API​",
       "slogan": "حل احترافي لإدارة الحسابات",
       "author": "المؤلف الرئيسي",
       "wechat": "حساب WeChat الرسمي",
@@ -2392,11 +2392,11 @@
     },
     "exportFormat": {
       "label": "تنسيق التصدير",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "Cockpit2API​",
       "authJson": "auth.json الرسمي",
       "sub2api": "تنسيق sub2api",
       "cpa": "تنسيق cpa",
-      "agentIdentityCpaUnsupported": "لا يمكن تصدير حسابات Agent Identity بتنسيق cpa. استخدم Cockpit Tools أو sub2api.",
+      "agentIdentityCpaUnsupported": "لا يمكن تصدير حسابات Agent Identity بتنسيق cpa. استخدم Cockpit2API أو sub2api.",
       "agentIdentityPrivateKeyNotice": "يتضمن هذا التصدير مفتاح Agent Identity خاصًا يمكن استخدامه لاستعادة الحساب على جهاز آخر. احفظه كما تحفظ كلمة المرور.",
       "buildFailed": "تعذر إنشاء التصدير: تتضمن الحسابات المحددة نوعًا غير مدعوم أو بيانات اعتماد غير مكتملة.",
       "downloadAll": "تنزيل الكل",
@@ -2481,8 +2481,8 @@
       "testAuthFailed": "الخدمة قابلة للوصول، لكن المصادقة فشلت: {{detail}}. تحقق من مفتاح خدمة API أو حالة تسجيل الدخول للحساب.",
       "testServiceUnavailable": "الخدمة قابلة للوصول، لكنها غير متاحة حاليًا: {{detail}}. تحقق من تفعيل الخدمة، أو من أن مجموعة الحسابات ليست فارغة، أو من صلاحية الحسابات.",
       "gatewayErrors": {
-        "authUnavailable": "لا يوجد حاليًا حساب قابل للتوجيه. قد يكون الحساب في فترة تهدئة أو بلا مصادقة أو مقيّدًا بالحصّة. تحقّق من حالته في خدمة API داخل Cockpit Tools.",
-        "authNotFound": "لا يوجد حساب صالح مُعدّ في مجموعة الحسابات. أضف حسابًا أو فعّله في خدمة API داخل Cockpit Tools."
+        "authUnavailable": "لا يوجد حاليًا حساب قابل للتوجيه. قد يكون الحساب في فترة تهدئة أو بلا مصادقة أو مقيّدًا بالحصّة. تحقّق من حالته في خدمة API داخل Cockpit2API.",
+        "authNotFound": "لا يوجد حساب صالح مُعدّ في مجموعة الحسابات. أضف حسابًا أو فعّله في خدمة API داخل Cockpit2API."
       },
       "testRateLimited": "الخدمة قابلة للوصول، لكن upstream مقيّد أو الحصة نفدت: {{detail}}.",
       "testHttpFailed": "الخدمة قابلة للوصول، لكن الطلب أعاد HTTP {{status}}: {{detail}}.",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "ترحيل حصري",
-    "pageDesc": "خدمة API شريكة لمستخدمي Cockpit Tools ويمكن استخدامها مع حسابات Codex API Key.",
+    "pageDesc": "خدمة API شريكة لمستخدمي Cockpit2API ويمكن استخدامها مع حسابات Codex API Key.",
     "loading": "جارٍ تحميل الترحيل...",
     "emptyTitle": "الترحيل غير مفعّل",
     "emptyDesc": "لم تفعّل الإعدادات البعيدة خدمة الترحيل الحصرية.",

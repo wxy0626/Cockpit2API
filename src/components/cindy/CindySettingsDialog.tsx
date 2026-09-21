@@ -211,7 +211,7 @@ export function CindySettingsDialog({ open, onClose, onSaved }: Props) {
             {CINDY_GATEWAY_BASE}
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0' }}>
-            由 CockpitTools 托管启动（sidecars/cindy2api），监听地址可在其
+            由 Cockpit2API 托管启动（sidecars/cindy2api），监听地址可在其
             <code> runtime/config.json </code> 中调整。账号凭据只保存在本机。
           </p>
         </section>

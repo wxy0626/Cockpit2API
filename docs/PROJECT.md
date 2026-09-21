@@ -21,7 +21,7 @@ Windows 本地发布构建：
 npm run build:app
 ```
 
-构建产物位于 `target/release/cockpit-tools.exe`。
+构建产物位于 `target/release/cockpit2api.exe`。
 
 ## 测试
 

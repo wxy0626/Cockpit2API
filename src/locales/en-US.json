@@ -372,7 +372,7 @@
       "loginSuccess": "Login successful",
       "switchAccount": "Switch Account"
     },
-    "appName": "Cockpit Tools",
+    "appName": "Cockpit2API",
     "collapse": "Collapse",
     "confirmDelete": "Confirm Delete",
     "confirmDeleteTag": "Confirm Tag Deletion",
@@ -404,7 +404,7 @@
       "backToCurrent": "Back",
       "switchToThisAccount": "Switch",
       "openDetails": "Open details",
-      "openCockpitTools": "Open Cockpit Tools"
+      "openCockpitTools": "Open Cockpit2API"
     },
     "empty": {
       "title": "No accounts",
@@ -472,17 +472,17 @@
   },
   "sponsors": {
     "pageTitle": "Sponsors",
-    "pageDesc": "Thanks to these sponsors for supporting Cockpit Tools.",
+    "pageDesc": "Thanks to these sponsors for supporting Cockpit2API.",
     "loading": "Loading sponsors...",
     "emptyTitle": "No sponsors yet",
     "emptyDesc": "The remote sponsor module is currently disabled.",
     "listAriaLabel": "Sponsor list",
-    "defaultDescription": "Thanks for supporting Cockpit Tools.",
+    "defaultDescription": "Thanks for supporting Cockpit2API.",
     "openSponsor": "Open"
   },
   "relay": {
     "pageTitle": "Exclusive Relay",
-    "pageDesc": "A partnered API service for Cockpit Tools users that can be used with Codex API Key accounts.",
+    "pageDesc": "A partnered API service for Cockpit2API users that can be used with Codex API Key accounts.",
     "loading": "Loading relay...",
     "emptyTitle": "Relay disabled",
     "emptyDesc": "The remote configuration has not enabled the exclusive relay.",
@@ -832,12 +832,12 @@
         "summary": "Unprefixed models use the current subscription; prefixed models such as cpa/gpt-5.5 are forwarded to a third-party API. Both depend on the local routing service.",
         "rowSummary": "Unprefixed models use the current subscription; prefixed models such as cpa/gpt-5.5 are forwarded to a third-party API. Both depend on the local routing service.",
         "confirmEnableTitle": "Enable third-party API routing?",
-        "confirmEnableMessage": "Codex model requests will be routed through the local Cockpit Tools service. If the service is not running, both subscription and third-party models may be unavailable. Launch at login will be enabled when you save.\n\nEnable routing?",
+        "confirmEnableMessage": "Codex model requests will be routed through the local Cockpit2API service. If the service is not running, both subscription and third-party models may be unavailable. Launch at login will be enabled when you save.\n\nEnable routing?",
         "confirmEnableAction": "Enable",
         "confirmDisableTitle": "Disable third-party API routing?",
         "confirmDisableMessage": "After this change takes effect, the local gateway will stop, native subscription access will be restored, and third-party models will be unavailable.\n\nDisable routing?",
         "confirmDisableAction": "Disable",
-        "modalTip": "Subscription and third-party models both pass through the local routing service. Keep Cockpit Tools running in the background. The service recovers automatically and falls back to the official configuration after repeated failures.",
+        "modalTip": "Subscription and third-party models both pass through the local routing service. Keep Cockpit2API running in the background. The service recovers automatically and falls back to the official configuration after repeated failures.",
         "modelRequired": "Each enabled API route must include at least one model.",
         "runningSaveTitle": "When should routing take effect?",
         "runningSaveMessage": "This Codex instance is running. Replacing the local service now will interrupt the current conversation.\n\nChoose Save and restart Codex to apply now, or Save for later to keep the current session unchanged.",
@@ -975,7 +975,7 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Customize your Cockpit Tools experience.",
+    "subtitle": "Customize your Cockpit2API experience.",
     "general": {
       "appearance": "Appearance",
       "language": "Language",
@@ -1035,7 +1035,7 @@
       "floatingCardStartupDesc": "Display the floating account card automatically after app launch",
       "floatingCardAlwaysOnTop": "Keep floating card on top by default",
       "floatingCardAlwaysOnTopDesc": "New floating card windows stay on top when opened",
-      "appAutoLaunch": "Launch Cockpit Tools at login",
+      "appAutoLaunch": "Launch Cockpit2API at login",
       "appAutoLaunchDesc": "Start the app after sign-in. If Windows shows a PowerShell error at boot, turn this off.",
       "startupWakeupDisabled": "Disabled",
       "startupWakeupImmediate": "Wake up immediately",
@@ -1067,7 +1067,7 @@
       "codexSyncWsl": "Sync Codex to WSL",
       "codexSyncWslDesc": "After switching the default Codex account, also write auth.json and config.toml to the WSL Codex directory.",
       "codexAppUiInjection": "Show API Service quota",
-      "codexAppUiInjectionDesc": "After restarting a Codex instance, show the Cockpit Tools API Service account count, weekly quota, and 5-hour quota below the composer; instances bound to a DeepSeek account show that account's balance instead. Keep Cockpit Tools running in the background; updates stop when it is fully quit or the network is unavailable.",
+      "codexAppUiInjectionDesc": "After restarting a Codex instance, show the Cockpit2API API Service account count, weekly quota, and 5-hour quota below the composer; instances bound to a DeepSeek account show that account's balance instead. Keep Cockpit2API running in the background; updates stop when it is fully quit or the network is unavailable.",
       "codexAppUiInjectionPoolLabel": "Accounts",
       "codexAppUiInjectionWeeklyLabel": "Week",
       "codexAppUiInjectionFiveHourLabel": "5h",
@@ -1242,7 +1242,7 @@
       "autoImportFromLocalScanPartial": "Scan complete: import failed for some platforms; import manually from account pages",
       "autoImportFromLocalScanFailed": "Scan failed: {{error}}",
       "autoImportFromLocal": "Auto-import local accounts",
-      "autoImportFromLocalDesc": "When enabled, Cockpit Tools immediately scans local client logins and imports them, then keeps importing when the official client switches accounts. The system keychain may prompt once; choose Always Allow.",
+      "autoImportFromLocalDesc": "When enabled, Cockpit2API immediately scans local client logins and imports them, then keeps importing when the official client switches accounts. The system keychain may prompt once; choose Always Allow.",
       "autoImportFromLocalScanCancelled": "Turned off; in-progress scan results will be ignored",
       "startupPage": "Startup page",
       "startupPageDesc": "Page opened on cold start. Choose “Remember last” to restore the previous page.",
@@ -1478,7 +1478,7 @@
       "proxyUrlRequired": "Proxy URL cannot be empty when global proxy is enabled."
     },
     "about": {
-      "appName": "Cockpit Tools",
+      "appName": "Cockpit2API",
       "slogan": "Professional Account Solution",
       "author": "Author",
       "wechat": "WeChat",
@@ -2611,11 +2611,11 @@
     },
     "exportFormat": {
       "label": "Export Format",
-      "cockpitTools": "Cockpit Tools",
+      "cockpitTools": "Cockpit2API",
       "authJson": "auth.json",
       "sub2api": "sub2api",
       "cpa": "cpa",
-      "agentIdentityCpaUnsupported": "Agent Identity accounts cannot be exported as cpa. Choose Cockpit Tools or sub2api.",
+      "agentIdentityCpaUnsupported": "Agent Identity accounts cannot be exported as cpa. Choose Cockpit2API or sub2api.",
       "agentIdentityPrivateKeyNotice": "This export contains an Agent Identity private key that can restore the account on another device. Protect it like a password.",
       "buildFailed": "Unable to create the export: the selected accounts include an unsupported type or incomplete credentials.",
       "downloadAll": "Download All",
@@ -2775,8 +2775,8 @@
       "testAuthFailed": "Service is reachable, but authentication failed: {{detail}}. Check the API service key or account sign-in state.",
       "testServiceUnavailable": "Service is reachable, but currently unavailable: {{detail}}. Check whether the service is enabled, the account collection is empty, or accounts are usable.",
       "gatewayErrors": {
-        "authUnavailable": "No account is currently schedulable; the account may be cooling down, unauthorized, or quota-limited. Check account status in the Cockpit Tools API Service page.",
-        "authNotFound": "No usable account is configured in the account pool. Add or enable an account in the Cockpit Tools API Service page."
+        "authUnavailable": "No account is currently schedulable; the account may be cooling down, unauthorized, or quota-limited. Check account status in the Cockpit2API API Service page.",
+        "authNotFound": "No usable account is configured in the account pool. Add or enable an account in the Cockpit2API API Service page."
       },
       "testRateLimited": "Service is reachable, but upstream is rate limited or quota is exhausted: {{detail}}.",
       "testHttpFailed": "Service is reachable, but the request returned HTTP {{status}}: {{detail}}.",

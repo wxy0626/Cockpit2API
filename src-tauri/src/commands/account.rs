@@ -251,7 +251,7 @@ pub async fn fetch_account_note_mail_url(
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(12))
         .redirect(reqwest::redirect::Policy::limited(5))
-        .user_agent("CockpitTools-MailPreview/1.0")
+        .user_agent("Cockpit2API-MailPreview/1.0")
         .build()
         .map_err(|e| format!("MAIL_PREVIEW_CLIENT_FAILED: {}", e))?;
     let response = client

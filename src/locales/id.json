@@ -372,7 +372,7 @@
       "loginSuccess": "Login berhasil",
       "switchAccount": "Ganti Akun"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "Cockpit2API​",
     "collapse": "Ciutkan",
     "confirmDelete": "Konfirmasi Hapus",
     "confirmDeleteTag": "Konfirmasi Hapus Tag",
@@ -404,7 +404,7 @@
       "backToCurrent": "Kembali",
       "switchToThisAccount": "Ganti",
       "openDetails": "Buka detail",
-      "openCockpitTools": "Buka Cockpit Tools"
+      "openCockpitTools": "Buka Cockpit2API"
     },
     "empty": {
       "title": "Belum ada akun",
@@ -472,12 +472,12 @@
   },
   "sponsors": {
     "pageTitle": "Sponsor",
-    "pageDesc": "Terima kasih kepada sponsor berikut yang mendukung Cockpit Tools.",
+    "pageDesc": "Terima kasih kepada sponsor berikut yang mendukung Cockpit2API.",
     "loading": "Memuat sponsor...",
     "emptyTitle": "Belum ada sponsor",
     "emptyDesc": "Modul sponsor jarak jauh saat ini dinonaktifkan.",
     "listAriaLabel": "Daftar sponsor",
-    "defaultDescription": "Terima kasih telah mendukung Cockpit Tools.",
+    "defaultDescription": "Terima kasih telah mendukung Cockpit2API.",
     "openSponsor": "Buka"
   },
   "platformLayout": {
@@ -687,12 +687,12 @@
         "summary": "Model tanpa awalan menggunakan langganan saat ini; model dengan awalan seperti cpa/gpt-5.5 diteruskan ke API pihak ketiga. Keduanya bergantung pada layanan perutean lokal.",
         "rowSummary": "Model tanpa awalan menggunakan langganan saat ini; model dengan awalan seperti cpa/gpt-5.5 diteruskan ke API pihak ketiga. Keduanya bergantung pada layanan perutean lokal.",
         "confirmEnableTitle": "Aktifkan perutean API pihak ketiga?",
-        "confirmEnableMessage": "Permintaan model Codex akan dirutekan melalui layanan Cockpit Tools lokal. Jika layanan tidak berjalan, model langganan dan pihak ketiga mungkin tidak tersedia. Mulai saat masuk akan diaktifkan saat Anda menyimpan.\n\nAktifkan perutean?",
+        "confirmEnableMessage": "Permintaan model Codex akan dirutekan melalui layanan Cockpit2API lokal. Jika layanan tidak berjalan, model langganan dan pihak ketiga mungkin tidak tersedia. Mulai saat masuk akan diaktifkan saat Anda menyimpan.\n\nAktifkan perutean?",
         "confirmEnableAction": "Aktifkan",
         "confirmDisableTitle": "Nonaktifkan perutean API pihak ketiga?",
         "confirmDisableMessage": "Setelah perubahan ini berlaku, gateway lokal akan berhenti, akses langganan resmi akan dipulihkan, dan model pihak ketiga tidak akan tersedia.\n\nNonaktifkan perutean?",
         "confirmDisableAction": "Nonaktifkan",
-        "modalTip": "Model langganan dan pihak ketiga keduanya melewati layanan perutean lokal. Biarkan Cockpit Tools berjalan di latar belakang. Layanan pulih secara otomatis dan beralih kembali ke konfigurasi resmi setelah kegagalan berulang.",
+        "modalTip": "Model langganan dan pihak ketiga keduanya melewati layanan perutean lokal. Biarkan Cockpit2API berjalan di latar belakang. Layanan pulih secara otomatis dan beralih kembali ke konfigurasi resmi setelah kegagalan berulang.",
         "modelRequired": "Setiap rute API yang diaktifkan harus menyertakan setidaknya satu model.",
         "runningSaveTitle": "Kapan perutean harus berlaku?",
         "runningSaveMessage": "Instans Codex ini sedang berjalan. Mengganti layanan lokal sekarang akan memutus percakapan saat ini.\n\nPilih «Simpan dan mulai ulang Codex» untuk menerapkan sekarang, atau «Simpan untuk nanti» untuk mempertahankan sesi saat ini.",
@@ -823,7 +823,7 @@
   },
   "settings": {
     "title": "Pengaturan",
-    "subtitle": "Sesuaikan pengalaman Cockpit Tools Anda.",
+    "subtitle": "Sesuaikan pengalaman Cockpit2API Anda.",
     "tabs": {
       "general": "Umum",
       "network": "Jaringan",
@@ -884,7 +884,7 @@
       "floatingCardStartupDesc": "Tampilkan kartu akun mengambang secara otomatis setelah aplikasi diluncurkan",
       "floatingCardAlwaysOnTop": "Kartu mengambang selalu di atas secara bawaan",
       "floatingCardAlwaysOnTopDesc": "Jendela kartu mengambang baru tetap di atas saat dibuka",
-      "appAutoLaunch": "Jalankan Cockpit Tools saat login",
+      "appAutoLaunch": "Jalankan Cockpit2API saat login",
       "appAutoLaunchDesc": "Mulai setelah login. Jika Windows menampilkan error PowerShell saat boot, matikan.",
       "startupWakeupDisabled": "Nonaktif",
       "startupWakeupImmediate": "Bangunkan segera",
@@ -916,7 +916,7 @@
       "codexSyncWsl": "Sinkronkan Codex ke WSL",
       "codexSyncWslDesc": "Setelah mengganti akun Codex default, auth.json dan config.toml juga ditulis ke direktori Codex di WSL.",
       "codexAppUiInjection": "Kuota layanan API",
-      "codexAppUiInjectionDesc": "Setelah instans Codex dimulai ulang, tampilkan jumlah akun serta kuota mingguan dan 5 jam layanan API Cockpit Tools di bawah composer; instans yang terhubung ke akun DeepSeek menampilkan saldo akun tersebut. Cockpit Tools harus tetap berjalan di latar belakang; pembaruan berhenti jika aplikasi ditutup sepenuhnya atau jaringan tidak tersedia.",
+      "codexAppUiInjectionDesc": "Setelah instans Codex dimulai ulang, tampilkan jumlah akun serta kuota mingguan dan 5 jam layanan API Cockpit2API di bawah composer; instans yang terhubung ke akun DeepSeek menampilkan saldo akun tersebut. Cockpit2API harus tetap berjalan di latar belakang; pembaruan berhenti jika aplikasi ditutup sepenuhnya atau jaringan tidak tersedia.",
       "codexAppUiInjectionPoolLabel": "Akun",
       "codexAppUiInjectionWeeklyLabel": "Minggu",
       "codexAppUiInjectionFiveHourLabel": "5 jam",
@@ -1172,7 +1172,7 @@
       "proxyUrlRequired": "URL Proxy tidak boleh kosong saat proxy global diaktifkan."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "Cockpit2API​",
       "slogan": "Solusi Akun Profesional",
       "author": "Pengembang",
       "wechat": "WeChat​",
@@ -2395,11 +2395,11 @@
     },
     "exportFormat": {
       "label": "Format ekspor",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "Cockpit2API​",
       "authJson": "auth.json resmi",
       "sub2api": "Format sub2api",
       "cpa": "Format cpa",
-      "agentIdentityCpaUnsupported": "Akun Agent Identity tidak dapat diekspor dalam format cpa. Gunakan Cockpit Tools atau sub2api.",
+      "agentIdentityCpaUnsupported": "Akun Agent Identity tidak dapat diekspor dalam format cpa. Gunakan Cockpit2API atau sub2api.",
       "agentIdentityPrivateKeyNotice": "Ekspor ini berisi kunci privat Agent Identity yang dapat memulihkan akun di perangkat lain. Lindungi seperti kata sandi.",
       "buildFailed": "Ekspor tidak dapat dibuat: akun yang dipilih memiliki jenis yang tidak didukung atau kredensial yang tidak lengkap.",
       "downloadAll": "Unduh semua",
@@ -2484,8 +2484,8 @@
       "testAuthFailed": "Layanan dapat dijangkau, tetapi autentikasi gagal: {{detail}}. Periksa kunci layanan API atau status masuk akun.",
       "testServiceUnavailable": "Layanan dapat dijangkau, tetapi saat ini tidak tersedia: {{detail}}. Periksa apakah layanan aktif, koleksi akun kosong, atau akun dapat digunakan.",
       "gatewayErrors": {
-        "authUnavailable": "Tidak ada akun yang dapat dirutekan saat ini. Akun mungkin sedang cooldown, tidak terautentikasi, atau dibatasi kuota. Periksa statusnya di layanan API Cockpit Tools.",
-        "authNotFound": "Tidak ada akun yang dapat digunakan di kumpulan akun. Tambahkan atau aktifkan akun di layanan API Cockpit Tools."
+        "authUnavailable": "Tidak ada akun yang dapat dirutekan saat ini. Akun mungkin sedang cooldown, tidak terautentikasi, atau dibatasi kuota. Periksa statusnya di layanan API Cockpit2API.",
+        "authNotFound": "Tidak ada akun yang dapat digunakan di kumpulan akun. Tambahkan atau aktifkan akun di layanan API Cockpit2API."
       },
       "testRateLimited": "Layanan dapat dijangkau, tetapi upstream dibatasi atau kuota habis: {{detail}}.",
       "testHttpFailed": "Layanan dapat dijangkau, tetapi permintaan mengembalikan HTTP {{status}}: {{detail}}.",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "Relay eksklusif",
-    "pageDesc": "Layanan API mitra untuk pengguna Cockpit Tools yang dapat digunakan dengan akun API Key Codex.",
+    "pageDesc": "Layanan API mitra untuk pengguna Cockpit2API yang dapat digunakan dengan akun API Key Codex.",
     "loading": "Memuat relay...",
     "emptyTitle": "Relay nonaktif",
     "emptyDesc": "Konfigurasi jarak jauh belum mengaktifkan relay eksklusif.",

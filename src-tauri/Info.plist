@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleDisplayName</key>
-  <string>Cockpit Tools</string>
+  <string>Cockpit2API</string>
   <key>CFBundleName</key>
-  <string>Cockpit Tools</string>
+  <string>Cockpit2API</string>
   <key>LSRequiresCarbon</key>
   <false/>
 </dict>

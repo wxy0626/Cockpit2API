@@ -2101,7 +2101,7 @@ pub fn start_codex_with_args(codex_home: &str, extra_args: &[String]) -> Result<
         let args = build_codex_app_launch_args(extra_args);
 
         // 通过 LaunchServices 启动 GUI 应用，避免直接执行 ChatGPT 主程序时
-        // 被 macOS 以 Cockpit Tools 为 responsible process，导致偶发长时间停在
+        // 被 macOS 以 Cockpit2API 为 responsible process，导致偶发长时间停在
         // dyld/AppKit 初始化阶段。当前 macOS 的 `open` 支持 --env，因此
         // CODEX_HOME 与独立 Electron user-data-dir 都可以随启动请求传入。
         if !codex_home_trimmed.is_empty() {

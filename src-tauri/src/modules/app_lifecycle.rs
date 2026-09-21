@@ -128,7 +128,7 @@ fn run_windows_shutdown_message_loop(
     let class_name = format!("CockpitToolsShutdownListener-{}\0", std::process::id())
         .encode_utf16()
         .collect::<Vec<_>>();
-    let window_name = "Cockpit Tools Shutdown Listener\0"
+    let window_name = "Cockpit2API Shutdown Listener\0"
         .encode_utf16()
         .collect::<Vec<_>>();
 

@@ -372,7 +372,7 @@
       "desc": "이 영역은 모든 페이지의 우측 상단에 고정되어 캠페인 또는 브랜드 광고 노출에 적합합니다.",
       "action": "자세히 보기"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "Cockpit2API​",
     "collapse": "접기",
     "confirmDelete": "삭제 확인",
     "confirmDeleteTag": "태그 삭제 확인",
@@ -425,12 +425,12 @@
   },
   "sponsors": {
     "pageTitle": "스폰서",
-    "pageDesc": "Cockpit Tools를 지원해 주시는 스폰서에게 감사드립니다.",
+    "pageDesc": "Cockpit2API를 지원해 주시는 스폰서에게 감사드립니다.",
     "loading": "스폰서 불러오는 중...",
     "emptyTitle": "아직 스폰서가 없습니다",
     "emptyDesc": "원격 스폰서 모듈이 현재 비활성화되어 있습니다.",
     "listAriaLabel": "스폰서 목록",
-    "defaultDescription": "Cockpit Tools를 지원해 주셔서 감사합니다.",
+    "defaultDescription": "Cockpit2API를 지원해 주셔서 감사합니다.",
     "openSponsor": "열기"
   },
   "platformLayout": {
@@ -628,12 +628,12 @@
         "summary": "접두사가 없는 모델은 현재 구독을 사용하고, cpa/gpt-5.5와 같은 접두사가 있는 모델은 타사 API로 전달됩니다. 둘 다 로컬 라우팅 서비스에 의존합니다.",
         "rowSummary": "접두사가 없는 모델은 현재 구독을 사용하고, cpa/gpt-5.5와 같은 접두사가 있는 모델은 타사 API로 전달됩니다. 둘 다 로컬 라우팅 서비스에 의존합니다.",
         "confirmEnableTitle": "타사 API 라우팅을 활성화하시겠습니까?",
-        "confirmEnableMessage": "Codex 모델 요청은 로컬 Cockpit Tools 서비스를 통해 라우팅됩니다. 서비스가 실행 중이지 않으면 구독 및 타사 모델을 모두 사용할 수 없습니다. 저장 시 로그인 시 자동 실행이 활성화됩니다.\n\n라우팅을 활성화하시겠습니까?",
+        "confirmEnableMessage": "Codex 모델 요청은 로컬 Cockpit2API 서비스를 통해 라우팅됩니다. 서비스가 실행 중이지 않으면 구독 및 타사 모델을 모두 사용할 수 없습니다. 저장 시 로그인 시 자동 실행이 활성화됩니다.\n\n라우팅을 활성화하시겠습니까?",
         "confirmEnableAction": "활성화",
         "confirmDisableTitle": "타사 API 라우팅을 비활성화하시겠습니까?",
         "confirmDisableMessage": "이 변경 사항이 적용되면 로컬 게이트웨이가 중지되고 공식 구독 직접 연결이 복원되며 타사 모델을 사용할 수 없게 됩니다.\n\n라우팅을 비활성화하시겠습니까?",
         "confirmDisableAction": "비활성화",
-        "modalTip": "구독 및 타사 모델 모두 로컬 라우팅 서비스를 통과합니다. Cockpit Tools를 백그라운드에서 계속 실행해 주세요. 서비스 이상 시 자동으로 복구되며, 연속 실패 시 공식 구성으로 대체됩니다.",
+        "modalTip": "구독 및 타사 모델 모두 로컬 라우팅 서비스를 통과합니다. Cockpit2API를 백그라운드에서 계속 실행해 주세요. 서비스 이상 시 자동으로 복구되며, 연속 실패 시 공식 구성으로 대체됩니다.",
         "modelRequired": "활성화된 각 API 경로에는 하나 이상의 모델이 포함되어야 합니다.",
         "runningSaveTitle": "라우팅 구성이 언제 적용되나요?",
         "runningSaveMessage": "이 Codex 인스턴스가 실행 중입니다. 지금 로컬 서비스를 교체하면 현재 대화가 중단됩니다.\n\n지금 적용하려면 \"저장 후 Codex 재시작\"을 선택하고, 현재 세션을 유지하려면 \"저장 후 나중에 적용\"을 선택하세요.",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "앱 설정",
-    "subtitle": "Cockpit Tools 환경을 설정합니다.",
+    "subtitle": "Cockpit2API 환경을 설정합니다.",
     "tabs": {
       "general": "일반",
       "network": "네트워크",
@@ -859,7 +859,7 @@
       "codexSyncWsl": "Codex를 WSL에 동기화",
       "codexSyncWslDesc": "기본 Codex 계정을 전환한 뒤 auth.json과 config.toml도 WSL의 Codex 디렉터리에 씁니다.",
       "codexAppUiInjection": "API 서비스 할당량",
-      "codexAppUiInjectionDesc": "Codex 인스턴스를 다시 시작하면 입력창 아래에 Cockpit Tools API 서비스의 계정 수와 주간 및 5시간 할당량을 표시합니다. DeepSeek 계정을 바인딩한 인스턴스는 대신 해당 계정 잔액을 표시합니다. Cockpit Tools를 백그라운드에서 계속 실행해야 하며, 완전히 종료하거나 네트워크를 사용할 수 없으면 업데이트가 중지됩니다.",
+      "codexAppUiInjectionDesc": "Codex 인스턴스를 다시 시작하면 입력창 아래에 Cockpit2API API 서비스의 계정 수와 주간 및 5시간 할당량을 표시합니다. DeepSeek 계정을 바인딩한 인스턴스는 대신 해당 계정 잔액을 표시합니다. Cockpit2API를 백그라운드에서 계속 실행해야 하며, 완전히 종료하거나 네트워크를 사용할 수 없으면 업데이트가 중지됩니다.",
       "codexAppUiInjectionPoolLabel": "계정",
       "codexAppUiInjectionWeeklyLabel": "주",
       "codexAppUiInjectionFiveHourLabel": "5시간",
@@ -966,7 +966,7 @@
       "sideNavLayoutClassic": "클래식 레이아웃",
       "antigravityDualSwitchNoRestart": "재시작 없이 이중 전환",
       "antigravityDualSwitchNoRestartDesc": "계정 전환 시 로컬 계정 데이터 기록과 확장 프로그램의 원활한 전환을 한 번에 수행하며, Antigravity IDE를 재시작하지 않습니다.",
-      "appAutoLaunch": "로그인 시 Cockpit Tools 시작",
+      "appAutoLaunch": "로그인 시 Cockpit2API 시작",
       "appAutoLaunchDesc": "로그인 후 자동 실행. Windows 부팅 시 PowerShell 오류가 나면 끄세요.",
       "startupWakeupDisabled": "비활성화",
       "startupWakeupImmediate": "즉시 깨우기",
@@ -1125,7 +1125,7 @@
       "proxyUrlRequired": "전역 프록시를 켠 경우 프록시 URL은 비워둘 수 없습니다."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "Cockpit2API​",
       "slogan": "전문적인 계정 관리 솔루션",
       "author": "제작자",
       "wechat": "WeChat 플러스",
@@ -2345,11 +2345,11 @@
     },
     "exportFormat": {
       "label": "내보내기 형식",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "Cockpit2API​",
       "authJson": "공식 auth.json",
       "sub2api": "sub2api 형식",
       "cpa": "cpa 형식",
-      "agentIdentityCpaUnsupported": "Agent Identity 계정은 cpa 형식으로 내보낼 수 없습니다. Cockpit Tools 또는 sub2api를 사용하세요.",
+      "agentIdentityCpaUnsupported": "Agent Identity 계정은 cpa 형식으로 내보낼 수 없습니다. Cockpit2API 또는 sub2api를 사용하세요.",
       "agentIdentityPrivateKeyNotice": "이 내보내기에는 다른 기기에서 계정을 복원할 수 있는 Agent Identity 개인 키가 포함됩니다. 비밀번호처럼 안전하게 보관하세요.",
       "buildFailed": "내보내기를 만들 수 없습니다. 선택한 계정에 지원되지 않는 유형이나 불완전한 인증 정보가 포함되어 있습니다.",
       "downloadAll": "모두 다운로드",
@@ -2434,8 +2434,8 @@
       "testAuthFailed": "서비스에 연결되었지만 인증에 실패했습니다: {{detail}}. API 서비스 키 또는 계정 로그인 상태를 확인하세요.",
       "testServiceUnavailable": "서비스에 연결되었지만 현재 사용할 수 없습니다: {{detail}}. 서비스가 활성화되어 있는지, 계정 모음이 비어 있지 않은지, 계정을 사용할 수 있는지 확인하세요.",
       "gatewayErrors": {
-        "authUnavailable": "현재 라우팅할 수 있는 계정이 없습니다. 계정이 대기 중이거나 인증되지 않았거나 할당량이 제한되었을 수 있습니다. Cockpit Tools API 서비스에서 상태를 확인하세요.",
-        "authNotFound": "계정 풀에 사용 가능한 계정이 설정되어 있지 않습니다. Cockpit Tools API 서비스에서 계정을 추가하거나 활성화하세요."
+        "authUnavailable": "현재 라우팅할 수 있는 계정이 없습니다. 계정이 대기 중이거나 인증되지 않았거나 할당량이 제한되었을 수 있습니다. Cockpit2API API 서비스에서 상태를 확인하세요.",
+        "authNotFound": "계정 풀에 사용 가능한 계정이 설정되어 있지 않습니다. Cockpit2API API 서비스에서 계정을 추가하거나 활성화하세요."
       },
       "testRateLimited": "서비스에 연결되었지만 업스트림 제한 또는 할당량 부족입니다: {{detail}}.",
       "testHttpFailed": "서비스에 연결되었지만 요청이 HTTP {{status}}를 반환했습니다: {{detail}}.",
@@ -5868,7 +5868,7 @@
       "backToCurrent": "돌아가기",
       "switchToThisAccount": "전환",
       "openDetails": "상세 열기",
-      "openCockpitTools": "Cockpit Tools 열기"
+      "openCockpitTools": "Cockpit2API 열기"
     },
     "empty": {
       "title": "계정 없음",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "전용 중계소",
-    "pageDesc": "Cockpit Tools 사용자를 위한 제휴 API 서비스이며 Codex API Key 계정에 사용할 수 있습니다.",
+    "pageDesc": "Cockpit2API 사용자를 위한 제휴 API 서비스이며 Codex API Key 계정에 사용할 수 있습니다.",
     "loading": "중계소를 불러오는 중...",
     "emptyTitle": "중계소 비활성화",
     "emptyDesc": "현재 원격 설정에서 전용 중계소가 활성화되지 않았습니다.",

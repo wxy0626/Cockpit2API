@@ -2286,7 +2286,7 @@ fn render_markdown(meta: &ReportMeta, rows: &[ReportRow]) -> String {
     let now = chrono::Utc::now();
     let data_collected_at = format_data_collected_at(meta);
     let mut output = String::new();
-    output.push_str("# Cockpit Tools Usage Report\n\n");
+    output.push_str("# Cockpit2API Usage Report\n\n");
     output.push_str(&format!(
         "- Generated at: {}\n",
         markdown_cell(&meta.generated_at)
@@ -2399,12 +2399,12 @@ fn render_html(meta: &ReportMeta, rows: &[ReportRow]) -> String {
     output.push_str(
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>",
     );
-    output.push_str("<title>Cockpit Tools Usage Report</title>");
+    output.push_str("<title>Cockpit2API Usage Report</title>");
     output.push_str(
         "<style>body{margin:0;background:#f6f8fb;color:#0f172a;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}main{max-width:1120px;margin:24px auto;padding:0 16px 24px}h1{font-size:22px;margin:0 0 12px}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-top:16px}th,td{font-size:13px;padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}th{background:#e8eafe;color:#334155;font-weight:600;position:sticky;top:0}tr:last-child td{border-bottom:none}.meta-table{margin-top:0}.meta-key{width:360px;color:#334155;font-weight:600;background:#e8eafe}.group-even td{background:#ffffff}.group-odd td{background:#f0faff}.status-disabled{color:#b45309}.status-normal{color:#166534}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}.reset-friendly-col{min-width:240px;width:240px;white-space:nowrap}</style>",
     );
     output.push_str("</head><body><main>");
-    output.push_str("<h1>Cockpit Tools Usage Report</h1>");
+    output.push_str("<h1>Cockpit2API Usage Report</h1>");
     output.push_str("<table class=\"meta-table\"><tbody>");
     output.push_str(&format!(
         "<tr><th class=\"meta-key\">Generated at</th><td class=\"mono\">{}</td></tr>",

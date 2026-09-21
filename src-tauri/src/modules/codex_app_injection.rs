@@ -1,4 +1,4 @@
-//! Codex/ChatGPT renderer 的 Cockpit Tools 额度显示注入。
+//! Codex/ChatGPT renderer 的 Cockpit2API 额度显示注入。
 //!
 //! 两种注入共用同一套 loopback CDP 通道：
 //! - API 服务绑定：账号数、周额度、5h 额度；

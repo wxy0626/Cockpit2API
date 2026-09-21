@@ -372,7 +372,7 @@
       "desc": "Tato oblast je pevně umístěná vpravo nahoře na všech stránkách pro kampaně nebo brandové reklamy.",
       "action": "Zobrazit podrobnosti"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "Cockpit2API​",
     "collapse": "Sbalit",
     "confirmDelete": "Potvrdit smazání",
     "confirmDeleteTag": "Potvrdit smazání štítku",
@@ -425,12 +425,12 @@
   },
   "sponsors": {
     "pageTitle": "Sponzoři",
-    "pageDesc": "Děkujeme těmto sponzorům za podporu Cockpit Tools.",
+    "pageDesc": "Děkujeme těmto sponzorům za podporu Cockpit2API.",
     "loading": "Načítání sponzorů...",
     "emptyTitle": "Zatím žádní sponzoři",
     "emptyDesc": "Vzdálený modul sponzorů je aktuálně vypnutý.",
     "listAriaLabel": "Seznam sponzorů",
-    "defaultDescription": "Děkujeme za podporu Cockpit Tools.",
+    "defaultDescription": "Děkujeme za podporu Cockpit2API.",
     "openSponsor": "Otevřít"
   },
   "platformLayout": {
@@ -628,12 +628,12 @@
         "summary": "Modely bez předpony používají aktuální předplatné; modely s předponou jako cpa/gpt-5.5 jsou předávány do API třetích stran. Obojí závisí na místní službě směrování.",
         "rowSummary": "Modely bez předpony používají aktuální předplatné; modely s předponou jako cpa/gpt-5.5 jsou předávány do API třetích stran. Obojí závisí na místní službě směrování.",
         "confirmEnableTitle": "Povolit směrování API třetích stran?",
-        "confirmEnableMessage": "Požadavky na modely Codex budou směrovány přes místní službu Cockpit Tools. Pokud služba neběží, modely předplatného i modely třetích stran mohou být nedostupné. Spuštění při přihlášení bude povoleno při uložení.\n\nPovolit směrování?",
+        "confirmEnableMessage": "Požadavky na modely Codex budou směrovány přes místní službu Cockpit2API. Pokud služba neběží, modely předplatného i modely třetích stran mohou být nedostupné. Spuštění při přihlášení bude povoleno při uložení.\n\nPovolit směrování?",
         "confirmEnableAction": "Povolit",
         "confirmDisableTitle": "Zakázat směrování API třetích stran?",
         "confirmDisableMessage": "Jakmile tato změna vstoupí v platnost, místní brána se zastaví, obnoví se přímý přístup k oficiálnímu předplatnému a modely třetích stran nebudou k dispozici.\n\nZakázat směrování?",
         "confirmDisableAction": "Zakázat",
-        "modalTip": "Modely předplatného i modely třetích stran procházejí místní službou směrování. Ponechte Cockpit Tools spuštěné na pozadí. Služba se automaticky obnoví a po opakovaných selháních se vrátí k oficiální konfiguraci.",
+        "modalTip": "Modely předplatného i modely třetích stran procházejí místní službou směrování. Ponechte Cockpit2API spuštěné na pozadí. Služba se automaticky obnoví a po opakovaných selháních se vrátí k oficiální konfiguraci.",
         "modelRequired": "Každá povolená trasa API musí obsahovat alespoň jeden model.",
         "runningSaveTitle": "Kdy má směrování vstoupit v platnost?",
         "runningSaveMessage": "Tato instance Codexu je spuštěna. Nahrazení místní služby nyní přeruší probíhající konverzaci.\n\nZvolte „Uložit a restartovat Codex“ pro okamžité použití, nebo „Uložit na později“ pro zachování aktuální relace.",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "Nastavení aplikace",
-    "subtitle": "Přizpůsobte si prostředí Cockpit Tools.",
+    "subtitle": "Přizpůsobte si prostředí Cockpit2API.",
     "tabs": {
       "general": "Obecné",
       "network": "Síť",
@@ -855,7 +855,7 @@
       "codexSyncWsl": "Synchronizovat Codex do WSL",
       "codexSyncWslDesc": "Po přepnutí výchozího účtu Codex se auth.json a config.toml zapíší také do adresáře Codex ve WSL.",
       "codexAppUiInjection": "Kvóta API služby",
-      "codexAppUiInjectionDesc": "Po restartování instance Codex zobrazí pod kompozitorem počet účtů API služby Cockpit Tools a kvóty za týden a 5 hodin; instance s připojeným účtem DeepSeek místo toho zobrazují zůstatek tohoto účtu. Cockpit Tools musí běžet na pozadí; po úplném ukončení nebo bez sítě se údaje neobnovují.",
+      "codexAppUiInjectionDesc": "Po restartování instance Codex zobrazí pod kompozitorem počet účtů API služby Cockpit2API a kvóty za týden a 5 hodin; instance s připojeným účtem DeepSeek místo toho zobrazují zůstatek tohoto účtu. Cockpit2API musí běžet na pozadí; po úplném ukončení nebo bez sítě se údaje neobnovují.",
       "codexAppUiInjectionPoolLabel": "Účty",
       "codexAppUiInjectionWeeklyLabel": "Týden",
       "codexAppUiInjectionFiveHourLabel": "5 h",
@@ -962,7 +962,7 @@
       "sideNavLayoutClassic": "Klasické rozložení",
       "antigravityDualSwitchNoRestart": "Duální přepnutí bez restartu",
       "antigravityDualSwitchNoRestartDesc": "Při přepnutí účtu se v jednom kroku zapíší lokální data účtu a provede plynulé přepnutí rozšíření bez restartu Antigravity IDE.",
-      "appAutoLaunch": "Spustit Cockpit Tools po přihlášení",
+      "appAutoLaunch": "Spustit Cockpit2API po přihlášení",
       "appAutoLaunchDesc": "Spustit po přihlášení. Při chybě PowerShell při startu Windows vypněte.",
       "startupWakeupDisabled": "Vypnuto",
       "startupWakeupImmediate": "Probudit okamžitě",
@@ -1125,7 +1125,7 @@
       "proxyUrlRequired": "Když je globální proxy zapnutá, URL proxy nesmí být prázdná."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "Cockpit2API​",
       "slogan": "Profesionální řešení pro správu účtů",
       "author": "Autor",
       "wechat": "WeChat​",
@@ -2345,11 +2345,11 @@
     },
     "exportFormat": {
       "label": "Formát exportu",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "Cockpit2API​",
       "authJson": "Oficiální auth.json",
       "sub2api": "sub2api formát",
       "cpa": "cpa formát",
-      "agentIdentityCpaUnsupported": "Účty Agent Identity nelze exportovat ve formátu cpa. Použijte Cockpit Tools nebo sub2api.",
+      "agentIdentityCpaUnsupported": "Účty Agent Identity nelze exportovat ve formátu cpa. Použijte Cockpit2API nebo sub2api.",
       "agentIdentityPrivateKeyNotice": "Export obsahuje soukromý klíč Agent Identity, který umožňuje obnovit účet na jiném zařízení. Chraňte jej jako heslo.",
       "buildFailed": "Export nelze vytvořit: vybrané účty obsahují nepodporovaný typ nebo neúplné přihlašovací údaje.",
       "downloadAll": "Stáhnout vše",
@@ -2434,8 +2434,8 @@
       "testAuthFailed": "Služba je dosažitelná, ale ověření selhalo: {{detail}}. Zkontrolujte klíč API služby nebo stav přihlášení účtu.",
       "testServiceUnavailable": "Služba je dosažitelná, ale momentálně není dostupná: {{detail}}. Zkontrolujte, zda je služba zapnutá, kolekce účtů není prázdná a účty jsou použitelné.",
       "gatewayErrors": {
-        "authUnavailable": "Momentálně není k dispozici žádný účet pro směrování. Účet může být v čekací lhůtě, bez ověření nebo omezený kvótou. Zkontrolujte jeho stav v API službě Cockpit Tools.",
-        "authNotFound": "V kolekci účtů není nastaven žádný použitelný účet. Přidejte nebo aktivujte účet v API službě Cockpit Tools."
+        "authUnavailable": "Momentálně není k dispozici žádný účet pro směrování. Účet může být v čekací lhůtě, bez ověření nebo omezený kvótou. Zkontrolujte jeho stav v API službě Cockpit2API.",
+        "authNotFound": "V kolekci účtů není nastaven žádný použitelný účet. Přidejte nebo aktivujte účet v API službě Cockpit2API."
       },
       "testRateLimited": "Služba je dosažitelná, ale upstream je omezen nebo kvóta vyčerpána: {{detail}}.",
       "testHttpFailed": "Služba je dosažitelná, ale požadavek vrátil HTTP {{status}}: {{detail}}.",
@@ -5868,7 +5868,7 @@
       "backToCurrent": "Zpět",
       "switchToThisAccount": "Přepnout",
       "openDetails": "Otevřít detail",
-      "openCockpitTools": "Otevřít Cockpit Tools"
+      "openCockpitTools": "Otevřít Cockpit2API"
     },
     "empty": {
       "title": "Žádné účty",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "Exkluzivní relay",
-    "pageDesc": "Partnerská API služba pro uživatele Cockpit Tools použitelná s účty Codex API Key.",
+    "pageDesc": "Partnerská API služba pro uživatele Cockpit2API použitelná s účty Codex API Key.",
     "loading": "Načítání relay...",
     "emptyTitle": "Relay vypnutý",
     "emptyDesc": "Vzdálená konfigurace exkluzivní relay nepovolila.",

@@ -265,7 +265,7 @@ export function useCodexAccountsBaseController() {
       setCodexGroupsReady(true);
     }, []);
 
-    // 导出 Cockpit Tools 格式时把分组（文件夹）名称一并写入，导入端据此恢复归类（#2213）。
+    // 导出 Cockpit2API 格式时把分组（文件夹）名称一并写入，导入端据此恢复归类（#2213）。
     const codexExportAccountGroupNames = useMemo(() => {
       const names: Record<string, string> = {};
       for (const group of codexGroups) {
@@ -1251,7 +1251,7 @@ export function useCodexAccountsBaseController() {
       () => [
         {
           value: "cockpit_tools",
-          label: t("codex.exportFormat.cockpitTools", "Cockpit Tools"),
+          label: t("codex.exportFormat.cockpitTools", "Cockpit2API"),
         },
         {
           value: "auth_json",

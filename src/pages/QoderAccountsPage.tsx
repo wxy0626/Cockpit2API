@@ -897,7 +897,7 @@ export function QoderAccountsPage() {
           ? t('accounts.deleteConfirm.single', '确认删除该账号？')
           : t('accounts.deleteConfirm.multi', '确认删除选中的 {{count}} 个账号？', { count: ids.length }),
         {
-          title: t('common.appName', 'Cockpit Tools'),
+          title: t('common.appName', 'Cockpit2API'),
           kind: 'warning',
           okLabel: t('common.confirm', '确认'),
           cancelLabel: t('common.cancel', '取消'),

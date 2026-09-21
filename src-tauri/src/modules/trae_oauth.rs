@@ -1312,7 +1312,7 @@ fn callback_page_html(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Trae OAuth - Cockpit Tools</title>
+  <title>Trae OAuth - Cockpit2API</title>
   <style>
     :root {{
       color-scheme: dark;
@@ -1405,11 +1405,11 @@ fn callback_page_html(
 </head>
 <body>
   <main class="card">
-    <div class="brand"><span class="mark">✓</span><span>Cockpit Tools</span></div>
+    <div class="brand"><span class="mark">✓</span><span>Cockpit2API</span></div>
     <div class="status {tone}">{badge}</div>
     <h1>{title}</h1>
     <p id="hint">{message}</p>
-    <div class="foot">完成后可以关闭此页面，回到 Cockpit Tools 继续操作。</div>
+    <div class="foot">完成后可以关闭此页面，回到 Cockpit2API 继续操作。</div>
   </main>
   {script}
 </body>

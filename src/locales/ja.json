@@ -372,7 +372,7 @@
       "desc": "このエリアは全ページの右上に固定表示され、キャンペーン情報やブランド広告の掲載に適しています。",
       "action": "詳細を見る"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "Cockpit2API​",
     "collapse": "折りたたむ",
     "confirmDelete": "削除を確認",
     "confirmDeleteTag": "タグ削除の確認",
@@ -425,12 +425,12 @@
   },
   "sponsors": {
     "pageTitle": "スポンサー",
-    "pageDesc": "Cockpit Tools を支援してくださるスポンサーの皆さまに感謝します。",
+    "pageDesc": "Cockpit2API を支援してくださるスポンサーの皆さまに感謝します。",
     "loading": "スポンサーを読み込み中...",
     "emptyTitle": "スポンサーはまだありません",
     "emptyDesc": "リモートのスポンサーモジュールは現在無効です。",
     "listAriaLabel": "スポンサー一覧",
-    "defaultDescription": "Cockpit Tools へのご支援ありがとうございます。",
+    "defaultDescription": "Cockpit2API へのご支援ありがとうございます。",
     "openSponsor": "開く"
   },
   "platformLayout": {
@@ -628,12 +628,12 @@
         "summary": "プレフィックスのないモデルは現在のサブスクリプションを使用し、cpa/gpt-5.5 などのプレフィックス付きモデルはサードパーティ API に転送されます。どちらもローカル ルーティング サービスに依存します。",
         "rowSummary": "プレフィックスのないモデルは現在のサブスクリプションを使用し、cpa/gpt-5.5 などのプレフィックス付きモデルはサードパーティ API に転送されます。どちらもローカル ルーティング サービスに依存します。",
         "confirmEnableTitle": "サードパーティ API ルーティングを有効にしますか？",
-        "confirmEnableMessage": "Codex モデルのリクエストはローカルの Cockpit Tools サービスを経由してルーティングされます。サービスが実行されていない場合、サブスクリプション モデルとサードパーティ モデルの両方が利用できなくなる可能性があります。保存時にログイン時起動が有効になります。\n\nルーティングを有効にしますか？",
+        "confirmEnableMessage": "Codex モデルのリクエストはローカルの Cockpit2API サービスを経由してルーティングされます。サービスが実行されていない場合、サブスクリプション モデルとサードパーティ モデルの両方が利用できなくなる可能性があります。保存時にログイン時起動が有効になります。\n\nルーティングを有効にしますか？",
         "confirmEnableAction": "有効にする",
         "confirmDisableTitle": "サードパーティ API ルーティングを無効にしますか？",
         "confirmDisableMessage": "この変更が有効になると、ローカル ゲートウェイが停止し、ネイティブのサブスクリプション アクセスが復元され、サードパーティ モデルは利用できなくなります。\n\nルーティングを無効にしますか？",
         "confirmDisableAction": "無効にする",
-        "modalTip": "サブスクリプション モデルとサードパーティ モデルはどちらもローカル ルーティング サービスを通過します。Cockpit Tools をバックグラウンドで実行したままにしてください。サービスは自動的に回復し、連続して失敗した場合は公式設定にフォールバックします。",
+        "modalTip": "サブスクリプション モデルとサードパーティ モデルはどちらもローカル ルーティング サービスを通過します。Cockpit2API をバックグラウンドで実行したままにしてください。サービスは自動的に回復し、連続して失敗した場合は公式設定にフォールバックします。",
         "modelRequired": "有効な各 API ルートには、少なくとも 1 つのモデルを含める必要があります。",
         "runningSaveTitle": "ルーティング設定はいつ有効になりますか？",
         "runningSaveMessage": "この Codex インスタンスは実行中です。今すぐローカル サービスを置き換えると、現在の会話が中断されます。\n\n今すぐ適用するには「保存して Codex を再起動」を、現在のセッションを変更しない場合は「保存して後で適用」を選択してください。",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "アプリ設定",
-    "subtitle": "Cockpit Tools の利用体験をカスタマイズします。",
+    "subtitle": "Cockpit2API の利用体験をカスタマイズします。",
     "tabs": {
       "general": "全般",
       "network": "ネットワーク設定",
@@ -859,7 +859,7 @@
       "codexSyncWsl": "Codex を WSL に同期",
       "codexSyncWslDesc": "既定の Codex アカウントを切り替えた後、auth.json と config.toml も WSL 内の Codex ディレクトリへ書き込みます。",
       "codexAppUiInjection": "API サービスのクォータ",
-      "codexAppUiInjectionDesc": "Codex インスタンスの再起動後、入力欄の下に Cockpit Tools API サービスのアカウント数、週間クォータ、5 時間クォータを表示します。DeepSeek アカウントをバインドしたインスタンスでは、代わりにそのアカウントの残高を表示します。Cockpit Tools をバックグラウンドで起動したままにしてください。完全に終了した場合やネットワークを利用できない場合は更新されません。",
+      "codexAppUiInjectionDesc": "Codex インスタンスの再起動後、入力欄の下に Cockpit2API API サービスのアカウント数、週間クォータ、5 時間クォータを表示します。DeepSeek アカウントをバインドしたインスタンスでは、代わりにそのアカウントの残高を表示します。Cockpit2API をバックグラウンドで起動したままにしてください。完全に終了した場合やネットワークを利用できない場合は更新されません。",
       "codexAppUiInjectionPoolLabel": "アカウント",
       "codexAppUiInjectionWeeklyLabel": "週",
       "codexAppUiInjectionFiveHourLabel": "5時間",
@@ -966,7 +966,7 @@
       "sideNavLayoutClassic": "クラシックレイアウト",
       "antigravityDualSwitchNoRestart": "再起動なしデュアル切替",
       "antigravityDualSwitchNoRestartDesc": "切替時にローカルのアカウントデータ書き込みと拡張機能のシームレス切替を1つのフローで実行し、Antigravity IDE を再起動しません。",
-      "appAutoLaunch": "ログイン時に Cockpit Tools を起動",
+      "appAutoLaunch": "ログイン時に Cockpit2API を起動",
       "appAutoLaunchDesc": "サインイン後に自動起動。Windows 起動時に PowerShell エラーが出る場合はオフにしてください。",
       "startupWakeupDisabled": "無効",
       "startupWakeupImmediate": "すぐに起動",
@@ -1125,7 +1125,7 @@
       "proxyUrlRequired": "グローバルプロキシを有効にする場合、プロキシ URL は必須です。"
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "Cockpit2API​",
       "slogan": "プロフェッショナルなアカウント管理ソリューション",
       "author": "著者",
       "wechat": "WeChat 公衆号",
@@ -2345,11 +2345,11 @@
     },
     "exportFormat": {
       "label": "エクスポート形式",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "Cockpit2API​",
       "authJson": "公式 auth.json",
       "sub2api": "sub2api 形式",
       "cpa": "cpa 形式",
-      "agentIdentityCpaUnsupported": "Agent Identity アカウントは cpa 形式ではエクスポートできません。Cockpit Tools または sub2api を使用してください。",
+      "agentIdentityCpaUnsupported": "Agent Identity アカウントは cpa 形式ではエクスポートできません。Cockpit2API または sub2api を使用してください。",
       "agentIdentityPrivateKeyNotice": "このエクスポートには、別のデバイスでアカウントを復元できる Agent Identity 秘密鍵が含まれます。パスワードと同様に厳重に保管してください。",
       "buildFailed": "エクスポートを作成できません。選択したアカウントに未対応の種類または不完全な認証情報が含まれています。",
       "downloadAll": "すべてダウンロード",
@@ -2434,8 +2434,8 @@
       "testAuthFailed": "サービスには到達しましたが、認証に失敗しました: {{detail}}。API サービスキーまたはアカウントのログイン状態を確認してください。",
       "testServiceUnavailable": "サービスには到達しましたが、現在利用できません: {{detail}}。サービスが有効か、アカウント集合が空でないか、アカウントが利用可能かを確認してください。",
       "gatewayErrors": {
-        "authUnavailable": "現在、ルーティング可能なアカウントがありません。冷却中、認証失敗、またはクォータ制限の可能性があります。Cockpit Tools の API サービスで状態を確認してください。",
-        "authNotFound": "利用可能なアカウントがアカウントプールに設定されていません。Cockpit Tools の API サービスで追加または有効化してください。"
+        "authUnavailable": "現在、ルーティング可能なアカウントがありません。冷却中、認証失敗、またはクォータ制限の可能性があります。Cockpit2API の API サービスで状態を確認してください。",
+        "authNotFound": "利用可能なアカウントがアカウントプールに設定されていません。Cockpit2API の API サービスで追加または有効化してください。"
       },
       "testRateLimited": "サービスには到達しましたが、上流でレート制限またはクォータ不足です: {{detail}}。",
       "testHttpFailed": "サービスには到達しましたが、リクエストは HTTP {{status}} を返しました: {{detail}}。",
@@ -5868,7 +5868,7 @@
       "backToCurrent": "戻る",
       "switchToThisAccount": "切替",
       "openDetails": "詳細を開く",
-      "openCockpitTools": "Cockpit Tools を開く"
+      "openCockpitTools": "Cockpit2API を開く"
     },
     "empty": {
       "title": "アカウントがありません",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "専用リレー",
-    "pageDesc": "Cockpit Tools ユーザー向けの提携 API サービスで、Codex API Key アカウントに利用できます。",
+    "pageDesc": "Cockpit2API ユーザー向けの提携 API サービスで、Codex API Key アカウントに利用できます。",
     "loading": "リレーを読み込み中...",
     "emptyTitle": "リレーは無効です",
     "emptyDesc": "現在のリモート設定では専用リレーが有効になっていません。",

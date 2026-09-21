@@ -452,7 +452,7 @@ fn oauth_success_html() -> &'static str {
 <body>
   <div class="box">
     <h1>授权成功</h1>
-    <p>你可以关闭此页面并返回 Antigravity Cockpit Tools。</p>
+    <p>你可以关闭此页面并返回 Antigravity Cockpit2API。</p>
   </div>
 </body>
 </html>"#

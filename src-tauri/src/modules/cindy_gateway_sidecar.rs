@@ -1,7 +1,7 @@
 //! Cindy 反代网关 sidecar（cindy2api）托管。
 //!
 //! 与 `sidecars/wb2api` 的差别：wb2api 由外部手动启动，**本模块让 cindy2api
-//! 随 CockpitTools 启动自动可用**，用户不必手动开进程。
+//! 随 Cockpit2API 启动自动可用**，用户不必手动开进程。
 //!
 //! 二进制定位范式照抄 `codex_local_access_sidecar_config`：
 //!   - 开发期（debug）：`<repo>/sidecars/cindy2api/bin/`

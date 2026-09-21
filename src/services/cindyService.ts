@@ -26,7 +26,7 @@ export const CINDY_GATEWAY_BASE = 'http://127.0.0.1:7865';
 
 /** 网关不可达时给出的统一提示（用户最常遇到的失败就是 sidecar 没起来） */
 const UNREACHABLE_HINT =
-  '无法连接 Cindy 网关服务。请确认 CockpitTools 已正常启动（网关由它托管拉起），' +
+  '无法连接 Cindy 网关服务。请确认 Cockpit2API 已正常启动（网关由它托管拉起），' +
   '或手动执行 sidecars/cindy2api/bin/cindy2api.exe。';
 
 /** 统一的请求封装：把 HTTP 失败与错误体转成中文可读的错误 */
@@ -176,7 +176,7 @@ export async function getProviders(region: 'global' | 'cn'): Promise<CindyProvid
  * 发起 OAuth 授权：返回会话 id 与授权地址。
  *
  * `openBrowser: false` 时不拉起系统浏览器 —— 由调用方用可信授权窗口打开
- * （CockpitTools 走这条，避免复用系统浏览器登录态导致「再次授权还是上一个账号」）。
+ * （Cockpit2API 走这条，避免复用系统浏览器登录态导致「再次授权还是上一个账号」）。
  */
 export interface OAuthStartResult {
   sessionId: string;

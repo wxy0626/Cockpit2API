@@ -1358,7 +1358,7 @@ fn profile_mutation_lock_allows_one_writer_and_rejects_the_concurrent_writer() {
         Ok(_) => panic!("concurrent writer must be rejected"),
         Err(error) => error,
     };
-    assert!(second.contains("另一个 Cockpit Tools 环境正在操作"));
+    assert!(second.contains("另一个 Cockpit2API 环境正在操作"));
 
     drop(first);
     super::try_acquire_profile_mutation_lease(&profile, "test-after-release")
@@ -3157,7 +3157,7 @@ fn formats_refresh_errors_with_actionable_reason() {
 #[test]
 fn quota_refresh_ownership_errors_are_internal_only() {
     assert!(super::is_refresh_ownership_deferred_error(
-            "官方 ChatGPT/Codex 客户端正在使用此账号；为避免重复轮换 refresh_token，Cockpit Tools 已暂停该账号刷新。"
+            "官方 ChatGPT/Codex 客户端正在使用此账号；为避免重复轮换 refresh_token，Cockpit2API 已暂停该账号刷新。"
         ));
     assert!(super::is_refresh_ownership_deferred_error(
         "该账号正在执行 Codex 实例启动或受控转移；为避免重复轮换 refresh_token，本次刷新已取消。"

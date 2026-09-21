@@ -296,7 +296,7 @@ enum CodexJsonImportCandidate {
 
 static CODEX_IMPORTED_GROUP_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Cockpit Tools 导出格式附带的可迁移元数据（社区 #2213）。
+/// Cockpit2API 导出格式附带的可迁移元数据（社区 #2213）。
 ///
 /// 标签/账号名/账号结构写回账号本身；分组名称用于恢复分组（文件夹）归类。
 /// 旧版本导出的文件没有这些字段，解析结果全为空，导入行为保持不变。

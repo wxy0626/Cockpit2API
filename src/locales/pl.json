@@ -372,7 +372,7 @@
       "desc": "Ten obszar jest przypięty w prawym górnym rogu na wszystkich stronach i nadaje się do kampanii lub reklam marki.",
       "action": "Zobacz szczegóły"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "Cockpit2API​",
     "collapse": "Zwiń",
     "confirmDelete": "Potwierdź usunięcie",
     "confirmDeleteTag": "Potwierdź usunięcie tagu",
@@ -425,12 +425,12 @@
   },
   "sponsors": {
     "pageTitle": "Sponsorzy",
-    "pageDesc": "Dziękujemy tym sponsorom za wsparcie Cockpit Tools.",
+    "pageDesc": "Dziękujemy tym sponsorom za wsparcie Cockpit2API.",
     "loading": "Ładowanie sponsorów...",
     "emptyTitle": "Brak sponsorów",
     "emptyDesc": "Zdalny moduł sponsorów jest obecnie wyłączony.",
     "listAriaLabel": "Lista sponsorów",
-    "defaultDescription": "Dziękujemy za wsparcie Cockpit Tools.",
+    "defaultDescription": "Dziękujemy za wsparcie Cockpit2API.",
     "openSponsor": "Otwórz"
   },
   "platformLayout": {
@@ -628,12 +628,12 @@
         "summary": "Modele bez prefiksu korzystają z bieżącej subskrypcji; modele z prefiksem, takie jak cpa/gpt-5.5, są przekazywane do zewnętrznego API. Oba zależą od lokalnej usługi routingu.",
         "rowSummary": "Modele bez prefiksu korzystają z bieżącej subskrypcji; modele z prefiksem, takie jak cpa/gpt-5.5, są przekazywane do zewnętrznego API. Oba zależą od lokalnej usługi routingu.",
         "confirmEnableTitle": "Włączyć routing API innych firm?",
-        "confirmEnableMessage": "Żądania modeli Codex będą kierowane przez lokalną usługę Cockpit Tools. Jeśli usługa nie działa, zarówno modele subskrypcyjne, jak i zewnętrzne mogą być niedostępne. Uruchamianie przy logowaniu zostanie włączone po zapisaniu.\n\nWłączyć routing?",
+        "confirmEnableMessage": "Żądania modeli Codex będą kierowane przez lokalną usługę Cockpit2API. Jeśli usługa nie działa, zarówno modele subskrypcyjne, jak i zewnętrzne mogą być niedostępne. Uruchamianie przy logowaniu zostanie włączone po zapisaniu.\n\nWłączyć routing?",
         "confirmEnableAction": "Włącz",
         "confirmDisableTitle": "Wyłączyć routing API innych firm?",
         "confirmDisableMessage": "Gdy ta zmiana wejdzie w życie, lokalna brama zostanie zatrzymana, bezpośredni dostęp do oficjalnej subskrypcji zostanie przywrócony, a modele innych firm będą niedostępne.\n\nWyłączyć routing?",
         "confirmDisableAction": "Wyłącz",
-        "modalTip": "Zarówno modele subskrypcyjne, jak i innych firm przechodzą przez lokalną usługę routingu. Pozostaw Cockpit Tools uruchomione w tle. Usługa odzyskuje sprawność automatycznie, a po wielokrotnych niepowodzeniach powraca do oficjalnej konfiguracji.",
+        "modalTip": "Zarówno modele subskrypcyjne, jak i innych firm przechodzą przez lokalną usługę routingu. Pozostaw Cockpit2API uruchomione w tle. Usługa odzyskuje sprawność automatycznie, a po wielokrotnych niepowodzeniach powraca do oficjalnej konfiguracji.",
         "modelRequired": "Każda włączona trasa API musi zawierać co najmniej jeden model.",
         "runningSaveTitle": "Kiedy routing ma wejść w życie?",
         "runningSaveMessage": "Ta instancja Codex jest uruchomiona. Zastąpienie lokalnej usługi teraz przerwie bieżącą rozmowę.\n\nWybierz „Zapisz i zrestartuj Codex”, aby zastosować teraz, lub „Zapisz na później”, aby zachować bieżącą sesję bez zmian.",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "Ustawienia aplikacji",
-    "subtitle": "Dostosuj działanie narzędzi Cockpit Tools.",
+    "subtitle": "Dostosuj działanie narzędzi Cockpit2API.",
     "tabs": {
       "general": "Ogólne",
       "network": "Sieć",
@@ -859,7 +859,7 @@
       "codexSyncWsl": "Synchronizuj Codex z WSL",
       "codexSyncWslDesc": "Po przełączeniu domyślnego konta Codex pliki auth.json i config.toml są też zapisywane w katalogu Codex w WSL.",
       "codexAppUiInjection": "Limit usługi API",
-      "codexAppUiInjectionDesc": "Po ponownym uruchomieniu instancji Codex pokaż pod kompozytorem liczbę kont oraz tygodniowy i 5-godzinny limit usługi API Cockpit Tools; instancje powiązane z kontem DeepSeek pokazują zamiast tego saldo tego konta. Cockpit Tools musi działać w tle; aktualizacje zatrzymują się po całkowitym zamknięciu aplikacji lub przy braku sieci.",
+      "codexAppUiInjectionDesc": "Po ponownym uruchomieniu instancji Codex pokaż pod kompozytorem liczbę kont oraz tygodniowy i 5-godzinny limit usługi API Cockpit2API; instancje powiązane z kontem DeepSeek pokazują zamiast tego saldo tego konta. Cockpit2API musi działać w tle; aktualizacje zatrzymują się po całkowitym zamknięciu aplikacji lub przy braku sieci.",
       "codexAppUiInjectionPoolLabel": "Konta",
       "codexAppUiInjectionWeeklyLabel": "Tydzień",
       "codexAppUiInjectionFiveHourLabel": "5 godz.",
@@ -966,7 +966,7 @@
       "sideNavLayoutClassic": "Układ klasyczny",
       "antigravityDualSwitchNoRestart": "Podwójne przełączanie bez restartu",
       "antigravityDualSwitchNoRestartDesc": "Podczas przełączania konta zapis lokalnych danych i płynne przełączenie przez rozszerzenie są wykonywane w jednym przebiegu, bez restartu Antigravity IDE.",
-      "appAutoLaunch": "Uruchamiaj Cockpit Tools po zalogowaniu",
+      "appAutoLaunch": "Uruchamiaj Cockpit2API po zalogowaniu",
       "appAutoLaunchDesc": "Uruchom po zalogowaniu. Jeśli Windows zgłasza błąd PowerShell przy starcie, wyłącz.",
       "startupWakeupDisabled": "Wyłączone",
       "startupWakeupImmediate": "Wybudź natychmiast",
@@ -1125,7 +1125,7 @@
       "proxyUrlRequired": "Adres URL proxy nie może być pusty, gdy globalny proxy jest włączony."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "Cockpit2API​",
       "slogan": "Profesjonalne rozwiązanie do zarządzania kontami",
       "author": "Autor",
       "wechat": "WeChat​",
@@ -2345,11 +2345,11 @@
     },
     "exportFormat": {
       "label": "Format eksportu",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "Cockpit2API​",
       "authJson": "Oficjalny auth.json",
       "sub2api": "Format sub2api",
       "cpa": "Format cpa",
-      "agentIdentityCpaUnsupported": "Kont Agent Identity nie można eksportować w formacie cpa. Użyj Cockpit Tools lub sub2api.",
+      "agentIdentityCpaUnsupported": "Kont Agent Identity nie można eksportować w formacie cpa. Użyj Cockpit2API lub sub2api.",
       "agentIdentityPrivateKeyNotice": "Ten eksport zawiera klucz prywatny Agent Identity, który umożliwia odtworzenie konta na innym urządzeniu. Chroń go jak hasło.",
       "buildFailed": "Nie można utworzyć eksportu: wybrane konta mają nieobsługiwany typ lub niekompletne dane uwierzytelniające.",
       "downloadAll": "Pobierz wszystko",
@@ -2434,8 +2434,8 @@
       "testAuthFailed": "Usługa jest osiągalna, ale uwierzytelnianie nie powiodło się: {{detail}}. Sprawdź klucz usługi API lub stan logowania konta.",
       "testServiceUnavailable": "Usługa jest osiągalna, ale obecnie niedostępna: {{detail}}. Sprawdź, czy usługa jest włączona, kolekcja kont nie jest pusta i konta są używalne.",
       "gatewayErrors": {
-        "authUnavailable": "Obecnie nie ma konta dostępnego do routingu. Konto może być w czasie oczekiwania, bez autoryzacji lub ograniczone limitem. Sprawdź jego stan w usłudze API Cockpit Tools.",
-        "authNotFound": "W puli kont nie skonfigurowano użytecznego konta. Dodaj lub włącz konto w usłudze API Cockpit Tools."
+        "authUnavailable": "Obecnie nie ma konta dostępnego do routingu. Konto może być w czasie oczekiwania, bez autoryzacji lub ograniczone limitem. Sprawdź jego stan w usłudze API Cockpit2API.",
+        "authNotFound": "W puli kont nie skonfigurowano użytecznego konta. Dodaj lub włącz konto w usłudze API Cockpit2API."
       },
       "testRateLimited": "Usługa jest osiągalna, ale upstream jest ograniczony lub limit został wyczerpany: {{detail}}.",
       "testHttpFailed": "Usługa jest osiągalna, ale żądanie zwróciło HTTP {{status}}: {{detail}}.",
@@ -5868,7 +5868,7 @@
       "backToCurrent": "Wróć",
       "switchToThisAccount": "Przełącz",
       "openDetails": "Otwórz szczegóły",
-      "openCockpitTools": "Otwórz Cockpit Tools"
+      "openCockpitTools": "Otwórz Cockpit2API"
     },
     "empty": {
       "title": "Brak kont",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "Ekskluzywny relay",
-    "pageDesc": "Partnerska usługa API dla użytkowników Cockpit Tools, dostępna dla kont Codex API Key.",
+    "pageDesc": "Partnerska usługa API dla użytkowników Cockpit2API, dostępna dla kont Codex API Key.",
     "loading": "Ładowanie relay...",
     "emptyTitle": "Relay wyłączony",
     "emptyDesc": "Zdalna konfiguracja nie włączyła ekskluzywnego relay.",

@@ -1013,7 +1013,7 @@ async function confirmRoutingToggle(
   const message = nextEnabled
     ? t(
         "instances.form.modelRouting.confirmEnableMessage",
-        "开启后，Codex 的模型请求将通过 Cockpit Tools 本地服务分流。服务未运行时，官方订阅和第三方模型都可能无法使用。保存时将默认启用开机自启。\n\n确认开启吗？",
+        "开启后，Codex 的模型请求将通过 Cockpit2API 本地服务分流。服务未运行时，官方订阅和第三方模型都可能无法使用。保存时将默认启用开机自启。\n\n确认开启吗？",
       )
     : t(
         "instances.form.modelRouting.confirmDisableMessage",
@@ -1131,7 +1131,7 @@ export function CodexModelRoutingModal({
             <span>
               {t(
                 "instances.form.modelRouting.modalTip",
-                "开启后，官方订阅和第三方模型都会经过本地分流服务。请保持 Cockpit Tools 后台运行；服务异常时会自动恢复，连续失败则回退官方配置。",
+                "开启后，官方订阅和第三方模型都会经过本地分流服务。请保持 Cockpit2API 后台运行；服务异常时会自动恢复，连续失败则回退官方配置。",
               )}
             </span>
           </div>

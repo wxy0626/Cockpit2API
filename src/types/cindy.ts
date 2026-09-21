@@ -1,7 +1,7 @@
 /**
  * cindy.ts —— Cindy 平台的账号类型与展示映射。
  *
- * Cindy 与其它平台的**根本差异**：账号不在 CockpitTools 的本地账号库里，
+ * Cindy 与其它平台的**根本差异**：账号不在 Cockpit2API 的本地账号库里，
  * 而是由 sidecars/cindy2api 提供（本机登录态自动发现 + OAuth 授权添加）。
  * 因此这里只做「sidecar 返回值 → 通用账号视图所需形状」的映射，
  * 不涉及任何 Tauri 调用与本地持久化。

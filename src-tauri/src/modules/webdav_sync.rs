@@ -463,7 +463,7 @@ mod tests {
         assert!(normalize_base_url("").is_err());
         assert!(normalize_base_url("ftp://dav.example.com/dav/").is_err());
         assert!(normalize_remote_dir("../backups").is_err());
-        assert!(normalize_remote_dir("CockpitTools\\backups").is_err());
+        assert!(normalize_remote_dir("Cockpit2API\\backups").is_err());
     }
 
     #[test]

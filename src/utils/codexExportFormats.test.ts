@@ -41,7 +41,7 @@ function jwt(payload: Record<string, unknown>): string {
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`;
 }
 
-test('Cockpit Tools export preserves portable Agent Identity credentials', () => {
+test('Cockpit2API export preserves portable Agent Identity credentials', () => {
   const raw = JSON.stringify([agentIdentityAccount()]);
   const exported = JSON.parse(
     transformCodexExportJson(raw, 'cockpit_tools'),
@@ -189,7 +189,7 @@ test('CPA export rejects Agent Identity instead of producing empty tokens', () =
   );
 });
 
-test('regular token accounts keep their existing Cockpit Tools export shape', () => {
+test('regular token accounts keep their existing Cockpit2API export shape', () => {
   const account: CodexAccount = {
     id: 'codex-token-fixture',
     email: 'token@example.com',
@@ -213,7 +213,7 @@ test('regular token accounts keep their existing Cockpit Tools export shape', ()
   assert.equal(exported[0].group, undefined);
 });
 
-test('Cockpit Tools export carries tags, account name and group for sharing', () => {
+test('Cockpit2API export carries tags, account name and group for sharing', () => {
   const account: CodexAccount = {
     id: 'codex-tagged-fixture',
     email: 'tagged@example.com',
@@ -241,7 +241,7 @@ test('Cockpit Tools export carries tags, account name and group for sharing', ()
   assert.equal(exported[0].group, '财务分组');
 });
 
-test('CPA export stays free of Cockpit Tools sharing metadata', () => {
+test('CPA export stays free of Cockpit2API sharing metadata', () => {
   const account: CodexAccount = {
     id: 'codex-tagged-fixture',
     email: 'tagged@example.com',

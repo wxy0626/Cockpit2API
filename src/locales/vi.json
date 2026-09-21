@@ -372,7 +372,7 @@
       "desc": "Khu vực này được cố định ở góc trên bên phải trên mọi trang, phù hợp cho chiến dịch hoặc quảng cáo thương hiệu.",
       "action": "Xem chi tiết"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "Cockpit2API​",
     "collapse": "Thu gọn",
     "confirmDelete": "Xác nhận xóa",
     "confirmDeleteTag": "Xác nhận xóa thẻ",
@@ -425,12 +425,12 @@
   },
   "sponsors": {
     "pageTitle": "Nhà tài trợ",
-    "pageDesc": "Cảm ơn các nhà tài trợ đã hỗ trợ Cockpit Tools.",
+    "pageDesc": "Cảm ơn các nhà tài trợ đã hỗ trợ Cockpit2API.",
     "loading": "Đang tải nhà tài trợ...",
     "emptyTitle": "Chưa có nhà tài trợ",
     "emptyDesc": "Mô-đun nhà tài trợ từ xa hiện đang tắt.",
     "listAriaLabel": "Danh sách nhà tài trợ",
-    "defaultDescription": "Cảm ơn bạn đã hỗ trợ Cockpit Tools.",
+    "defaultDescription": "Cảm ơn bạn đã hỗ trợ Cockpit2API.",
     "openSponsor": "Mở"
   },
   "platformLayout": {
@@ -628,12 +628,12 @@
         "summary": "Các mô hình không có tiền tố sử dụng gói đăng ký hiện tại; các mô hình có tiền tố như cpa/gpt-5.5 được chuyển tiếp đến API của bên thứ ba. Cả hai đều phụ thuộc vào dịch vụ định tuyến cục bộ.",
         "rowSummary": "Các mô hình không có tiền tố sử dụng gói đăng ký hiện tại; các mô hình có tiền tố như cpa/gpt-5.5 được chuyển tiếp đến API của bên thứ ba. Cả hai đều phụ thuộc vào dịch vụ định tuyến cục bộ.",
         "confirmEnableTitle": "Bật định tuyến API của bên thứ ba?",
-        "confirmEnableMessage": "Các yêu cầu mô hình Codex sẽ được định tuyến qua dịch vụ Cockpit Tools cục bộ. Nếu dịch vụ không chạy, cả mô hình đăng ký và bên thứ ba có thể không khả dụng. Khởi chạy khi đăng nhập sẽ được bật khi bạn lưu.\n\nBật định tuyến?",
+        "confirmEnableMessage": "Các yêu cầu mô hình Codex sẽ được định tuyến qua dịch vụ Cockpit2API cục bộ. Nếu dịch vụ không chạy, cả mô hình đăng ký và bên thứ ba có thể không khả dụng. Khởi chạy khi đăng nhập sẽ được bật khi bạn lưu.\n\nBật định tuyến?",
         "confirmEnableAction": "Bật",
         "confirmDisableTitle": "Tắt định tuyến API của bên thứ ba?",
         "confirmDisableMessage": "Sau khi thay đổi này có hiệu lực, cổng cục bộ sẽ dừng, quyền truy cập đăng ký chính thức sẽ được khôi phục và các mô hình của bên thứ ba sẽ không khả dụng.\n\nTắt định tuyến?",
         "confirmDisableAction": "Tắt",
-        "modalTip": "Cả mô hình đăng ký và bên thứ ba đều đi qua dịch vụ định tuyến cục bộ. Vui lòng duy trì Cockpit Tools chạy ngầm. Dịch vụ tự động phục hồi và chuyển về cấu hình chính thức sau nhiều lần thất bại.",
+        "modalTip": "Cả mô hình đăng ký và bên thứ ba đều đi qua dịch vụ định tuyến cục bộ. Vui lòng duy trì Cockpit2API chạy ngầm. Dịch vụ tự động phục hồi và chuyển về cấu hình chính thức sau nhiều lần thất bại.",
         "modelRequired": "Mỗi tuyến API được bật phải bao gồm ít nhất một mô hình.",
         "runningSaveTitle": "Khi nào định tuyến có hiệu lực?",
         "runningSaveMessage": "Phiên bản Codex này đang chạy. Thay thế dịch vụ cục bộ ngay bây giờ sẽ làm gián đoạn cuộc trò chuyện hiện tại.\n\nChọn «Lưu và khởi động lại Codex» để áp dụng ngay, hoặc «Lưu để dùng sau» để giữ nguyên phiên hiện tại.",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "Cài đặt ứng dụng",
-    "subtitle": "Cá nhân hóa trải nghiệm Antigravity Cockpit Tools của bạn.",
+    "subtitle": "Cá nhân hóa trải nghiệm Antigravity Cockpit2API của bạn.",
     "tabs": {
       "general": "Chung",
       "network": "Dịch vụ mạng",
@@ -859,7 +859,7 @@
       "codexSyncWsl": "Đồng bộ Codex sang WSL",
       "codexSyncWslDesc": "Sau khi chuyển tài khoản Codex mặc định, auth.json và config.toml cũng được ghi vào thư mục Codex trong WSL.",
       "codexAppUiInjection": "Hạn mức dịch vụ API",
-      "codexAppUiInjectionDesc": "Sau khi khởi động lại phiên Codex, hiển thị số tài khoản cùng hạn mức tuần và 5 giờ của dịch vụ API Cockpit Tools bên dưới trình soạn thảo; phiên liên kết với tài khoản DeepSeek sẽ hiển thị số dư của tài khoản đó. Cần giữ Cockpit Tools chạy trong nền; dữ liệu sẽ ngừng cập nhật khi thoát hoàn toàn hoặc khi mạng không khả dụng.",
+      "codexAppUiInjectionDesc": "Sau khi khởi động lại phiên Codex, hiển thị số tài khoản cùng hạn mức tuần và 5 giờ của dịch vụ API Cockpit2API bên dưới trình soạn thảo; phiên liên kết với tài khoản DeepSeek sẽ hiển thị số dư của tài khoản đó. Cần giữ Cockpit2API chạy trong nền; dữ liệu sẽ ngừng cập nhật khi thoát hoàn toàn hoặc khi mạng không khả dụng.",
       "codexAppUiInjectionPoolLabel": "Tài khoản",
       "codexAppUiInjectionWeeklyLabel": "Tuần",
       "codexAppUiInjectionFiveHourLabel": "5 giờ",
@@ -966,7 +966,7 @@
       "sideNavLayoutClassic": "Bố cục cổ điển",
       "antigravityDualSwitchNoRestart": "Chuyển đôi không cần khởi động lại",
       "antigravityDualSwitchNoRestartDesc": "Khi chuyển tài khoản, việc ghi dữ liệu cục bộ và chuyển đổi liền mạch qua tiện ích mở rộng được thực hiện trong một luồng, không cần khởi động lại Antigravity IDE.",
-      "appAutoLaunch": "Khởi chạy Cockpit Tools khi đăng nhập",
+      "appAutoLaunch": "Khởi chạy Cockpit2API khi đăng nhập",
       "appAutoLaunchDesc": "Tự khởi động sau đăng nhập. Nếu Windows báo lỗi PowerShell lúc boot, hãy tắt.",
       "startupWakeupDisabled": "Tắt",
       "startupWakeupImmediate": "Đánh thức ngay",
@@ -1125,7 +1125,7 @@
       "proxyUrlRequired": "Không được để trống URL proxy khi bật proxy toàn cục."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "Cockpit2API​",
       "slogan": "Giải pháp quản lý tài khoản chuyên nghiệp",
       "author": "Tác giả chính",
       "wechat": "Tài khoản WeChat chính thức",
@@ -2345,11 +2345,11 @@
     },
     "exportFormat": {
       "label": "Định dạng xuất",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "Cockpit2API​",
       "authJson": "auth.json chính thức",
       "sub2api": "Định dạng sub2api",
       "cpa": "Định dạng cpa",
-      "agentIdentityCpaUnsupported": "Không thể xuất tài khoản Agent Identity ở định dạng cpa. Hãy dùng Cockpit Tools hoặc sub2api.",
+      "agentIdentityCpaUnsupported": "Không thể xuất tài khoản Agent Identity ở định dạng cpa. Hãy dùng Cockpit2API hoặc sub2api.",
       "agentIdentityPrivateKeyNotice": "Bản xuất này chứa khóa riêng Agent Identity có thể khôi phục tài khoản trên thiết bị khác. Hãy bảo vệ khóa như mật khẩu.",
       "buildFailed": "Không thể tạo bản xuất: các tài khoản đã chọn có loại không được hỗ trợ hoặc thông tin xác thực chưa đầy đủ.",
       "downloadAll": "Tải xuống tất cả",
@@ -2434,8 +2434,8 @@
       "testAuthFailed": "Dịch vụ truy cập được nhưng xác thực thất bại: {{detail}}. Hãy kiểm tra khóa dịch vụ API hoặc trạng thái đăng nhập tài khoản.",
       "testServiceUnavailable": "Dịch vụ truy cập được nhưng hiện không khả dụng: {{detail}}. Hãy kiểm tra dịch vụ đã bật chưa, bộ sưu tập tài khoản có trống không hoặc tài khoản có dùng được không.",
       "gatewayErrors": {
-        "authUnavailable": "Hiện không có tài khoản nào có thể định tuyến. Tài khoản có thể đang tạm nghỉ, mất xác thực hoặc bị giới hạn hạn mức. Kiểm tra trạng thái trong dịch vụ API của Cockpit Tools.",
-        "authNotFound": "Chưa cấu hình tài khoản khả dụng trong nhóm tài khoản. Hãy thêm hoặc bật tài khoản trong dịch vụ API của Cockpit Tools."
+        "authUnavailable": "Hiện không có tài khoản nào có thể định tuyến. Tài khoản có thể đang tạm nghỉ, mất xác thực hoặc bị giới hạn hạn mức. Kiểm tra trạng thái trong dịch vụ API của Cockpit2API.",
+        "authNotFound": "Chưa cấu hình tài khoản khả dụng trong nhóm tài khoản. Hãy thêm hoặc bật tài khoản trong dịch vụ API của Cockpit2API."
       },
       "testRateLimited": "Dịch vụ truy cập được nhưng upstream bị giới hạn hoặc hết hạn mức: {{detail}}.",
       "testHttpFailed": "Dịch vụ truy cập được nhưng yêu cầu trả về HTTP {{status}}: {{detail}}.",
@@ -5868,7 +5868,7 @@
       "backToCurrent": "Quay lại",
       "switchToThisAccount": "Chuyển",
       "openDetails": "Mở chi tiết",
-      "openCockpitTools": "Mở Cockpit Tools"
+      "openCockpitTools": "Mở Cockpit2API"
     },
     "empty": {
       "title": "Không có tài khoản",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "Trạm chuyển riêng",
-    "pageDesc": "Dịch vụ API đối tác dành cho người dùng Cockpit Tools, dùng được với tài khoản Codex API Key.",
+    "pageDesc": "Dịch vụ API đối tác dành cho người dùng Cockpit2API, dùng được với tài khoản Codex API Key.",
     "loading": "Đang tải trạm chuyển...",
     "emptyTitle": "Trạm chuyển chưa bật",
     "emptyDesc": "Cấu hình từ xa chưa bật trạm chuyển riêng.",

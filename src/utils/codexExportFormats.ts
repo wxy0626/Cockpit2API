@@ -583,7 +583,7 @@ function toCockpitToolsPortableStorage(
       ? toPortableApiKeyStorage(account, options)
       : toPortableTokenStorage(account, options);
 
-  // 社区 #2213：Cockpit Tools 格式随账号一起带上标签、备注名与分组（文件夹），
+  // 社区 #2213：Cockpit2API 格式随账号一起带上标签、备注名与分组（文件夹），
   // 便于其他设备/其他用户导入后直接沿用同一套分类管理。
   appendCockpitToolsAccountMetadata(payload, account, options);
   return payload;

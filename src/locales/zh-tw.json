@@ -372,7 +372,7 @@
       "desc": "此區域會固定顯示於所有頁面的右上角，適合投放活動資訊或品牌廣告。",
       "action": "查看詳情"
     },
-    "appName": "Cockpit Tools",
+    "appName": "Cockpit2API",
     "collapse": "收合",
     "confirmDelete": "確認刪除",
     "confirmDeleteTag": "確認刪除標籤",
@@ -425,12 +425,12 @@
   },
   "sponsors": {
     "pageTitle": "贊助商",
-    "pageDesc": "感謝以下贊助商支持 Cockpit Tools。",
+    "pageDesc": "感謝以下贊助商支持 Cockpit2API。",
     "loading": "正在載入贊助商...",
     "emptyTitle": "暫無贊助商",
     "emptyDesc": "目前遠端未開啟贊助商模組。",
     "listAriaLabel": "贊助商列表",
-    "defaultDescription": "感謝支持 Cockpit Tools。",
+    "defaultDescription": "感謝支持 Cockpit2API。",
     "openSponsor": "查看"
   },
   "platformLayout": {
@@ -628,12 +628,12 @@
         "summary": "普通模型使用目前訂閱；帶前綴模型（如 cpa/gpt-5.5）轉發到第三方 API。兩者皆依賴本機分流服務。",
         "rowSummary": "普通模型使用目前訂閱；帶前綴模型（如 cpa/gpt-5.5）轉發到第三方 API。兩者皆依賴本機分流服務。",
         "confirmEnableTitle": "開啟第三方 API 路由？",
-        "confirmEnableMessage": "開啟後，Codex 的模型請求將透過 Cockpit Tools 本地服務分流。服務未運行時，官方訂閱與第三方模型皆可能無法使用。儲存時將預設啟用開機自啟。\n\n確認開啟嗎？",
+        "confirmEnableMessage": "開啟後，Codex 的模型請求將透過 Cockpit2API 本地服務分流。服務未運行時，官方訂閱與第三方模型皆可能無法使用。儲存時將預設啟用開機自啟。\n\n確認開啟嗎？",
         "confirmEnableAction": "確認開啟",
         "confirmDisableTitle": "關閉第三方 API 路由？",
         "confirmDisableMessage": "關閉並生效後將停止本機閘道、恢復官方原生直連，所有第三方模型將不可用。\n\n確認關閉嗎？",
         "confirmDisableAction": "確認關閉",
-        "modalTip": "開啟後，官方訂閱與第三方模型都會經過本地分流服務。請保持 Cockpit Tools 背景執行；服務異常時會自動復原，連續失敗則退回官方配置。",
+        "modalTip": "開啟後，官方訂閱與第三方模型都會經過本地分流服務。請保持 Cockpit2API 背景執行；服務異常時會自動復原，連續失敗則退回官方配置。",
         "modelRequired": "每個已啟用的 API 路由至少需要選擇一個模型。",
         "runningSaveTitle": "路由配置何時生效？",
         "runningSaveMessage": "此 Codex 執行個體正在執行。立即取代本地服務會中斷目前對話。\n\n選擇「儲存並重啟 Codex」立即生效；選擇「僅儲存，稍後生效」不會影響目前工作階段。",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "應用程式設定",
-    "subtitle": "個性化您的 Cockpit Tools 體驗。",
+    "subtitle": "個性化您的 Cockpit2API 體驗。",
     "tabs": {
       "general": "通用",
       "network": "網路服務",
@@ -855,7 +855,7 @@
       "codexSyncWsl": "同步 Codex 到 WSL",
       "codexSyncWslDesc": "切換預設 Codex 帳號後，也會把 auth.json 和 config.toml 寫入 WSL 的 Codex 設定目錄。",
       "codexAppUiInjection": "顯示 API 服務額度",
-      "codexAppUiInjectionDesc": "重新啟動 Codex 實例後，在輸入框下方顯示 Cockpit Tools API 服務的帳號數、週額度和 5 小時額度；綁定 DeepSeek 帳號的實例改為顯示該帳號餘額。需保持 Cockpit Tools 在背景執行；完全結束或網路無法使用時，額度不會繼續更新。",
+      "codexAppUiInjectionDesc": "重新啟動 Codex 實例後，在輸入框下方顯示 Cockpit2API API 服務的帳號數、週額度和 5 小時額度；綁定 DeepSeek 帳號的實例改為顯示該帳號餘額。需保持 Cockpit2API 在背景執行；完全結束或網路無法使用時，額度不會繼續更新。",
       "codexAppUiInjectionPoolLabel": "帳號",
       "codexAppUiInjectionWeeklyLabel": "週",
       "codexAppUiInjectionFiveHourLabel": "5 小時",
@@ -962,7 +962,7 @@
       "sideNavLayoutClassic": "經典佈局",
       "antigravityDualSwitchNoRestart": "無感雙通道切號（不重啟）",
       "antigravityDualSwitchNoRestartDesc": "切號時同時執行本地落盤與擴充套件無感切號，不再自動重啟 Antigravity IDE。",
-      "appAutoLaunch": "開機時啟動 Cockpit Tools",
+      "appAutoLaunch": "開機時啟動 Cockpit2API",
       "appAutoLaunchDesc": "系統登入後自動啟動應用。若 Windows 開機時出現 PowerShell 錯誤，請先關閉此選項。",
       "startupWakeupDisabled": "關閉",
       "startupWakeupImmediate": "立即喚醒",
@@ -1125,7 +1125,7 @@
       "proxyUrlRequired": "啟用全域代理時，代理位址不可為空。"
     },
     "about": {
-      "appName": "Cockpit Tools",
+      "appName": "Cockpit2API",
       "slogan": "專業帳號管理解決方案",
       "author": "主作者",
       "wechat": "微信公眾號",
@@ -2345,11 +2345,11 @@
     },
     "exportFormat": {
       "label": "匯出格式",
-      "cockpitTools": "Cockpit Tools",
+      "cockpitTools": "Cockpit2API",
       "authJson": "官方 auth.json",
       "sub2api": "sub2api 格式",
       "cpa": "cpa 格式",
-      "agentIdentityCpaUnsupported": "Agent Identity 帳號不支援 cpa 格式，請使用 Cockpit Tools 或 sub2api 格式匯出。",
+      "agentIdentityCpaUnsupported": "Agent Identity 帳號不支援 cpa 格式，請使用 Cockpit2API 或 sub2api 格式匯出。",
       "agentIdentityPrivateKeyNotice": "匯出內容包含 Agent Identity 私密金鑰，可用於在其他裝置還原帳號。請像密碼一樣妥善保管。",
       "buildFailed": "無法產生匯出內容：所選帳號包含不支援的類型或驗證資訊不完整。",
       "downloadAll": "一鍵下載全部",
@@ -2434,8 +2434,8 @@
       "testAuthFailed": "服務可達，但驗證失敗：{{detail}}。請檢查 API 服務密鑰或帳號登入狀態。",
       "testServiceUnavailable": "服務可達，但目前不可用：{{detail}}。請檢查服務是否啟用、帳號集合是否為空或帳號是否可用。",
       "gatewayErrors": {
-        "authUnavailable": "帳號池目前沒有可調度帳號；帳號可能正在冷卻、授權失效或額度受限，請在 Cockpit Tools 的 API 服務頁查看帳號狀態。",
-        "authNotFound": "帳號池目前沒有已設定的可用帳號，請在 Cockpit Tools 的 API 服務頁新增或啟用帳號。"
+        "authUnavailable": "帳號池目前沒有可調度帳號；帳號可能正在冷卻、授權失效或額度受限，請在 Cockpit2API 的 API 服務頁查看帳號狀態。",
+        "authNotFound": "帳號池目前沒有已設定的可用帳號，請在 Cockpit2API 的 API 服務頁新增或啟用帳號。"
       },
       "testRateLimited": "服務可達，但上游限流或額度不足：{{detail}}。",
       "testHttpFailed": "服務可達，但請求返回 HTTP {{status}}：{{detail}}。",
@@ -5868,7 +5868,7 @@
       "backToCurrent": "返回",
       "switchToThisAccount": "切換",
       "openDetails": "打開詳情頁",
-      "openCockpitTools": "打開 Cockpit Tools"
+      "openCockpitTools": "打開 Cockpit2API"
     },
     "empty": {
       "title": "暫無帳號",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "專屬中轉站",
-    "pageDesc": "為 Cockpit Tools 使用者提供的合作 API 服務，可用於 Codex API Key 帳號。",
+    "pageDesc": "為 Cockpit2API 使用者提供的合作 API 服務，可用於 Codex API Key 帳號。",
     "loading": "正在載入中轉站...",
     "emptyTitle": "中轉站未開啟",
     "emptyDesc": "目前遠端設定未開啟專屬中轉站。",

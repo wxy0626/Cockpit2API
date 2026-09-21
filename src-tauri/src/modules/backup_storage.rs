@@ -1041,33 +1041,33 @@ fn legacy_backup_roots() -> Vec<(String, PathBuf)> {
         {
             roots.push((
                 "codebuddy".to_string(),
-                home.join("Library/Application Support/CodeBuddyExtension/Backups/CockpitTools"),
+                home.join("Library/Application Support/CodeBuddyExtension/Backups/Cockpit2API"),
             ));
             roots.push((
                 "workbuddy".to_string(),
-                home.join(".workbuddy/Backups/CockpitTools"),
+                home.join(".workbuddy/Backups/Cockpit2API"),
             ));
         }
         #[cfg(target_os = "windows")]
         {
             roots.push((
                 "codebuddy".to_string(),
-                home.join("AppData/Local/CodeBuddyExtension/Backups/CockpitTools"),
+                home.join("AppData/Local/CodeBuddyExtension/Backups/Cockpit2API"),
             ));
             roots.push((
                 "workbuddy".to_string(),
-                home.join(".workbuddy/Backups/CockpitTools"),
+                home.join(".workbuddy/Backups/Cockpit2API"),
             ));
         }
         #[cfg(target_os = "linux")]
         {
             roots.push((
                 "codebuddy".to_string(),
-                home.join(".local/share/CodeBuddyExtension/Backups/CockpitTools"),
+                home.join(".local/share/CodeBuddyExtension/Backups/Cockpit2API"),
             ));
             roots.push((
                 "workbuddy".to_string(),
-                home.join(".workbuddy/Backups/CockpitTools"),
+                home.join(".workbuddy/Backups/Cockpit2API"),
             ));
         }
     }

@@ -2320,7 +2320,7 @@ async fn start_idc_login(
         .post(register_endpoint)
         .header("Content-Type", "application/json")
         .json(&json!({
-            "clientName": "Cockpit Tools Kiro",
+            "clientName": "Cockpit2API Kiro",
             "clientType": "public",
             "scopes": [
                 "codewhisperer:completions",

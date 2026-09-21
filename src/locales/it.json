@@ -372,7 +372,7 @@
       "desc": "Quest’area è fissata in alto a destra su tutte le pagine per campagne o annunci del brand.",
       "action": "Vedi dettagli"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "Cockpit2API​",
     "collapse": "Comprimi",
     "confirmDelete": "Conferma eliminazione",
     "confirmDeleteTag": "Conferma eliminazione tag",
@@ -425,12 +425,12 @@
   },
   "sponsors": {
     "pageTitle": "Sponsor",
-    "pageDesc": "Grazie a questi sponsor per il supporto a Cockpit Tools.",
+    "pageDesc": "Grazie a questi sponsor per il supporto a Cockpit2API.",
     "loading": "Caricamento sponsor...",
     "emptyTitle": "Nessuno sponsor al momento",
     "emptyDesc": "Il modulo sponsor remoto è attualmente disattivato.",
     "listAriaLabel": "Elenco sponsor",
-    "defaultDescription": "Grazie per il supporto a Cockpit Tools.",
+    "defaultDescription": "Grazie per il supporto a Cockpit2API.",
     "openSponsor": "Apri"
   },
   "platformLayout": {
@@ -628,12 +628,12 @@
         "summary": "I modelli senza prefisso utilizzano l'abbonamento corrente; i modelli con prefisso come cpa/gpt-5.5 vengono inoltrati a un'API di terze parti. Entrambi dipendono dal servizio di routing locale.",
         "rowSummary": "I modelli senza prefisso utilizzano l'abbonamento corrente; i modelli con prefisso come cpa/gpt-5.5 vengono inoltrati a un'API di terze parti. Entrambi dipendono dal servizio di routing locale.",
         "confirmEnableTitle": "Abilitare il routing API di terze parti?",
-        "confirmEnableMessage": "Le richieste dei modelli Codex verranno instradate tramite il servizio locale Cockpit Tools. Se il servizio non è in esecuzione, sia i modelli in abbonamento che quelli di terze parti potrebbero non essere disponibili. L'avvio al login verrà abilitato al salvataggio.\n\nAbilitare il routing?",
+        "confirmEnableMessage": "Le richieste dei modelli Codex verranno instradate tramite il servizio locale Cockpit2API. Se il servizio non è in esecuzione, sia i modelli in abbonamento che quelli di terze parti potrebbero non essere disponibili. L'avvio al login verrà abilitato al salvataggio.\n\nAbilitare il routing?",
         "confirmEnableAction": "Abilita",
         "confirmDisableTitle": "Disabilitare il routing API di terze parti?",
         "confirmDisableMessage": "Dopo che questa modifica avrà effetto, il gateway locale verrà arrestato, verrà ripristinato l'accesso nativo all'abbonamento e i modelli di terze parti non saranno disponibili.\n\nDisabilitare il routing?",
         "confirmDisableAction": "Disabilita",
-        "modalTip": "Sia i modelli in abbonamento che quelli di terze parti passano attraverso il servizio di routing locale. Mantieni Cockpit Tools in esecuzione in background. Il servizio si ripristina automaticamente e torna alla configurazione ufficiale dopo ripetuti errori.",
+        "modalTip": "Sia i modelli in abbonamento che quelli di terze parti passano attraverso il servizio di routing locale. Mantieni Cockpit2API in esecuzione in background. Il servizio si ripristina automaticamente e torna alla configurazione ufficiale dopo ripetuti errori.",
         "modelRequired": "Ogni route API abilitata deve includere almeno un modello.",
         "runningSaveTitle": "Quando deve avere effetto il routing?",
         "runningSaveMessage": "Questa istanza di Codex è in esecuzione. Sostituire il servizio locale ora interromperà la conversazione corrente.\n\nScegli «Salva e riavvia Codex» per applicare subito, oppure «Salva per dopo» per mantenere invariata la sessione corrente.",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "Impostazioni App",
-    "subtitle": "Personalizza la tua esperienza con Cockpit Tools.",
+    "subtitle": "Personalizza la tua esperienza con Cockpit2API.",
     "tabs": {
       "general": "Generale",
       "network": "Rete",
@@ -855,7 +855,7 @@
       "codexSyncWsl": "Sincronizza Codex con WSL",
       "codexSyncWslDesc": "Dopo il cambio dell'account Codex predefinito, anche auth.json e config.toml vengono scritti nella directory Codex in WSL.",
       "codexAppUiInjection": "Quota del servizio API",
-      "codexAppUiInjectionDesc": "Dopo il riavvio di un’istanza Codex, mostra sotto il composer il numero di account e le quote settimanale e di 5 ore del servizio API Cockpit Tools; le istanze associate a un account DeepSeek mostrano invece il saldo di quell’account. Cockpit Tools deve restare in esecuzione in background; gli aggiornamenti si interrompono se viene chiuso del tutto o se la rete non è disponibile.",
+      "codexAppUiInjectionDesc": "Dopo il riavvio di un’istanza Codex, mostra sotto il composer il numero di account e le quote settimanale e di 5 ore del servizio API Cockpit2API; le istanze associate a un account DeepSeek mostrano invece il saldo di quell’account. Cockpit2API deve restare in esecuzione in background; gli aggiornamenti si interrompono se viene chiuso del tutto o se la rete non è disponibile.",
       "codexAppUiInjectionPoolLabel": "Account",
       "codexAppUiInjectionWeeklyLabel": "Settimana",
       "codexAppUiInjectionFiveHourLabel": "5 h",
@@ -962,7 +962,7 @@
       "sideNavLayoutClassic": "Layout classico",
       "antigravityDualSwitchNoRestart": "Cambio doppio senza riavvio",
       "antigravityDualSwitchNoRestartDesc": "Durante il cambio account, la scrittura dei dati locali e il cambio fluido dell’estensione vengono eseguiti in un unico flusso, senza riavviare Antigravity IDE.",
-      "appAutoLaunch": "Avvia Cockpit Tools all'accesso",
+      "appAutoLaunch": "Avvia Cockpit2API all'accesso",
       "appAutoLaunchDesc": "Avvia dopo l’accesso. Se Windows mostra errori PowerShell all’avvio, disattiva.",
       "startupWakeupDisabled": "Disattivato",
       "startupWakeupImmediate": "Riattiva subito",
@@ -1125,7 +1125,7 @@
       "proxyUrlRequired": "L'URL del proxy non può essere vuoto quando il proxy globale è abilitato."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "Cockpit2API​",
       "slogan": "Soluzione Professionale per la Gestione degli Account",
       "author": "Autore",
       "wechat": "WeChat​",
@@ -2345,11 +2345,11 @@
     },
     "exportFormat": {
       "label": "Formato di esportazione",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "Cockpit2API​",
       "authJson": "auth.json ufficiale",
       "sub2api": "Formato sub2api",
       "cpa": "Formato cpa",
-      "agentIdentityCpaUnsupported": "Gli account Agent Identity non possono essere esportati nel formato cpa. Usa Cockpit Tools o sub2api.",
+      "agentIdentityCpaUnsupported": "Gli account Agent Identity non possono essere esportati nel formato cpa. Usa Cockpit2API o sub2api.",
       "agentIdentityPrivateKeyNotice": "Questa esportazione contiene una chiave privata Agent Identity che consente di ripristinare l'account su un altro dispositivo. Proteggila come una password.",
       "buildFailed": "Impossibile creare l’esportazione: gli account selezionati includono un tipo non supportato o credenziali incomplete.",
       "downloadAll": "Scarica tutto",
@@ -2434,8 +2434,8 @@
       "testAuthFailed": "Il servizio è raggiungibile, ma l’autenticazione non è riuscita: {{detail}}. Controlla la chiave del servizio API o lo stato di accesso dell’account.",
       "testServiceUnavailable": "Il servizio è raggiungibile, ma al momento non disponibile: {{detail}}. Controlla se il servizio è abilitato, se la raccolta account è vuota o se gli account sono utilizzabili.",
       "gatewayErrors": {
-        "authUnavailable": "Nessun account del gruppo è attualmente utilizzabile. L’account potrebbe essere in pausa, non autorizzato o limitato dalla quota. Controlla lo stato nel servizio API di Cockpit Tools.",
-        "authNotFound": "Nel gruppo non è configurato alcun account utilizzabile. Aggiungi o abilita un account nel servizio API di Cockpit Tools."
+        "authUnavailable": "Nessun account del gruppo è attualmente utilizzabile. L’account potrebbe essere in pausa, non autorizzato o limitato dalla quota. Controlla lo stato nel servizio API di Cockpit2API.",
+        "authNotFound": "Nel gruppo non è configurato alcun account utilizzabile. Aggiungi o abilita un account nel servizio API di Cockpit2API."
       },
       "testRateLimited": "Il servizio è raggiungibile, ma l’upstream è limitato o la quota è esaurita: {{detail}}.",
       "testHttpFailed": "Il servizio è raggiungibile, ma la richiesta ha restituito HTTP {{status}}: {{detail}}.",
@@ -5868,7 +5868,7 @@
       "backToCurrent": "Indietro",
       "switchToThisAccount": "Passa",
       "openDetails": "Apri dettagli",
-      "openCockpitTools": "Apri Cockpit Tools"
+      "openCockpitTools": "Apri Cockpit2API"
     },
     "empty": {
       "title": "Nessun account",
@@ -5998,7 +5998,7 @@
   },
   "relay": {
     "pageTitle": "Relay esclusivo",
-    "pageDesc": "Servizio API partner per gli utenti di Cockpit Tools, utilizzabile con account API Key Codex.",
+    "pageDesc": "Servizio API partner per gli utenti di Cockpit2API, utilizzabile con account API Key Codex.",
     "loading": "Caricamento relay...",
     "emptyTitle": "Relay disattivato",
     "emptyDesc": "La configurazione remota non ha abilitato il relay esclusivo.",

@@ -90,7 +90,7 @@ npm install
 npm run build:app
 ```
 
-构建完成后，可执行文件位于 `target/release/cockpit-tools.exe`。
+构建完成后，可执行文件位于 `target/release/cockpit2api.exe`。
 
 ## 使用步骤
 

@@ -304,7 +304,7 @@ async fn check_profile(lease: Lease, target: Target, app: AppHandle) -> Result<(
                         }),
                     );
                     let body = if rollback_failed {
-                        "本地分流服务连续恢复失败，且自动恢复官方配置未完全成功。请打开 Cockpit Tools 检查。"
+                        "本地分流服务连续恢复失败，且自动恢复官方配置未完全成功。请打开 Cockpit2API 检查。"
                     } else {
                         "本地分流服务连续恢复失败，已回退官方配置。请重新启动 Codex 后继续使用。"
                     };

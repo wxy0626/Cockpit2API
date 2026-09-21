@@ -1,4 +1,4 @@
-// Codex 账号测试：Cockpit Tools 导出格式附带的标签/备注名/分组元数据。
+// Codex 账号测试：Cockpit2API 导出格式附带的标签/备注名/分组元数据。
 // 测试与生产实现共享 super 作用域，验证元数据读取、落盘与分组归类行为。
 
 #[tokio::test(flavor = "current_thread")]
@@ -33,7 +33,7 @@ async fn cockpit_tools_import_restores_exported_tags_and_group() {
     let accounts =
         super::import_from_json(&serde_json::to_string(&content).expect("serialize export"))
             .await
-            .expect("import Cockpit Tools export");
+            .expect("import Cockpit2API export");
 
     assert_eq!(accounts.len(), 1);
     let expected_tags = Some(vec!["sync".to_string(), "team".to_string()]);

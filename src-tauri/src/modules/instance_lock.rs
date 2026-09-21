@@ -20,7 +20,7 @@ const INSTANCE_LOCK_PORT: u16 = 27863;
 pub fn acquire() -> Result<(), String> {
     let listener = TcpListener::bind(("127.0.0.1", INSTANCE_LOCK_PORT)).map_err(|_| {
         format!(
-            "端口 {} 已被占用：另一个 Cockpit Tools 实例正在运行",
+            "端口 {} 已被占用：另一个 Cockpit2API 实例正在运行",
             INSTANCE_LOCK_PORT
         )
     })?;
