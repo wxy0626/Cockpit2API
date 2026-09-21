@@ -5,7 +5,8 @@ fn webkit_data_root() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
         let home = dirs::home_dir()?;
-        Some(home.join("Library/WebKit/com.jlcodes.cockpit-tools/WebsiteData"))
+        // 改名后仍要清理旧标识符目录遗留的 WebKit 缓存。
+        Some(home.join("Library/WebKit/com.wxy0626.cockpit2api/WebsiteData"))
     }
     #[cfg(not(target_os = "macos"))]
     {

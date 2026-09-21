@@ -71,7 +71,7 @@ if (!fs.existsSync(vcvars64Path)) {
   runTauriDirect();
 }
 
-const tempScriptPath = path.join(os.tmpdir(), `cockpit-tools-tauri-${process.pid}.cmd`);
+const tempScriptPath = path.join(os.tmpdir(), `cockpit2api-tauri-${process.pid}.cmd`);
 const tauriCliPath = path.join(repoRoot, 'node_modules', '.bin', 'tauri.cmd');
 const tauriArgs = process.argv.slice(2);
 

@@ -1,5 +1,5 @@
 [package]
-name = "cockpit-tools"
+name = "cockpit2api"
 version = "1.3.53"
 description = "Cockpit2API"
 authors = ["jlcodes"]
@@ -11,7 +11,7 @@ edition = "2021"
 # 直构命令：cargo build --release --features cockpit-app-context/custom-protocol
 # release 下漏带该 feature 时，context/build.rs 会直接报错（防白屏）。
 [lib]
-name = "antigravity_cockpit_tools_lib"
+name = "cockpit2api_lib"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]

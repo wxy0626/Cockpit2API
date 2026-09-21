@@ -23,6 +23,11 @@ pub fn get_app_handle() -> Option<&'static tauri::AppHandle> {
     APP_HANDLE.get()
 }
 
+/// 供应用 bin 在启动最前调用：把旧标识符目录搬迁到新标识符下。
+pub fn migrate_legacy_app_dirs() -> usize {
+    modules::legacy_app_dir_migration::migrate_legacy_app_dirs()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

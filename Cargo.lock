@@ -738,7 +738,7 @@ dependencies = [
 name = "cockpit-app-context"
 version = "1.3.53"
 dependencies = [
- "cockpit-tools",
+ "cockpit2api",
  "serde",
  "serde_json",
  "swift-rs",
@@ -824,7 +824,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cockpit-tools"
+name = "cockpit2api"
 version = "1.3.53"
 dependencies = [
  "aes",

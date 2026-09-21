@@ -36,4 +36,4 @@ run('cargo', [
   'cockpit-app-context/custom-protocol',
 ]);
 
-console.log('\n✅ 构建完成: target/release/cockpit-tools.exe');
+console.log('\n✅ 构建完成: target/release/cockpit2api.exe');

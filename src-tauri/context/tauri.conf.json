@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Cockpit2API",
-  "mainBinaryName": "cockpit-tools",
+  "mainBinaryName": "cockpit2api",
   "version": "1.3.53",
-  "identifier": "com.jlcodes.cockpit-tools",
+  "identifier": "com.wxy0626.cockpit2api",
   "build": {
     "beforeDevCommand": "node scripts/prepare-tauri.cjs && npm run dev",
     "devUrl": "http://localhost:1420",
@@ -107,6 +107,7 @@
       "desktop": {
         "schemes": [
           "cockpit-tools",
+          "cockpit2api",
           "cockpittools",
           "zcode"
         ]

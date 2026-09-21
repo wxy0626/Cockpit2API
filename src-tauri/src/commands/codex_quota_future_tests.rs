@@ -104,14 +104,14 @@ fn quota_refresh_keeps_early_boxing_boundaries_and_async_commands() {
 
 #[test]
 fn windows_stack_reserve_is_target_based_and_scoped_to_app_binary() {
-    let build = compact(include_str!("../../build.rs"));
+    let build = compact(include_str!("../../context/build.rs"));
     let expected = compact(concat!(
-        "let target = std::env::var(\"TARGET\").expect(\"TARGET is required\");",
+        "let target = std::env::var(\"TARGET\").unwrap_or_default();",
         "if target.ends_with(\"-windows-msvc\") {",
-        "println!(\"cargo:rustc-link-arg-bin=cockpit-tools=/STACK:8388608\");",
+        "println!(\"cargo:rustc-link-arg-bins=/STACK:8388608\");",
         "}",
     ));
     assert!(build.contains(&expected));
-    // The package's implicit src/main.rs binary must match the linker directive.
-    assert!(include_str!("../../Cargo.toml").contains("[package]\nname = \"cockpit-tools\""));
+    // 应用 bin 已迁入 context 包，链接参数作用于其全部 bins。
+    assert!(include_str!("../../context/Cargo.toml").contains("name = \"cockpit2api\""));
 }

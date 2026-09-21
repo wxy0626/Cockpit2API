@@ -74,7 +74,7 @@ fn resolve_provider_and_page(value: &str) -> Option<(&'static str, &'static str)
 }
 
 fn is_supported_scheme(scheme: &str) -> bool {
-    matches!(scheme, "cockpit-tools" | "cockpittools")
+    matches!(scheme, "cockpit-tools" | "cockpit2api" | "cockpittools")
 }
 
 fn is_import_action(url: &Url) -> bool {
@@ -333,7 +333,9 @@ pub fn handle_external_import_args<R: Runtime>(
             continue;
         }
         let candidate_is_deep_link =
-            candidate.starts_with("cockpit-tools://") || candidate.starts_with("cockpittools://");
+            candidate.starts_with("cockpit-tools://")
+                || candidate.starts_with("cockpit2api://")
+                || candidate.starts_with("cockpittools://");
         if candidate_is_deep_link {
             saw_deep_link = true;
         }

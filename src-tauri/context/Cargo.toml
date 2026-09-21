@@ -16,7 +16,7 @@ swift-rs = { version = "1.0.7", features = ["build"] }
 # 缺一个，capabilities 里对应权限就报 "Permission xxx not found"。
 # 必须与 src-tauri/Cargo.toml 的插件清单保持同步。
 [dependencies]
-cockpit-tools = { path = ".." }
+cockpit2api = { path = ".." }
 
 # tauri features 必须与 src-tauri 的保持一致（tauri-build 校验 conf 的 allowlist）
 tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png", "unstable"] }
@@ -35,5 +35,5 @@ tauri-plugin-updater = "2.10.0"
 # 真正的应用 bin。Windows 资源（图标/版本/manifest）经本包 build 脚本的
 # rustc-link-arg-bins 嵌入到这里 —— 这就是资源必须跟 bin 同包的原因。
 [[bin]]
-name = "cockpit-tools"
-path = "src/bin/cockpit-tools.rs"
+name = "cockpit2api"
+path = "src/bin/cockpit2api.rs"

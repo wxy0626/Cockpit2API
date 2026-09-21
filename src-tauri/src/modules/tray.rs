@@ -23,7 +23,7 @@ use crate::modules::logger;
 pub const TRAY_ID: &str = "main-tray";
 
 #[cfg(target_os = "macos")]
-const MACOS_STATUS_ITEM_AUTOSAVE_NAME: &str = "com.jlcodes.cockpit-tools.main-tray";
+const MACOS_STATUS_ITEM_AUTOSAVE_NAME: &str = "com.wxy0626.cockpit2api.main-tray";
 
 #[cfg(target_os = "macos")]
 static MACOS_TRAY_SKIP_LOGGED: AtomicBool = AtomicBool::new(false);

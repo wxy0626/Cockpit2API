@@ -114,6 +114,7 @@ pub mod trae_session_transfer;
 pub mod tray;
 pub mod tray_layout;
 pub mod ui_preferences;
+pub mod legacy_app_dir_migration;
 pub mod update_checker;
 pub mod user_memory;
 pub mod vscode_inject;
