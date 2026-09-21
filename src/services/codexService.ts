@@ -469,7 +469,7 @@ export async function startCodexDeviceAuth(): Promise<CodexDeviceAuthStartRespon
   return await invoke('codex_oauth_device_auth_start');
 }
 
-/** 在内置无痕 WebView 中打开当前 Codex OAuth 授权地址 */
+/** 在可信授权窗口中打开当前 Codex OAuth 授权地址 */
 export async function openCodexOAuthIncognitoWindow(authUrl: string): Promise<void> {
   await invoke('codex_oauth_open_incognito_window', { authUrl });
 }

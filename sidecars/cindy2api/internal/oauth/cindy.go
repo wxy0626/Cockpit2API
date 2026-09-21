@@ -29,6 +29,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -619,6 +620,240 @@ func FetchProviders(ctx context.Context, client *http.Client, region string) (ma
 // 关于人机验证：`providers` 的 captcha.requiredFor 只包含 `email_request_code`，
 // 而中国大陆版的 providers 响应里**根本没有 captcha 字段** —— 手机号流不需要
 // Turnstile，所以这里不传 captchaToken。
+
+// ── 官方验证页参数抓取 ──────────────────────────────────────────────────────
+//
+// 官方客户端做邮箱验证码登录时，是打开 auth 服务自带的验证页
+// `{authBase}/captcha/turnstile`（页面里硬编码了 sitekey / action / cData），
+// 由它渲染 Turnstile，再把 token 回传（ReactNativeWebView bridge / postMessage /
+// URL hash 三种出口，见页面实现）。
+//
+// 我们照抄同样的参数在本机页面渲染：上游 siteverify 会校验 action/cData，
+// 少传（尤其 action）会被判 CAPTCHA_INVALID —— 这是 2026-09-18 排查出的关键差异。
+
+// CaptchaChallengeParams 官方验证页用的渲染参数。
+type CaptchaChallengeParams struct {
+	SiteKey string
+	Action  string
+	CData   string
+}
+
+// 三个参数各自独立解析：页面里 data-action 出现在 SITEKEY 之前，
+// 用一个大正则串起来会匹配不到（踩过）。
+var (
+	captchaSiteKeyPattern = regexp.MustCompile(`SITEKEY\s*=\s*"([^"]+)"`)
+	captchaActionPattern  = regexp.MustCompile(`data-action="([^"]*)"`)
+	captchaCDataPattern   = regexp.MustCompile(`data-cdata="([^"]*)"`)
+)
+
+// FetchCaptchaChallengeParams 拉官方验证页并解析出 sitekey / action / cData。
+func FetchCaptchaChallengeParams(ctx context.Context, client *http.Client) (*CaptchaChallengeParams, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, AuthBaseGlobal+"/captcha/turnstile", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("获取验证页失败: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("验证页返回 HTTP %d", resp.StatusCode)
+	}
+	siteKey := captchaSiteKeyPattern.FindSubmatch(raw)
+	action := captchaActionPattern.FindSubmatch(raw)
+	cData := captchaCDataPattern.FindSubmatch(raw)
+	if siteKey == nil {
+		return nil, fmt.Errorf("验证页结构变化，解析不到 sitekey")
+	}
+	params := &CaptchaChallengeParams{SiteKey: string(siteKey[1])}
+	if action != nil {
+		params.Action = string(action[1])
+	}
+	if cData != nil {
+		params.CData = string(cData[1])
+	}
+	return params, nil
+}
+
+// ── 邮箱 + 邮箱验证码登录（国际版） ─────────────────────────────────────────
+//
+// 上游接口（与手机号流同构，端点从 /api/auth/phone/ 换成 /api/auth/email/）：
+//
+//	POST {authBase}/api/auth/email/request-code  {email, captchaToken, locale}
+//	POST {authBase}/api/auth/email/verify-code   {email, code, deviceId,
+//	                                              clientType, locale}      → tokenPair
+//
+// 与手机号流的两点差异：
+//  1. request-code **强制 Turnstile 人机验证**（providers 的 captcha.requiredFor
+//     只含 email_request_code），captchaToken 由前端内嵌的 Turnstile 组件取得，
+//     缺失时上游报 CAPTCHA_REQUIRED，无效时报 CAPTCHA_INVALID —— 都原样透出。
+//  2. verify-code 不需要 captcha；deviceId 用基础值，签发的 refreshToken
+//     与刷新设备天然一致（参考 2026-09-18 修的 DEVICE_MISMATCH）。
+
+// 人机验证（Turnstile）的两种状态。
+const (
+	// CaptchaRequired 上游判定本次发送需要人机验证（前端应补做后重试）
+	CaptchaRequired = "captcha_required"
+	// CaptchaInvalid 已带 token 但没通过（token 一次性，多半是复用/过期）
+	CaptchaInvalid = "captcha_invalid"
+)
+
+// CaptchaError 邮箱验证码发送时的人机验证错误。
+//
+// 单独成类型是为了让网关层能把它翻译成专用 HTTP 状态码/错误码
+// （见 handleEmailRequestCode），前端据此自动补做验证而不是让用户干瞪眼。
+type CaptchaError struct {
+	Code    string
+	Message string
+}
+
+func (e *CaptchaError) Error() string { return e.Message }
+
+// RequestEmailCode 请求发送邮箱验证码。
+//
+// captchaToken **可省略**：上游只在触发风控时才要求人机验证，
+// 所以策略是「先不带 token 发一次」，被拒（CaptchaError）后再带上重试 ——
+// 与官方客户端一致：没被风控时用户根本看不到验证组件。
+//
+// 返回 *CaptchaError 时调用方应据此回到前端重做一次人机验证再重试。
+func RequestEmailCode(ctx context.Context, client *http.Client, region, email, captchaToken string) error {
+	authBase, _, err := authBaseFor(region)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(email) == "" {
+		return fmt.Errorf("请填写邮箱地址")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	payload := map[string]any{
+		"email":  email,
+		"locale": "zh-CN",
+	}
+	if strings.TrimSpace(captchaToken) != "" {
+		payload["captchaToken"] = captchaToken
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		authBase+"/api/auth/email/request-code", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("请求邮箱验证码失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	if resp.StatusCode != http.StatusOK {
+		// CAPTCHA_REQUIRED / CAPTCHA_INVALID 转成结构化错误，前端据此决定
+		// 「要不要做人机验证 / 要不要重做」，而不是让用户读一段原始报文
+		var parsed struct {
+			Error struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		_ = json.Unmarshal(raw, &parsed)
+		detail := strings.TrimSpace(string(raw))
+		message := parsed.Error.Message
+		if message == "" {
+			message = parsed.Error.Code
+		}
+		if message == "" {
+			message = detail
+		}
+		switch parsed.Error.Code {
+		case "CAPTCHA_REQUIRED":
+			return &CaptchaError{Code: CaptchaRequired, Message: "需要完成人机验证后才能发送验证码"}
+		case "CAPTCHA_INVALID", "CAPTCHA_FAILED":
+			return &CaptchaError{Code: CaptchaInvalid, Message: "人机验证未通过，请重试（" + message + "）"}
+		}
+		return fmt.Errorf("请求邮箱验证码返回 HTTP %d: %s", resp.StatusCode, detail)
+	}
+	return nil
+}
+
+// VerifyEmailCode 校验邮箱验证码，返回令牌对（结构与手机号流一致）。
+func VerifyEmailCode(ctx context.Context, client *http.Client, region, email, code, deviceID string) (*TokenPair, error) {
+	authBase, _, err := authBaseFor(region)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	body, err := json.Marshal(map[string]any{
+		"email":      email,
+		"code":       code,
+		"deviceId":   deviceID,
+		"clientType": "desktop",
+		"locale":     "zh-CN",
+	})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		authBase+"/api/auth/email/verify-code", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("校验邮箱验证码失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 32*1024))
+	var parsed tokenOutcome
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, fmt.Errorf("登录响应解析失败（HTTP %d）: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	if resp.StatusCode != http.StatusOK || parsed.Status != "ok" {
+		// select_account / binding_required 等非 ok 状态要如实告诉用户，
+		// 不能笼统报"登录失败"让人无从下手
+		switch parsed.Status {
+		case "select_account":
+			return nil, fmt.Errorf("该邮箱绑定了多个账号，请改用「OAuth 授权」登录后选择")
+		case "binding_required":
+			return nil, fmt.Errorf("该账号需要先绑定邮箱或手机号，请先在 Cindy 桌面端完成绑定")
+		}
+		detail := parsed.Message
+		if detail == "" {
+			detail = parsed.Code
+		}
+		if detail == "" {
+			detail = strings.TrimSpace(string(raw))
+		}
+		return nil, fmt.Errorf("登录未完成（status=%s）: %s", parsed.Status, detail)
+	}
+	if parsed.AccessToken == "" || parsed.RefreshToken == "" {
+		return nil, fmt.Errorf("登录响应缺少 accessToken / refreshToken")
+	}
+
+	return &TokenPair{
+		AccessToken:  parsed.AccessToken,
+		RefreshToken: parsed.RefreshToken,
+		DisplayName:  parsed.Membership.DisplayName,
+		Email:        parsed.Membership.Email,
+		MembershipID: parsed.Membership.ID,
+	}, nil
+}
 
 // RequestPhoneCode 请求发送短信验证码。
 func RequestPhoneCode(ctx context.Context, client *http.Client, region, phone string) error {

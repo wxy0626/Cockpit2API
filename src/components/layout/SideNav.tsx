@@ -72,12 +72,14 @@ const PAGE_PLATFORM_MAP: Partial<Record<Page, PlatformId>> = {
   codebuddy: 'codebuddy',
   'codebuddy-cn': 'codebuddy_cn',
   qoder: 'qoder',
+  'qoderwork-intl': 'qoderwork_intl',
   zcode: 'zcode',
   trae: 'trae',
   'trae-solo': 'trae_solo',
   'trae-cn': 'trae_cn',
   'trae-solo-cn': 'trae_solo_cn',
   workbuddy: 'workbuddy',
+  'workbuddy-intl': 'workbuddy_intl',
 };
 
 const APP_DISPLAY_NAME =

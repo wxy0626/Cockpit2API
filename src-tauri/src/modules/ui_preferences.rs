@@ -57,9 +57,7 @@ pub fn load_ui_preferences() -> Result<UiPreferences, String> {
         // 只读不落盘：前端水合确认后会按新修订号正式写入偏好文件。
         if !prefs.values.contains_key(PLATFORM_LAYOUT_KEY) {
             if let Some(legacy) = legacy_platform_layout_value() {
-                prefs
-                    .values
-                    .insert(PLATFORM_LAYOUT_KEY.to_string(), legacy);
+                prefs.values.insert(PLATFORM_LAYOUT_KEY.to_string(), legacy);
             }
         }
     }

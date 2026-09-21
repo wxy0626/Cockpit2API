@@ -43,12 +43,15 @@ export type PlatformOverviewHeaderId =
   | 'codebuddy'
   | 'codebuddy_cn'
   | 'qoder'
+  | 'qoderwork_intl'
   | 'zcode'
   | 'trae'
   | 'trae_solo'
   | 'trae_cn'
   | 'trae_solo_cn'
-  | 'workbuddy';
+  | 'workbuddy'
+  /// WorkBuddy 国际版：与 workbuddy 同属一个分组，仅页头标识不同
+  | 'workbuddy_intl';
 
 interface PlatformOverviewTabsHeaderProps {
   platform: PlatformOverviewHeaderId;
@@ -113,6 +116,10 @@ const CONFIGS: Record<PlatformOverviewHeaderId, PlatformOverviewConfig> = {
     platformLabel: 'Qoder',
     overviewIcon: <QoderIcon className="tab-icon" />,
   },
+  qoderwork_intl: {
+    platformLabel: 'QoderWork 国际版',
+    overviewIcon: <QoderIcon className="tab-icon" />,
+  },
   zcode: {
     platformLabel: 'ZCode',
     overviewIcon: <ZcodeIcon className="tab-icon" />,
@@ -135,6 +142,10 @@ const CONFIGS: Record<PlatformOverviewHeaderId, PlatformOverviewConfig> = {
   },
   workbuddy: {
     platformLabel: 'WorkBuddy',
+    overviewIcon: <WorkbuddyIcon className="tab-icon" />,
+  },
+  workbuddy_intl: {
+    platformLabel: 'WorkBuddy 国际版',
     overviewIcon: <WorkbuddyIcon className="tab-icon" />,
   },
 };
@@ -217,7 +228,10 @@ export function PlatformOverviewTabsHeader({
     },
     providers: {
       key: 'providers',
-      label: platform === 'workbuddy' ? 'API 网关' : t('codex.modelProviders.tab', '模型供应商'),
+      label:
+        platform === 'workbuddy' || platform === 'qoder'
+          ? 'API 网关'
+          : t('codex.modelProviders.tab', '模型供应商'),
       icon: <Server className="tab-icon" />,
     },
     // WorkBuddy 专属：成长中心任务与互动玩法的自动化（独立模块，见 modules/workbuddy_auto_tasks.rs）

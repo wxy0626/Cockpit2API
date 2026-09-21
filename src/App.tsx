@@ -45,6 +45,7 @@ import { useCodebuddyCnAccountStore } from './stores/useCodebuddyCnAccountStore'
 import { useQoderAccountStore } from './stores/useQoderAccountStore';
 import { useTraeAccountStore } from './stores/useTraeAccountStore';
 import { useWorkbuddyAccountStore } from './stores/useWorkbuddyAccountStore';
+import { useWorkbuddyIntlAccountStore } from './stores/useWorkbuddyIntlAccountStore';
 import { useZedAccountStore } from './stores/useZedAccountStore';
 import { useSideNavLayoutStore } from './stores/useSideNavLayoutStore';
 import { usePlatformLayoutStore } from './stores/usePlatformLayoutStore';
@@ -143,6 +144,11 @@ const CodebuddyCnAccountsPage = lazy(() =>
 const QoderAccountsPage = lazy(() =>
   import('./pages/QoderAccountsPage').then((module) => ({ default: module.QoderAccountsPage })),
 );
+const QoderWorkIntlAccountsPage = lazy(() =>
+  import('./pages/QoderWorkIntlAccountsPage').then((module) => ({
+    default: module.QoderWorkIntlAccountsPage,
+  })),
+);
 const ZcodeAccountsPage = lazy(() =>
   import('./pages/ZcodeAccountsPage').then((module) => ({ default: module.ZcodeAccountsPage })),
 );
@@ -151,6 +157,9 @@ const TraeAccountsPage = lazy(() =>
 );
 const WorkbuddyAccountsPage = lazy(() =>
   import('./pages/WorkbuddyAccountsPage').then((module) => ({ default: module.WorkbuddyAccountsPage })),
+);
+const WorkbuddyIntlAccountsPage = lazy(() =>
+  import('./pages/WorkbuddyIntlAccountsPage').then((module) => ({ default: module.WorkbuddyIntlAccountsPage })),
 );
 const CindyAccountsPage = lazy(() =>
   import('./pages/CindyAccountsPage').then((module) => ({ default: module.CindyAccountsPage })),
@@ -219,12 +228,14 @@ const RENDERABLE_PAGE_VALUES: readonly Page[] = [
   'codebuddy',
   'codebuddy-cn',
   'qoder',
+  'qoderwork-intl',
   'zcode',
   'trae',
   'trae-solo',
   'trae-cn',
   'trae-solo-cn',
   'workbuddy',
+  'workbuddy-intl',
   'cindy',
   'zed',
   'instances',
@@ -256,12 +267,14 @@ const TOP_PROMO_PAGE_PLATFORM_TARGETS: Partial<Record<Page, readonly string[]>> 
   codebuddy: ['codebuddy'],
   'codebuddy-cn': ['codebuddy-cn'],
   qoder: ['qoder'],
+  'qoderwork-intl': ['qoderwork_intl'],
   zcode: ['zcode'],
   trae: ['trae', 'trae-suite'],
   'trae-solo': ['trae-solo', 'trae-suite'],
   'trae-cn': ['trae-cn', 'trae-suite'],
   'trae-solo-cn': ['trae-solo-cn', 'trae-suite'],
   workbuddy: ['workbuddy'],
+  'workbuddy-intl': ['workbuddy-intl'],
 };
 
 function normalizePromoTarget(value: string): string {
@@ -405,6 +418,7 @@ type AppPathMissingDetail = {
     | 'trae_cn'
     | 'trae_solo_cn'
     | 'workbuddy'
+    | 'workbuddy_intl'
     | 'zed';
   retry?:
     | { kind: 'default'; runtimeTarget?: string }
@@ -498,8 +512,10 @@ type QuotaAlertPlatform =
   | 'codebuddy'
   | 'codebuddy_cn'
   | 'qoder'
+  | 'qoderwork_intl'
   | 'trae'
   | 'workbuddy'
+  | 'workbuddy_intl'
   | 'zed';
 type UpdateCheckSource = 'auto' | 'manual';
 type UpdateActionState = 'hidden' | 'available' | 'downloading' | 'installing' | 'ready';
@@ -602,6 +618,8 @@ function normalizeQuotaAlertPlatform(platform: string | undefined): QuotaAlertPl
       return 'codebuddy_cn';
     case 'qoder':
       return 'qoder';
+    case 'qoderwork_intl':
+      return 'qoderwork_intl';
     case 'trae':
     case 'trae-solo':
     case 'trae_solo':
@@ -642,6 +660,8 @@ function getQuotaAlertPlatformLabel(
       return t('nav.codebuddyCn', 'CodeBuddy CN');
     case 'qoder':
       return t('nav.qoder', 'Qoder');
+    case 'qoderwork_intl':
+      return 'QoderWork 国际版';
     case 'trae':
       return t('nav.trae', 'Trae');
     case 'zed':
@@ -673,10 +693,14 @@ function getQuotaAlertTargetPage(platform: QuotaAlertPlatform): Page {
       return 'codebuddy-cn';
     case 'qoder':
       return 'qoder';
+    case 'qoderwork_intl':
+      return 'qoderwork-intl';
     case 'trae':
       return 'trae';
     case 'workbuddy':
       return 'workbuddy';
+    case 'workbuddy_intl':
+      return 'workbuddy-intl';
     case 'zed':
       return 'zed';
     default:
@@ -706,9 +730,15 @@ function getQuotaAlertQuickSettingsType(platform: QuotaAlertPlatform): QuickSett
       return 'codebuddy_cn';
     case 'qoder':
       return 'qoder';
+    case 'qoderwork_intl':
+      // QoderWork 暂复用 Qoder 的预警设置结构
+      return 'qoder';
     case 'trae':
       return 'trae';
     case 'workbuddy':
+      return 'workbuddy';
+    case 'workbuddy_intl':
+      // 国际版暂无独立快速设置项，复用国内版面板（其中客户端路径等项对国际版无效）
       return 'workbuddy';
     case 'zed':
       return 'zed';
@@ -2928,6 +2958,9 @@ function MainApp() {
                     } else if (platform === 'workbuddy') {
                       await useWorkbuddyAccountStore.getState().switchAccount(targetAccountId);
                       setPage('workbuddy');
+                    } else if (platform === 'workbuddy_intl') {
+                      await useWorkbuddyIntlAccountStore.getState().switchAccount(targetAccountId);
+                      setPage('workbuddy-intl');
                     } else if (platform === 'zed') {
                       await useZedAccountStore.getState().switchAccount(targetAccountId);
                       setPage('zed');
@@ -4066,6 +4099,9 @@ function MainApp() {
           <VisibleBootPage when={page === 'qoder'}>
             <QoderAccountsPage />
           </VisibleBootPage>
+          <VisibleBootPage when={page === 'qoderwork-intl'}>
+            <QoderWorkIntlAccountsPage />
+          </VisibleBootPage>
           <VisibleBootPage when={page === 'zcode'}>
             <ZcodeAccountsPage />
           </VisibleBootPage>
@@ -4083,6 +4119,9 @@ function MainApp() {
           </VisibleBootPage>
           <VisibleBootPage when={page === 'workbuddy'}>
             <WorkbuddyAccountsPage />
+          </VisibleBootPage>
+          <VisibleBootPage when={page === 'workbuddy-intl'}>
+            <WorkbuddyIntlAccountsPage />
           </VisibleBootPage>
           <VisibleBootPage when={page === 'cindy'}>
             <CindyAccountsPage />

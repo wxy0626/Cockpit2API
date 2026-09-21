@@ -654,8 +654,14 @@ pub async fn switch_account(
         if target_dir == default_dir {
             continue;
         }
-        if let Err(e) = modules::instance::inject_account_to_profile_with_account(&target_dir, &account) {
-            modules::logger::log_warn(&format!("[Switch] 注入目录 {} 失败: {}", target_dir.display(), e));
+        if let Err(e) =
+            modules::instance::inject_account_to_profile_with_account(&target_dir, &account)
+        {
+            modules::logger::log_warn(&format!(
+                "[Switch] 注入目录 {} 失败: {}",
+                target_dir.display(),
+                e
+            ));
         }
     }
 

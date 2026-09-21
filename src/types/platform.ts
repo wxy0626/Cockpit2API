@@ -15,12 +15,14 @@ export type PlatformId =
   | 'codebuddy'
   | 'codebuddy_cn'
   | 'qoder'
+  | 'qoderwork_intl'
   | 'zcode'
   | 'trae'
   | 'trae_solo'
   | 'trae_cn'
   | 'trae_solo_cn'
   | 'workbuddy'
+  | 'workbuddy_intl'
   | 'cindy';
 
 export const ALL_PLATFORM_IDS: PlatformId[] = [
@@ -38,12 +40,14 @@ export const ALL_PLATFORM_IDS: PlatformId[] = [
   'codebuddy',
   'codebuddy_cn',
   'qoder',
+  'qoderwork_intl',
   'zcode',
   'trae',
   'trae_solo',
   'trae_cn',
   'trae_solo_cn',
   'workbuddy',
+  'workbuddy_intl',
   'cindy',
 ];
 
@@ -79,11 +83,13 @@ export const PLATFORM_PAGE_MAP: Record<PlatformId, Page> = {
   codebuddy: 'codebuddy',
   codebuddy_cn: 'codebuddy-cn',
   qoder: 'qoder',
+  qoderwork_intl: 'qoderwork-intl',
   zcode: 'zcode',
   trae: 'trae',
   trae_solo: 'trae-solo',
   trae_cn: 'trae-cn',
   trae_solo_cn: 'trae-solo-cn',
   workbuddy: 'workbuddy',
+  workbuddy_intl: 'workbuddy-intl',
   cindy: 'cindy',
 };

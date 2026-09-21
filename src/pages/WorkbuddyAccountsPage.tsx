@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PlatformOverviewTabsHeader, PlatformOverviewTab } from '../components/platform/PlatformOverviewTabsHeader';
 import { WorkbuddyInstancesContent } from './WorkbuddyInstancesPage';
 import { useWorkbuddyAccountStore } from '../stores/useWorkbuddyAccountStore';
@@ -15,6 +15,7 @@ import { useProviderAccountsPage } from '../hooks/useProviderAccountsPage';
 import { WorkbuddyCheckinModal } from '../components/codebuddy-suite/CodebuddySuiteCheckinModal';
 import { CodebuddySessionManager } from '../components/codebuddy/CodebuddySessionManager';
 import { CodebuddySuiteAccountsSharedView, type CodebuddySuiteAccountsPlatformConfig } from '../components/codebuddy-suite/CodebuddySuiteAccountsSharedView';
+import { WbCardLimitInput, type WbPoolAccount, useWbPoolLimits } from '../components/codebuddy-suite/WorkbuddyGatewayConcurrency';
 // WorkBuddy「自动任务」面板（独立模块，与上游代码解耦）
 import { WorkbuddyAutoTasksPanel } from '../components/codebuddy-suite/WorkbuddyAutoTasksPanel';
 import { compareCurrentAccountFirst } from '../utils/currentAccountSort';
@@ -32,27 +33,14 @@ import {
   WorkbuddyAutoCheckinConfig,
 } from '../services/workbuddyAutoCheckinService';
 
-import { Check, ChevronDown, CircleCheck, Copy, Eye, EyeOff, Gauge, PlaneTakeoff, Play, RefreshCw } from 'lucide-react';
+import { Check, ChevronDown, CircleCheck, Copy, Eye, EyeOff, PlaneTakeoff, Play, RefreshCw } from 'lucide-react';
 
 const ADMIN_BASE = 'http://127.0.0.1:7864';
 const DEFAULT_BASE = 'http://127.0.0.1:7863/v1';
 interface Config { config?: Record<string, unknown>; baseUrl?: string; lan_base_url?: string | null }
 interface Status { total?: number; healthy?: number; accounts?: unknown[] }
 
-/** 网关账号池单账号状态（/api/status 里 accounts[] 的字段子集，仅供并发上限设置用） */
-interface WbPoolAccount {
-  uid?: string;
-  nickname?: string;
-  // 在途请求数 / 当前生效的并发上限（0 或缺省 = 不限）
-  in_flight?: number;
-  max_in_flight?: number;
-  // 是否已打满上限（打满后 Pick 会跳过该账号）
-  in_flight_full?: boolean;
-  cooling?: boolean;
-  disabled?: boolean;
-}
-
-/** 单账号并发上限行：展示在途/上限，输入新值保存（0 = 跟随全局，清除覆盖） */
+/** 单账号并发上限行：展示在途/上限，输入新值保存（0 = 不限制） */
 function WbPoolAccountLimitRow({ acct, onSaved }: { acct: WbPoolAccount; onSaved: (msg: string) => void }) {
   const [limit, setLimit] = useState<string>(acct.max_in_flight ? String(acct.max_in_flight) : '0');
   const [saving, setSaving] = useState(false);
@@ -79,7 +67,7 @@ function WbPoolAccountLimitRow({ acct, onSaved }: { acct: WbPoolAccount; onSaved
       <span title="账号状态">{stateText}</span>
       <input
         type="number" min={0} max={99} value={limit} disabled={saving}
-        title="并发上限，0 = 跟随全局（默认 3）"
+        title="并发上限，0 = 不限制"
         style={{ width: 56 }}
         onChange={(e) => setLimit(e.target.value)}
       />
@@ -103,71 +91,12 @@ function WbPoolAccountLimits() {
   useEffect(() => { void load(); }, []);
   return (
     <details className="wb-pool-limits">
-      <summary>账号并发上限（打满自动跳过，0 = 跟随全局默认 3）</summary>
+      <summary>账号并发上限（打满自动跳过，0 = 不限制）</summary>
       {accounts.map((a) => (
         <WbPoolAccountLimitRow key={a.uid} acct={a} onSaved={(m) => { setMsg(m); void load(); }} />
       ))}
       {msg && <div className="wb-meta"><span>{msg}</span></div>}
     </details>
-  );
-}
-
-/** 网关账号池并发状态 hook：拉一次 /api/status，提供 uid→账号状态映射与刷新 */
-function useWbPoolLimits() {
-  const [map, setMap] = useState<Record<string, WbPoolAccount>>({});
-  const reload = useCallback(async () => {
-    try {
-      const s = await fetch(`${ADMIN_BASE}/api/status`).then((r) => r.json() as Promise<Status>);
-      const next: Record<string, WbPoolAccount> = {};
-      for (const a of (s.accounts ?? []) as WbPoolAccount[]) {
-        if (a.uid) next[a.uid] = a;
-      }
-      setMap(next);
-    } catch {
-      // 网关未运行：映射留空，卡片输入框仍可编辑
-    }
-  }, []);
-  useEffect(() => { void reload(); }, [reload]);
-  return { map, reload };
-}
-
-/** 卡片内联并发上限输入框：value 为当前生效上限（0 = 跟随全局默认 3），Enter 或失焦保存 */
-function WbCardLimitInput({ uid, value, inFlight, onSaved }: { uid: string; value: number; inFlight: number; onSaved: () => void }) {
-  const [text, setText] = useState(value ? String(value) : '0');
-  const [saving, setSaving] = useState(false);
-  // 网关状态刷新后同步回显值
-  useEffect(() => { setText(value ? String(value) : '0'); }, [value]);
-  const save = async () => {
-    const n = Math.max(0, Math.min(99, Number(text) || 0));
-    if (n === value) return; // 无变化不请求
-    setSaving(true);
-    try {
-      await fetch(`${ADMIN_BASE}/api/account/max-in-flight`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid, limit: n }),
-      });
-      onSaved();
-    } catch {
-      // 网关未运行时保存失败，静默保留输入值
-    } finally {
-      setSaving(false);
-    }
-  };
-  return (
-    <span
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 'auto' }}
-      title={`在途 ${inFlight} · 并发上限（0 = 跟随全局默认 3）`}
-    >
-      <Gauge size={13} style={{ opacity: 0.6 }} />
-      <input
-        type="number" min={0} max={99} value={text} disabled={saving}
-        style={{ width: 48, padding: '2px 4px', fontSize: 12, borderRadius: 6, border: '1px solid rgba(128,128,128,0.35)' }}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => void save()}
-        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-      />
-    </span>
   );
 }
 
@@ -462,7 +391,9 @@ const workbuddyPlatformConfig: CodebuddySuiteAccountsPlatformConfig<WorkbuddyAcc
   addAccountTitleKey: 'workbuddy.addAccount',
   addAccountTitleDefault: '添加 WorkBuddy 账号',
   oauthDescKey: 'workbuddy.oauthDesc',
-  oauthDescDefault: '点击下方按钮将在浏览器中打开 WorkBuddy 授权页面。',
+  oauthDescDefault: '点击下方按钮将在独立授权窗口中打开 WorkBuddy 授权页面。',
+  oauthOpenButtonKey: 'common.shared.oauth.openAuthWindow',
+  oauthOpenButtonDefault: '打开授权窗口',
   oauthFeatureCardClassName: 'workbuddy-oauth-feature-card',
   oauthFeatureTitleKey: 'workbuddy.oauthFeature.oauth.title',
   oauthFeatureTitleDefault: '仅授权 IDE 登录信息',
@@ -505,7 +436,7 @@ export function WorkbuddyAccountsPage() {
   // 自动签到配置 + 今日执行日志：为卡片徽标悬停提示提供签到时间 / 排期时间
   const { config: autoCheckinConfig, logTimes: autoCheckinLogTimes } = useWbAutoCheckinBadgeHints();
   // 网关账号池并发状态：卡片内联输入框的数据源（uid → 在途/上限）
-  const poolLimits = useWbPoolLimits();
+  const poolLimits = useWbPoolLimits('cn');
   // 平台配置：签到/旅行徽标移到账户名下方的独立一行（card-badge-row，右对齐、
   // 紧贴首行）；FREE 等套餐标签保持在首行账户名右侧不变。
   const platformConfig = useMemo(
@@ -536,7 +467,7 @@ export function WorkbuddyAccountsPage() {
             />
             <WbCardLimitInput
               uid={poolKey}
-              value={pool?.max_in_flight ?? 0}
+              value={pool?.max_in_flight ?? 3}
               inFlight={pool?.in_flight ?? 0}
               onSaved={() => void poolLimits.reload()}
             />
@@ -571,6 +502,8 @@ export function WorkbuddyAccountsPage() {
       startLogin: workbuddyService.startWorkbuddyOAuthLogin,
       completeLogin: workbuddyService.completeWorkbuddyOAuthLogin,
       cancelLogin: workbuddyService.cancelWorkbuddyOAuthLogin,
+      // 内置授权窗口：走隔离会话，避免复用浏览器已有登录态导致再次授权还是同一个账号
+      openAuthUrl: workbuddyService.openWorkbuddyOAuthWindow,
     },
     dataService: {
       importFromJson: workbuddyService.importWorkbuddyFromJson,
@@ -624,6 +557,4 @@ export function WorkbuddyAccountsPage() {
     </div>
   );
 }
-
-
 

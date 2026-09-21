@@ -39,6 +39,7 @@ const PROVIDER_PAGE_PLATFORM_MAP: Record<string, PlatformId> = {
   codebuddycn: 'codebuddy_cn',
   codebuddy_cn: 'codebuddy_cn',
   qoder: 'qoder',
+  qoderwork_intl: 'qoderwork_intl',
   zcode: 'zcode',
   trae: 'trae',
   trae_solo: 'trae_solo',
@@ -48,6 +49,7 @@ const PROVIDER_PAGE_PLATFORM_MAP: Record<string, PlatformId> = {
   trae_solo_cn: 'trae_solo_cn',
   traesolocn: 'trae_solo_cn',
   workbuddy: 'workbuddy',
+  workbuddy_intl: 'workbuddy_intl',
 };
 
 function normalizePlatformKey(value: string): string {

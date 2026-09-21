@@ -2,7 +2,7 @@ use rand::RngCore;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager};
 use url::Url;
 use uuid::Uuid;
 
@@ -141,41 +141,11 @@ pub fn open_oauth_window(app: &AppHandle, auth_url: &str, incognito: bool) -> Re
             .map_err(|error| format!("重置 ZCode OAuth 授权窗口失败: {}", error))?;
     }
 
-    let callback_app = app.clone();
-    WebviewWindowBuilder::new(app, ZCODE_OAUTH_WINDOW_LABEL, WebviewUrl::External(parsed))
-        .title("ZCode OAuth")
-        .inner_size(920.0, 720.0)
-        .min_inner_size(640.0, 560.0)
-        .center()
-        .incognito(incognito)
-        .on_navigation(move |url| {
-            if is_zcode_callback_url(url) {
-                let callback_url = url.to_string();
-                let app = callback_app.clone();
-                logger::log_info("[ZCode OAuth] 内置授权窗口已拦截 zcode:// 回调");
-                tauri::async_runtime::spawn(async move {
-                    handle_deep_link(&callback_url).await;
-                    if let Some(window) = app.get_webview_window(ZCODE_OAUTH_WINDOW_LABEL) {
-                        let _ = window.close();
-                    }
-                });
-                return false;
-            }
-
-            let allowed = matches!(url.scheme(), "https" | "about");
-            if !allowed {
-                logger::log_warn(&format!(
-                    "[ZCode OAuth] 已阻止授权窗口导航到非 HTTPS 地址: scheme={}",
-                    url.scheme()
-                ));
-            }
-            allowed
-        })
-        .build()
-        .map_err(|error| format!("创建 ZCode OAuth 授权窗口失败: {}", error))?;
+    let _ = incognito;
+    crate::modules::chrome_oauth::open_trusted(parsed.as_str())?;
 
     logger::log_info(&format!(
-        "[ZCode OAuth] 已打开内置授权窗口: provider={}, incognito={}",
+        "[ZCode OAuth] 已打开 Chrome 可信授权窗口: provider={}, incognito={}",
         pending.provider, incognito
     ));
 

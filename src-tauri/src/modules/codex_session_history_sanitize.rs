@@ -229,8 +229,13 @@ fn write_rollout_signature_backup(
     let serialized = serde_json::to_vec_pretty(backups)
         .map_err(|error| format!("序列化会话日志签名备份失败: {}", error))?;
     let temp_path = backup_file.with_extension("json.tmp");
-    fs::write(&temp_path, &serialized)
-        .map_err(|error| format!("写入会话日志签名备份失败 ({}): {}", temp_path.display(), error))?;
+    fs::write(&temp_path, &serialized).map_err(|error| {
+        format!(
+            "写入会话日志签名备份失败 ({}): {}",
+            temp_path.display(),
+            error
+        )
+    })?;
     fs::rename(&temp_path, &backup_file).map_err(|error| {
         format!(
             "更新会话日志签名备份失败 ({}): {}",
@@ -326,10 +331,8 @@ fn collect_history_databases(dir: &Path, paths: &mut Vec<PathBuf>) {
             .file_stem()
             .and_then(|stem| stem.to_str())
             .is_some_and(|stem| stem.starts_with(HISTORY_DB_STEM));
-        let matches_extension = path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            == Some(HISTORY_DB_EXTENSION);
+        let matches_extension =
+            path.extension().and_then(|extension| extension.to_str()) == Some(HISTORY_DB_EXTENSION);
         if matches_stem && matches_extension {
             paths.push(path);
         }
@@ -638,7 +641,8 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("{}-{}-{}", prefix, std::process::id(), unique));
+        let dir =
+            std::env::temp_dir().join(format!("{}-{}-{}", prefix, std::process::id(), unique));
         if dir.exists() {
             fs::remove_dir_all(&dir).expect("cleanup");
         }
@@ -753,7 +757,8 @@ mod tests {
         assert!(untouched.contains("agentMessage"));
         drop(connection);
 
-        let second = sanitize_official_incompatible_reasoning_history(&dir).expect("sanitize again");
+        let second =
+            sanitize_official_incompatible_reasoning_history(&dir).expect("sanitize again");
         assert_eq!(second.updated_item_count, 0);
         assert!(!second.changed_anything());
 

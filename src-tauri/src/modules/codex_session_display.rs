@@ -249,8 +249,7 @@ fn open_read_only(path: &Path) -> Option<Connection> {
     if !path.is_file() {
         return None;
     }
-    let connection =
-        Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+    let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
     let _ = connection.busy_timeout(SQLITE_BUSY_TIMEOUT);
     Some(connection)
 }
@@ -531,7 +530,10 @@ mod tests {
             &[("project-a", "cockpit tools"), ("project-b", "子目录项目")],
             &[
                 ("project-a", "/private/var/www/antigravity-cockpit-tools"),
-                ("project-b", "/private/var/www/antigravity-cockpit-tools/src"),
+                (
+                    "project-b",
+                    "/private/var/www/antigravity-cockpit-tools/src",
+                ),
             ],
         );
 

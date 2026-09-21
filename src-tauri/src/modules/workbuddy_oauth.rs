@@ -1,12 +1,14 @@
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Manager};
 
 use crate::models::workbuddy::{WorkbuddyOAuthCompletePayload, WorkbuddyOAuthStartResponse};
 use crate::modules::logger;
+use crate::modules::workbuddy_realm::{realm_by_id, WorkbuddyRealm, REALM_CN, REALM_INTL};
 
-const WORKBUDDY_API_ENDPOINT: &str = "https://copilot.tencent.com";
-const WORKBUDDY_API_PREFIX: &str = "/v2/plugin";
-const WORKBUDDY_PLATFORM: &str = "workbuddy";
+// ⚠️ 网关域名、接口前缀、platform 参数已统一迁移到 `workbuddy_realm.rs`（REALM_CN / REALM_INTL），
+// 本文件不再硬编码任何域名。需要取域名时从传入的 `realm` 参数读取，以支持国际版。
 // WorkBuddy 与 CodeBuddy 共用同一网关校验，缺少 User-Agent 会返回 403 / code=10085。
 const WORKBUDDY_HTTP_USER_AGENT: &str =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -18,13 +20,104 @@ const ENTERPRISE_PACKAGE_CODE: &str = "TCACA_code_enterprise";
 #[derive(Clone)]
 struct PendingOAuthState {
     login_id: String,
+    /// 归属区域（"cn" / "intl"）。国际版与国内版可并发登录，必须各记各的。
+    realm_id: String,
     expires_at: i64,
     state: String,
     cancelled: bool,
 }
 
+// 以 login_id 为键存放待处理登录：原先是 Option 单槽位，会被另一个区域的登录覆盖，
+// 改为 HashMap 后两个区域可以同时授权，互不影响。
 lazy_static::lazy_static! {
-    static ref PENDING_OAUTH_STATE: Arc<Mutex<Option<PendingOAuthState>>> = Arc::new(Mutex::new(None));
+    static ref PENDING_OAUTH_STATE: Arc<Mutex<HashMap<String, PendingOAuthState>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+}
+
+/// 内置授权窗口 label：国内版 / 国际版各一个，两个区域可并发授权、互不覆盖。
+const OAUTH_WINDOW_LABEL_CN: &str = "workbuddy-oauth-window-cn";
+const OAUTH_WINDOW_LABEL_INTL: &str = "workbuddy-oauth-window-intl";
+
+fn oauth_window_label_for(realm: &WorkbuddyRealm) -> &'static str {
+    if realm.id == REALM_INTL.id {
+        OAUTH_WINDOW_LABEL_INTL
+    } else {
+        OAUTH_WINDOW_LABEL_CN
+    }
+}
+
+/// 从授权地址里取 state 参数：state 是我们自己向上游申请、且只存在于 pending 表里的随机串，
+/// 用它反查待处理登录，等价于按登录会话校验地址合法性（前端无法伪造任意地址来开窗）。
+fn authorize_state(url: &url::Url) -> Option<String> {
+    url.query_pairs()
+        .find(|(key, _)| key == "state")
+        .map(|(_, value)| value.into_owned())
+}
+
+/// 打开 WorkBuddy 内置授权窗口。
+///
+/// WorkBuddy 的授权是「轮询 state」模型：后端 `auth/token?state=` 轮询拿 token，
+/// 所以窗口里不需要拦截回调，用户在上游页面完成登录即可。
+///
+/// 当前统一使用可信 Chrome 配置，复用本机已登录会话完成授权。
+pub async fn open_oauth_window(
+    app: &AppHandle,
+    auth_url: &str,
+    _incognito: bool,
+) -> Result<(), String> {
+    let parsed = url::Url::parse(auth_url.trim())
+        .map_err(|error| format!("WorkBuddy OAuth 授权地址无效: {}", error))?;
+    let scheme = parsed.scheme();
+    if scheme != "https" && scheme != "http" {
+        return Err(format!("WorkBuddy OAuth 授权地址协议不受支持: {}", scheme));
+    }
+    let state = authorize_state(&parsed)
+        .ok_or_else(|| "WorkBuddy OAuth 授权地址缺少 state 参数".to_string())?;
+    let pending = {
+        let pending = PENDING_OAUTH_STATE
+            .lock()
+            .map_err(|_| "获取锁失败".to_string())?;
+        pending.values().find(|entry| entry.state == state).cloned()
+    }
+    .ok_or_else(|| "WorkBuddy OAuth 登录会话不存在或已结束".to_string())?;
+    if pending.expires_at <= now_timestamp() {
+        return Err("WorkBuddy OAuth 登录已过期，请重新发起授权".to_string());
+    }
+
+    let realm = realm_by_id(&pending.realm_id);
+    let label = oauth_window_label_for(realm);
+
+    // 每次授权都重建窗口：销毁旧窗口可确保每次都是全新的页面状态，不会残留上一次的表单。
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.destroy();
+    }
+
+    crate::modules::chrome_oauth::open_trusted(parsed.as_str())?;
+
+    logger::log_info(&format!(
+        "[WorkBuddy OAuth][{}] 已打开 Chrome 可信授权窗口: login_id={}",
+        realm.id, pending.login_id
+    ));
+    Ok(())
+}
+
+/// 关闭指定区域的内置授权窗口（窗口不存在时静默成功）。
+pub fn close_oauth_window_for_realm(app: &AppHandle, realm: &WorkbuddyRealm) -> Result<(), String> {
+    let label = oauth_window_label_for(realm);
+    let app_for_thread = app.clone();
+    // 关窗同样调度到主线程执行（Windows 上跨线程关窗会卡死，同 workbuddy_webview）。
+    // 这里不等待结果：关窗失败无补救手段，记日志即可，别拖慢前端取消流程。
+    app.run_on_main_thread(move || {
+        if let Some(window) = app_for_thread.get_webview_window(label) {
+            if let Err(error) = window.destroy() {
+                logger::log_warn(&format!(
+                    "[WorkBuddy OAuth] 关闭授权窗口失败: label={}, error={}",
+                    label, error
+                ));
+            }
+        }
+    })
+    .map_err(|error| format!("调度主线程关闭授权窗口失败: {}", error))
 }
 
 fn now_timestamp() -> i64 {
@@ -155,13 +248,8 @@ fn clear_pending_login(login_id: &str) -> Result<(), String> {
     let mut pending = PENDING_OAUTH_STATE
         .lock()
         .map_err(|_| "获取锁失败".to_string())?;
-    if pending
-        .as_ref()
-        .map(|s| s.login_id == login_id)
-        .unwrap_or(false)
-    {
-        *pending = None;
-    }
+    // 按 login_id 精确移除，不影响其他区域正在进行的登录
+    pending.remove(login_id);
     Ok(())
 }
 
@@ -169,11 +257,14 @@ pub fn clear_pending_oauth_login(login_id: &str) -> Result<(), String> {
     clear_pending_login(login_id)
 }
 
-async fn start_login_with_platform(platform: &str) -> Result<WorkbuddyOAuthStartResponse, String> {
+/// 按指定区域启动登录。国内版与国际版共用此函数，域名/平台参数全部来自 realm 配置。
+async fn start_login_with_realm(
+    realm: &WorkbuddyRealm,
+) -> Result<WorkbuddyOAuthStartResponse, String> {
     let client = build_client()?;
     let url = format!(
         "{}{}/auth/state?platform={}",
-        WORKBUDDY_API_ENDPOINT, WORKBUDDY_API_PREFIX, platform
+        realm.api_endpoint, realm.api_prefix, realm.platform_tag
     );
 
     logger::log_info(&format!("[WorkBuddy OAuth] 请求 auth/state: {}", url));
@@ -227,8 +318,9 @@ async fn start_login_with_platform(platform: &str) -> Result<WorkbuddyOAuthStart
     .ok()
     .flatten();
 
+    // 上游未下发 authUrl 时，用该区域的登录页域名兜底
     let base_verification_uri = if auth_url.is_empty() {
-        format!("{}/login?state={}", WORKBUDDY_API_ENDPOINT, state)
+        format!("{}/login?state={}", realm.login_origin, state)
     } else {
         auth_url.clone()
     };
@@ -242,17 +334,21 @@ async fn start_login_with_platform(platform: &str) -> Result<WorkbuddyOAuthStart
         let mut pending = PENDING_OAUTH_STATE
             .lock()
             .map_err(|_| "获取锁失败".to_string())?;
-        *pending = Some(PendingOAuthState {
-            login_id: login_id.clone(),
-            expires_at: now_timestamp() + OAUTH_TIMEOUT_SECONDS as i64,
-            state: state.clone(),
-            cancelled: false,
-        });
+        pending.insert(
+            login_id.clone(),
+            PendingOAuthState {
+                login_id: login_id.clone(),
+                realm_id: realm.id.to_string(),
+                expires_at: now_timestamp() + OAUTH_TIMEOUT_SECONDS as i64,
+                state: state.clone(),
+                cancelled: false,
+            },
+        );
     }
 
     logger::log_info(&format!(
-        "[WorkBuddy OAuth] 登录已启动: login_id={}, state={}",
-        login_id, state
+        "[WorkBuddy OAuth][{}] 登录已启动: login_id={}, state={}",
+        realm.id, login_id, state
     ));
 
     Ok(WorkbuddyOAuthStartResponse {
@@ -264,8 +360,14 @@ async fn start_login_with_platform(platform: &str) -> Result<WorkbuddyOAuthStart
     })
 }
 
+/// 国内版登录入口：保持既有签名与行为不变
 pub async fn start_login() -> Result<WorkbuddyOAuthStartResponse, String> {
-    start_login_with_platform(WORKBUDDY_PLATFORM).await
+    start_login_with_realm(&REALM_CN).await
+}
+
+/// 按区域标识启动登录：`intl` / `global` 走国际版，其余走国内版
+pub async fn start_login_for_realm(realm_id: &str) -> Result<WorkbuddyOAuthStartResponse, String> {
+    start_login_with_realm(realm_by_id(realm_id)).await
 }
 
 pub async fn complete_login(login_id: &str) -> Result<WorkbuddyOAuthCompletePayload, String> {
@@ -277,12 +379,9 @@ pub async fn complete_login(login_id: &str) -> Result<WorkbuddyOAuthCompletePayl
             let pending = PENDING_OAUTH_STATE
                 .lock()
                 .map_err(|_| "获取锁失败".to_string())?;
-            match pending.as_ref() {
+            match pending.get(login_id) {
                 None => return Err("没有待处理的登录请求".to_string()),
                 Some(s) => {
-                    if s.login_id != login_id {
-                        return Err("login_id 不匹配".to_string());
-                    }
                     if s.cancelled {
                         return Err("登录已取消".to_string());
                     }
@@ -294,9 +393,11 @@ pub async fn complete_login(login_id: &str) -> Result<WorkbuddyOAuthCompletePayl
             }
         };
 
+        // 从 pending 记录还原该登录所属区域，保证轮询打回同一个网关（国际版不会打到国内版去）
+        let realm = realm_by_id(&state_info.realm_id);
         let url = format!(
             "{}{}/auth/token?state={}",
-            WORKBUDDY_API_ENDPOINT, WORKBUDDY_API_PREFIX, state_info.state
+            realm.api_endpoint, realm.api_prefix, state_info.state
         );
 
         match client
@@ -350,6 +451,7 @@ pub async fn complete_login(login_id: &str) -> Result<WorkbuddyOAuthCompletePayl
                                     &access_token,
                                     &state_info.state,
                                     domain.as_deref(),
+                                    realm,
                                 )
                                 .await;
 
@@ -408,7 +510,7 @@ pub async fn complete_login(login_id: &str) -> Result<WorkbuddyOAuthCompletePayl
             let mut pending = PENDING_OAUTH_STATE
                 .lock()
                 .map_err(|_| "获取锁失败".to_string())?;
-            *pending = None;
+            pending.remove(login_id);
             return Err("登录超时".to_string());
         }
 
@@ -420,11 +522,13 @@ pub fn cancel_login(login_id: Option<&str>) -> Result<(), String> {
     let mut pending = PENDING_OAUTH_STATE
         .lock()
         .map_err(|_| "获取锁失败".to_string())?;
-    if let Some(state) = pending.as_mut() {
-        if login_id.is_none() || login_id == Some(state.login_id.as_str()) {
-            state.cancelled = true;
-            *pending = None;
+    match login_id {
+        // 指定 login_id：只取消这一条
+        Some(id) => {
+            pending.remove(id);
         }
+        // 未指定：取消所有待处理登录（含两个区域）
+        None => pending.clear(),
     }
     Ok(())
 }
@@ -434,6 +538,7 @@ async fn fetch_account_info(
     access_token: &str,
     state: &str,
     domain: Option<&str>,
+    realm: &WorkbuddyRealm,
 ) -> Result<
     (
         Option<String>,
@@ -447,7 +552,7 @@ async fn fetch_account_info(
 > {
     let url = format!(
         "{}{}/login/account?state={}",
-        WORKBUDDY_API_ENDPOINT, WORKBUDDY_API_PREFIX, state
+        realm.api_endpoint, realm.api_prefix, state
     );
 
     let mut req = client
@@ -521,11 +626,12 @@ pub async fn refresh_token(
     access_token: &str,
     refresh_token: &str,
     domain: Option<&str>,
+    realm: &WorkbuddyRealm,
 ) -> Result<Value, String> {
     let client = build_client()?;
     let url = format!(
         "{}{}/auth/token/refresh",
-        WORKBUDDY_API_ENDPOINT, WORKBUDDY_API_PREFIX
+        realm.api_endpoint, realm.api_prefix
     );
 
     let mut req = client
@@ -569,12 +675,10 @@ pub async fn fetch_dosage_notify(
     uid: Option<&str>,
     enterprise_id: Option<&str>,
     domain: Option<&str>,
+    realm: &WorkbuddyRealm,
 ) -> Result<Value, String> {
     let client = build_client()?;
-    let url = format!(
-        "{}/v2/billing/meter/get-dosage-notify",
-        WORKBUDDY_API_ENDPOINT
-    );
+    let url = format!("{}/v2/billing/meter/get-dosage-notify", realm.api_endpoint);
 
     let mut req = client
         .post(&url)
@@ -610,12 +714,10 @@ pub async fn fetch_payment_type(
     uid: Option<&str>,
     enterprise_id: Option<&str>,
     domain: Option<&str>,
+    realm: &WorkbuddyRealm,
 ) -> Result<Value, String> {
     let client = build_client()?;
-    let url = format!(
-        "{}/v2/billing/meter/get-payment-type",
-        WORKBUDDY_API_ENDPOINT
-    );
+    let url = format!("{}/v2/billing/meter/get-payment-type", realm.api_endpoint);
 
     let mut req = client
         .post(&url)
@@ -657,10 +759,11 @@ pub async fn fetch_user_resource_with_access_token(
     _package_end_time_range_end: &str,
     _page_number: i32,
     _page_size: i32,
+    realm: &WorkbuddyRealm,
 ) -> Result<Value, String> {
     let _ = (product_code, status);
     let body = build_user_resource_request_body();
-    post_user_resource(access_token, uid, enterprise_id, domain, body).await
+    post_user_resource(access_token, uid, enterprise_id, domain, body, realm).await
 }
 
 async fn post_user_resource(
@@ -669,12 +772,10 @@ async fn post_user_resource(
     enterprise_id: Option<&str>,
     domain: Option<&str>,
     body: Value,
+    realm: &WorkbuddyRealm,
 ) -> Result<Value, String> {
     let client = build_client()?;
-    let url = format!(
-        "{}/v2/billing/meter/get-user-resource",
-        WORKBUDDY_API_ENDPOINT
-    );
+    let url = format!("{}/v2/billing/meter/get-user-resource", realm.api_endpoint);
 
     let mut req = client
         .post(&url)
@@ -765,11 +866,12 @@ pub async fn fetch_enterprise_user_usage(
     uid: Option<&str>,
     enterprise_id: &str,
     domain: Option<&str>,
+    realm: &WorkbuddyRealm,
 ) -> Result<Value, String> {
     let client = build_client()?;
     let url = format!(
         "{}/v2/billing/meter/get-enterprise-user-usage",
-        WORKBUDDY_API_ENDPOINT
+        realm.api_endpoint
     );
 
     let mut req = client
@@ -914,6 +1016,7 @@ async fn fetch_user_resource_with_access_token_default(
     uid: Option<&str>,
     enterprise_id: Option<&str>,
     domain: Option<&str>,
+    realm: &WorkbuddyRealm,
 ) -> Result<Value, String> {
     let payload = post_user_resource(
         access_token,
@@ -921,6 +1024,7 @@ async fn fetch_user_resource_with_access_token_default(
         enterprise_id,
         domain,
         build_user_resource_request_body(),
+        realm,
     )
     .await?;
     if user_resource_has_payload(&payload) {
@@ -937,18 +1041,21 @@ async fn fetch_quota_resource_for_account(
     uid: Option<&str>,
     enterprise_id: Option<&str>,
     domain: Option<&str>,
+    realm: &WorkbuddyRealm,
 ) -> Result<Value, String> {
     if let Some(enterprise_id) = enterprise_id {
-        let body = fetch_enterprise_user_usage(access_token, uid, enterprise_id, domain).await?;
+        let body =
+            fetch_enterprise_user_usage(access_token, uid, enterprise_id, domain, realm).await?;
         wrap_enterprise_usage_as_resource(&body)
     } else {
-        fetch_user_resource_with_access_token_default(access_token, uid, None, domain).await
+        fetch_user_resource_with_access_token_default(access_token, uid, None, domain, realm).await
     }
 }
 
 async fn refresh_payload_for_account_inner(
     account: &crate::models::workbuddy::WorkbuddyAccount,
     require_user_resource: bool,
+    realm: &WorkbuddyRealm,
 ) -> Result<(WorkbuddyOAuthCompletePayload, Option<String>), String> {
     let mut new_access_token = account.access_token.clone();
     let mut new_refresh_token = account.refresh_token.clone();
@@ -956,7 +1063,14 @@ async fn refresh_payload_for_account_inner(
     let mut new_domain = account.domain.clone();
 
     if let Some(refresh_tk) = account.refresh_token.as_deref() {
-        match refresh_token(&account.access_token, refresh_tk, account.domain.as_deref()).await {
+        match refresh_token(
+            &account.access_token,
+            refresh_tk,
+            account.domain.as_deref(),
+            realm,
+        )
+        .await
+        {
             Ok(token_data) => {
                 new_access_token = token_data
                     .get("accessToken")
@@ -1002,6 +1116,7 @@ async fn refresh_payload_for_account_inner(
         resolved_uid.as_deref(),
         resolved_enterprise_id.as_deref(),
         new_domain.as_deref(),
+        realm,
     )
     .await
     .ok();
@@ -1011,6 +1126,7 @@ async fn refresh_payload_for_account_inner(
         resolved_uid.as_deref(),
         resolved_enterprise_id.as_deref(),
         new_domain.as_deref(),
+        realm,
     )
     .await
     .ok();
@@ -1027,6 +1143,7 @@ async fn refresh_payload_for_account_inner(
         resolved_uid.as_deref(),
         resolved_enterprise_id.as_deref(),
         new_domain.as_deref(),
+        realm,
     )
     .await
     {
@@ -1132,21 +1249,36 @@ async fn refresh_payload_for_account_inner(
     ))
 }
 
+/// 国内版账号刷新入口：保持既有签名与行为不变
 pub async fn refresh_payload_for_account(
     account: &crate::models::workbuddy::WorkbuddyAccount,
 ) -> Result<(WorkbuddyOAuthCompletePayload, Option<String>), String> {
-    refresh_payload_for_account_inner(account, false).await
+    refresh_payload_for_account_for_realm(account, &REALM_CN).await
 }
 
+/// 按区域刷新账号：国际版账号走国际版网关
+pub async fn refresh_payload_for_account_for_realm(
+    account: &crate::models::workbuddy::WorkbuddyAccount,
+    realm: &WorkbuddyRealm,
+) -> Result<(WorkbuddyOAuthCompletePayload, Option<String>), String> {
+    refresh_payload_for_account_inner(account, false, realm).await
+}
+
+/// 国内版用 token 构建账号：保持既有签名与行为不变
 pub async fn build_payload_from_token(
     access_token: &str,
 ) -> Result<WorkbuddyOAuthCompletePayload, String> {
+    build_payload_from_token_for_realm(access_token, &REALM_CN).await
+}
+
+/// 按区域用 token 构建账号
+pub async fn build_payload_from_token_for_realm(
+    access_token: &str,
+    realm: &WorkbuddyRealm,
+) -> Result<WorkbuddyOAuthCompletePayload, String> {
     let client = build_client()?;
 
-    let url = format!(
-        "{}{}/accounts",
-        WORKBUDDY_API_ENDPOINT, WORKBUDDY_API_PREFIX
-    );
+    let url = format!("{}{}/accounts", realm.api_endpoint, realm.api_prefix);
 
     let resp = client
         .get(&url)
@@ -1205,19 +1337,32 @@ pub async fn build_payload_from_token(
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
 
-    let dosage = fetch_dosage_notify(access_token, uid.as_deref(), enterprise_id.as_deref(), None)
-        .await
-        .ok();
+    let dosage = fetch_dosage_notify(
+        access_token,
+        uid.as_deref(),
+        enterprise_id.as_deref(),
+        None,
+        realm,
+    )
+    .await
+    .ok();
 
-    let payment = fetch_payment_type(access_token, uid.as_deref(), enterprise_id.as_deref(), None)
-        .await
-        .ok();
+    let payment = fetch_payment_type(
+        access_token,
+        uid.as_deref(),
+        enterprise_id.as_deref(),
+        None,
+        realm,
+    )
+    .await
+    .ok();
 
     let user_resource = fetch_user_resource_with_access_token_default(
         access_token,
         uid.as_deref(),
         enterprise_id.as_deref(),
         None,
+        realm,
     )
     .await
     .ok();

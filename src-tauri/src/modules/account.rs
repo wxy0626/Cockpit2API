@@ -2085,8 +2085,14 @@ pub async fn switch_account_internal(account_id: &str) -> Result<Account, String
         if target_dir == default_dir {
             continue;
         }
-        if let Err(e) = modules::instance::inject_account_to_profile_with_account(&target_dir, &account) {
-            modules::logger::log_warn(&format!("[Switch] 注入目录 {} 失败: {}", target_dir.display(), e));
+        if let Err(e) =
+            modules::instance::inject_account_to_profile_with_account(&target_dir, &account)
+        {
+            modules::logger::log_warn(&format!(
+                "[Switch] 注入目录 {} 失败: {}",
+                target_dir.display(),
+                e
+            ));
         } else {
             modules::logger::log_info(&format!("[Switch] 成功注入目录: {}", target_dir.display()));
         }
@@ -2403,7 +2409,9 @@ pub async fn switch_account_local_no_restart(account_id: &str) -> Result<Account
         if target_dir == default_dir {
             continue;
         }
-        if let Err(e) = modules::instance::inject_account_to_profile_with_account(&target_dir, &account) {
+        if let Err(e) =
+            modules::instance::inject_account_to_profile_with_account(&target_dir, &account)
+        {
             modules::logger::log_warn(&format!(
                 "[Switch][NoRestart] 注入目录 {} 失败: {}",
                 target_dir.display(),

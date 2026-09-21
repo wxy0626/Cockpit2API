@@ -58,6 +58,12 @@
 
   /* Component sizing */
   --modal-close-icon-size: 16px;
+
+  /* 别名：部分页面（cindy/workbuddy 片段）使用了这套命名，历史上从未定义过，
+     导致 background 解析为透明（卡片"隐身"）。统一映射到本设计系统真实 token。 */
+  --surface-secondary: var(--bg-card);
+  --surface-tertiary: var(--bg-tertiary);
+  --border-subtle: var(--border-light);
 }
 
 /* === Dark Theme === */
@@ -97,6 +103,11 @@
   --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 12px 24px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.45);
+
+  /* 别名（同 :root，指向暗色主题真实 token） */
+  --surface-secondary: var(--bg-card);
+  --surface-tertiary: var(--bg-tertiary);
+  --border-subtle: var(--border-light);
 
   color-scheme: dark;
 }

@@ -140,10 +140,7 @@ fn sync_state_path() -> Result<PathBuf, String> {
     Ok(account::get_data_dir()?.join(SPONSOR_ROUTE_SYNC_STATE_FILE))
 }
 
-fn rewrite_codex_model_provider_base_urls(
-    value: &mut Value,
-    rules: &[SponsorRouteRule],
-) -> usize {
+fn rewrite_codex_model_provider_base_urls(value: &mut Value, rules: &[SponsorRouteRule]) -> usize {
     let Some(providers) = value.as_array_mut() else {
         return 0;
     };
@@ -289,7 +286,10 @@ mod tests {
             { "id": "custom", "baseUrl": "https://relay.example.com/v1" }
         ]);
 
-        assert_eq!(rewrite_codex_model_provider_base_urls(&mut value, &rules), 1);
+        assert_eq!(
+            rewrite_codex_model_provider_base_urls(&mut value, &rules),
+            1
+        );
         assert_eq!(value[0]["baseUrl"], "https://api.apikey.fan/v1");
         assert_eq!(value[1]["baseUrl"], "https://api.apikey.fan/v1");
         assert_eq!(value[2]["baseUrl"], "https://relay.example.com/v1");

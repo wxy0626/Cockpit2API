@@ -15,31 +15,33 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Map, Value};
 
+use crate::models::workbuddy::WorkbuddyAccount;
 use crate::modules::logger;
 use crate::modules::workbuddy_account;
+use crate::modules::workbuddy_realm::{WorkbuddyRealm, REALM_CN, REALM_INTL};
 
 /// OpenAI 兼容接口端口
 const PORT_OPENAI: u16 = 7863;
 /// 管理接口端口（状态 / 配置 / 模型）
 const PORT_ADMIN: u16 = 7864;
-/// 上游 chat 基址
-const CHAT_BASE: &str = "https://copilot.tencent.com";
+// ⚠️ 上游 chat 基址与 Origin/Referer 已迁移到 `workbuddy_realm.rs`，
+// 本文件一律从 realm（REALM_CN / REALM_INTL）取，以支持国际版路由。
 /// 动态模型列表基址（同 chat 基址）
 const MODEL_LIST_PATH: &str = "/console/enterprises/personal/models";
 /// 上游 chat 接口路径（SSE）
 const UPSTREAM_CHAT_PATH: &str = "/v2/chat/completions";
 /// 上游伪装 UA（与 CodeBuddy 官方 CLI 一致）
 const CLIENT_UA: &str = "CLI/2.63.2 CodeBuddy/2.63.2";
-/// 伪装 Origin/Referer 基址
-const ORIGIN_CN: &str = "https://www.codebuddy.cn";
 /// 单请求最多换号次数
 const MAX_ROTATE: usize = 3;
 /// 429/404 软冷却时长
 const SOFT_COOLDOWN: Duration = Duration::from_secs(60);
 /// 连续 5xx 达到该次数触发 30 分钟熔断
 const BREAKER_THRESHOLD: u32 = 3;
-/// 单账号并发上限全局默认（对齐 Go 版 pool.max_in_flight；0 = 不限）
-const DEFAULT_MAX_IN_FLIGHT: u32 = 3;
+/// 国内版账号在未设置覆盖时的默认并发上限；显式设置为 0 表示不限制。
+const DEFAULT_MAX_IN_FLIGHT_CN: u32 = 3;
+/// 国际版账号在未设置覆盖时的默认并发上限；显式设置为 0 表示不限制。
+const DEFAULT_MAX_IN_FLIGHT_INTL: u32 = 1;
 /// token 提前刷新窗口（毫秒）：距过期不足 10 分钟先刷新
 const REFRESH_SKEW_MS: i64 = 10 * 60 * 1000;
 /// 请求体上限 8MB
@@ -71,6 +73,28 @@ fn models_cache() -> &'static Mutex<ModelsCache> {
     })
 }
 
+/// 国际版动态模型缓存：与国内版分开存放，两区拉取互不影响、互不覆盖。
+static INTL_MODELS_CACHE: OnceLock<Mutex<ModelsCache>> = OnceLock::new();
+
+fn intl_models_cache() -> &'static Mutex<ModelsCache> {
+    INTL_MODELS_CACHE.get_or_init(|| {
+        Mutex::new(ModelsCache {
+            infos: Vec::new(),
+            fetched: None,
+            last_fail: None,
+        })
+    })
+}
+
+/// 按区域取对应的模型缓存（国内版 / 国际版）
+fn models_cache_for_realm(realm: &'static WorkbuddyRealm) -> &'static Mutex<ModelsCache> {
+    if realm.id == "cn" {
+        models_cache()
+    } else {
+        intl_models_cache()
+    }
+}
+
 /// 账号运行态：冷却 / 禁用 / 连续错误计数（内存态，重启即复位）/ 在途租约
 #[derive(Default, Clone)]
 struct AccountRuntime {
@@ -89,7 +113,10 @@ fn account_states() -> &'static Mutex<HashMap<String, AccountRuntime>> {
     ACCOUNT_STATES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// 单账号并发上限覆盖（account.id → limit；缺省/0 = 跟随全局 DEFAULT_MAX_IN_FLIGHT）。
+/// 单账号并发上限覆盖（account.id → limit）。
+///
+/// 用 HashMap 是否存在来区分“未设置覆盖”和“显式设置为 0”；后者必须保留为 0，
+/// 不能被当成清除覆盖或区域默认值。
 /// 持久化到 data_dir/workbuddy_gateway_limits.json，重启后仍生效。
 static ACCOUNT_LIMITS: OnceLock<RwLock<HashMap<String, u32>>> = OnceLock::new();
 
@@ -116,21 +143,36 @@ fn save_account_limits(map: &HashMap<String, u32>) {
     }
 }
 
-/// 账号当前生效的并发上限：账号覆盖 > 全局默认（0 = 不限）
-fn effective_max_in_flight(account_id: &str) -> u32 {
-    let over = account_limits()
+/// 取区域默认并发上限。显式保存的 0 不经过这里的默认值兜底。
+fn default_max_in_flight(realm: &WorkbuddyRealm) -> u32 {
+    if realm.id == REALM_INTL.id {
+        DEFAULT_MAX_IN_FLIGHT_INTL
+    } else {
+        DEFAULT_MAX_IN_FLIGHT_CN
+    }
+}
+
+/// 将账号覆盖值解析为生效上限；`Some(0)` 必须保持为 0，只有 `None` 才使用区域默认。
+fn resolve_max_in_flight(override_limit: Option<u32>, realm: &WorkbuddyRealm) -> u32 {
+    override_limit.unwrap_or_else(|| default_max_in_flight(realm))
+}
+
+/// 账号当前生效的并发上限：账号覆盖 > 区域默认（0 = 不限）。
+fn effective_max_in_flight(account_id: &str, realm: &WorkbuddyRealm) -> u32 {
+    let override_limit = account_limits()
         .read()
         .ok()
-        .and_then(|m| m.get(account_id).copied())
-        .unwrap_or(0);
-    if over > 0 { over } else { DEFAULT_MAX_IN_FLIGHT }
+        .and_then(|m| m.get(account_id).copied());
+    resolve_max_in_flight(override_limit, realm)
 }
 
 /// 在途租约：占一个名额（满载返回 false）。锁异常时放行，不因内部错误阻塞请求。
-fn acquire_in_flight(account_id: &str) -> bool {
-    let Ok(mut states) = account_states().lock() else { return true };
+fn acquire_in_flight(account_id: &str, realm: &WorkbuddyRealm) -> bool {
+    let Ok(mut states) = account_states().lock() else {
+        return true;
+    };
     // 锁序约定：states → limits（pick_account 同序），勿反向嵌套
-    let limit = effective_max_in_flight(account_id);
+    let limit = effective_max_in_flight(account_id, realm);
     let state = states.entry(account_id.to_string()).or_default();
     if limit > 0 && state.in_flight >= limit as usize {
         return false;
@@ -188,10 +230,21 @@ enum ErrKind {
 
 /// 余额不足关键词（HTTP 402 或 body 命中即判硬冷却）
 const HARD_MARKERS: &[&str] = &[
-    "insufficient credit", "no credit", "credit exhausted", "out of credit",
-    "quota exceeded", "quota exhaust", "payment required", "credit not enough",
+    "insufficient credit",
+    "no credit",
+    "credit exhausted",
+    "out of credit",
+    "quota exceeded",
+    "quota exhaust",
+    "payment required",
+    "credit not enough",
     "not enough credit",
-    "积分不足", "额度不足", "余额不足", "积分用完", "额度用尽", "没有积分",
+    "积分不足",
+    "额度不足",
+    "余额不足",
+    "积分用完",
+    "额度用尽",
+    "没有积分",
 ];
 
 /// session 失效关键词（命中即禁用账号）
@@ -203,7 +256,10 @@ fn classify(status: u16, body: &str) -> ErrKind {
         return ErrKind::HardCredit;
     }
     let lower = body.to_lowercase();
-    if HARD_MARKERS.iter().any(|m| lower.contains(&m.to_lowercase()) || body.contains(m)) {
+    if HARD_MARKERS
+        .iter()
+        .any(|m| lower.contains(&m.to_lowercase()) || body.contains(m))
+    {
         return ErrKind::HardCredit;
     }
     if SESSION_DEAD_MARKERS.iter().any(|m| body.contains(m)) {
@@ -258,7 +314,9 @@ fn spawn_takeover_monitor(port: u16, handler: fn(tiny_http::Request)) {
             std::thread::sleep(Duration::from_secs(if attempt < 24 { 5 } else { 60 }));
             match tiny_http::Server::http(format!("0.0.0.0:{port}")) {
                 Ok(server) => {
-                    logger::log_info(&format!("[WorkBuddyGateway] 端口 {port} 已释放，接管监听成功"));
+                    logger::log_info(&format!(
+                        "[WorkBuddyGateway] 端口 {port} 已释放，接管监听成功"
+                    ));
                     serve_forever(server, handler);
                     return;
                 }
@@ -342,11 +400,20 @@ fn handle_openai_request(mut request: tiny_http::Request) {
     let url = request.url().split('?').next().unwrap_or("").to_string();
     let method = request.method().clone();
     match (&method, url.as_str()) {
-        (tiny_http::Method::Post, "/v1/chat/completions") => handle_chat(request, InboundProtocol::Chat),
-        (tiny_http::Method::Post, "/v1/responses") => handle_chat(request, InboundProtocol::Responses),
+        (tiny_http::Method::Post, "/v1/chat/completions") => {
+            handle_chat(request, InboundProtocol::Chat)
+        }
+        (tiny_http::Method::Post, "/v1/responses") => {
+            handle_chat(request, InboundProtocol::Responses)
+        }
         (tiny_http::Method::Get, "/v1/models") => {
             if check_auth(&request).is_err() {
-                return write_openai_error(request, 401, "invalid_api_key", "missing or invalid API key");
+                return write_openai_error(
+                    request,
+                    401,
+                    "invalid_api_key",
+                    "missing or invalid API key",
+                );
             }
             // model_list() 已含 {object:"list", data:[...]} 外壳，勿再包裹
             let list = model_list();
@@ -366,31 +433,54 @@ fn check_auth(request: &tiny_http::Request) -> Result<(), ()> {
     if api_key.is_empty() {
         return Ok(());
     }
-    let ok = request
-        .headers()
-        .iter()
-        .any(|h| {
-            h.field.equiv("Authorization")
-                && h.value.as_str().strip_prefix("Bearer ") == Some(api_key.as_str())
-        });
-    if ok { Ok(()) } else { Err(()) }
+    let ok = request.headers().iter().any(|h| {
+        h.field.equiv("Authorization")
+            && h.value.as_str().strip_prefix("Bearer ") == Some(api_key.as_str())
+    });
+    if ok {
+        Ok(())
+    } else {
+        Err(())
+    }
 }
 
 /// CORS 允许头：面板 WebView 经跨域 fetch 访问网关，响应必须携带，否则浏览器拦截
 fn cors_headers() -> Vec<tiny_http::Header> {
     vec![
         tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
-        tiny_http::Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET, POST, OPTIONS"[..]).unwrap(),
-        tiny_http::Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"Authorization, Content-Type"[..]).unwrap(),
+        tiny_http::Header::from_bytes(
+            &b"Access-Control-Allow-Methods"[..],
+            &b"GET, POST, OPTIONS"[..],
+        )
+        .unwrap(),
+        tiny_http::Header::from_bytes(
+            &b"Access-Control-Allow-Headers"[..],
+            &b"Authorization, Content-Type"[..],
+        )
+        .unwrap(),
     ]
 }
 
 /// 预检请求直接应答 200 + CORS 头
 fn answer_preflight(request: tiny_http::Request) {
     let response = tiny_http::Response::empty(tiny_http::StatusCode(200))
-        .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap())
-        .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET, POST, OPTIONS"[..]).unwrap())
-        .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"Authorization, Content-Type"[..]).unwrap());
+        .with_header(
+            tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
+        )
+        .with_header(
+            tiny_http::Header::from_bytes(
+                &b"Access-Control-Allow-Methods"[..],
+                &b"GET, POST, OPTIONS"[..],
+            )
+            .unwrap(),
+        )
+        .with_header(
+            tiny_http::Header::from_bytes(
+                &b"Access-Control-Allow-Headers"[..],
+                &b"Authorization, Content-Type"[..],
+            )
+            .unwrap(),
+        );
     let _ = request.respond(response);
 }
 
@@ -399,12 +489,14 @@ fn write_json_response(request: tiny_http::Request, status: u16, value: &Value) 
     let method = request.method().clone();
     let url = request.url().split('?').next().unwrap_or("").to_string();
     let body = serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec());
-    let mut response = tiny_http::Response::from_data(body)
-        .with_status_code(tiny_http::StatusCode(status));
+    let mut response =
+        tiny_http::Response::from_data(body).with_status_code(tiny_http::StatusCode(status));
     for header in cors_headers() {
         response = response.with_header(header);
     }
-    response.add_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+    response.add_header(
+        tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+    );
     let _ = request.respond(response);
     logger::log_info(&format!("[WorkBuddyGateway] {method} {url} → {status}"));
 }
@@ -418,43 +510,78 @@ fn write_openai_error(request: tiny_http::Request, status: u16, code: &str, msg:
     );
 }
 
-/// 静态模型表（动态接口失败时的回退，对齐 Go 版 staticModels）
-const STATIC_MODELS: &[&str] = &[
-    "glm-5.2", "glm-5.1", "glm-5v-turbo", "kimi-k2.7", "minimax-m3",
-    "hy3", "hy3-preview", "hy3-preview-agent", "deepseek-v4-pro", "deepseek-v4-flash",
-];
-
-/// 模型列表：优先动态（缓存 1h），失败回退静态表
+/// 模型列表：国内版 ∪ 国际版，各自「动态优先（缓存 1h）、失败回退该区静态表」。
+/// 两区共用同一个网关，客户端必须能看到并调用国际版模型。
+///
+/// ⚠️ **没有账号的区域一个模型都不列**：列出来也只会返回 503，
+/// 反而让客户端以为可用（国际版账号尚未添加时尤其明显）。
 fn model_list() -> Value {
-    let entries = match fetch_dynamic_models() {
-        Some(infos) if !infos.is_empty() => infos
-            .iter()
-            .map(|m| {
-                json!({
-                    "id": m.id,
-                    "object": "model",
-                    "created": 1753600000i64,
-                    "owned_by": "workbuddy",
-                    "context_length": if m.context_window > 0 { m.context_window } else { 131072 },
-                    "max_output_tokens": m.max_tokens,
-                })
-            })
-            .collect::<Vec<_>>(),
-        _ => STATIC_MODELS
-            .iter()
-            .map(|id| json!({ "id": id, "object": "model", "created": 1753600000i64, "owned_by": "workbuddy", "context_length": 131072 }))
-            .collect::<Vec<_>>(),
-    };
+    let mut entries: Vec<Value> = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    for realm in [&REALM_CN, &REALM_INTL] {
+        if workbuddy_account::list_accounts_for_realm(realm).is_empty() {
+            continue;
+        }
+        append_realm_models(
+            &mut entries,
+            &mut seen,
+            fetch_dynamic_models_for_realm(realm),
+            realm,
+        );
+    }
     json!({ "object": "list", "data": entries })
 }
 
-/// 从可用账号拉取动态模型列表（缓存 1h；失败 5 分钟负缓存）。
+/// 把某个区域的模型追加进结果列表（`seen` 跨区域去重，先加入者优先，故国内版在前）。
+/// 动态列表拿到就用动态；拿不到则回退该区域的静态模型表，保证国际版模型始终可见。
+fn append_realm_models(
+    entries: &mut Vec<Value>,
+    seen: &mut Vec<String>,
+    infos: Option<Vec<ModelInfo>>,
+    realm: &'static WorkbuddyRealm,
+) {
+    match infos {
+        Some(list) if !list.is_empty() => {
+            for model in list {
+                if seen.iter().any(|id| id == &model.id) {
+                    continue;
+                }
+                seen.push(model.id.clone());
+                entries.push(json!({
+                    "id": model.id,
+                    "object": "model",
+                    "created": 1753600000i64,
+                    "owned_by": "workbuddy",
+                    "context_length": if model.context_window > 0 { model.context_window } else { 131072 },
+                    "max_output_tokens": model.max_tokens,
+                }));
+            }
+        }
+        _ => {
+            for id in realm.models {
+                if seen.iter().any(|existing| existing == id) {
+                    continue;
+                }
+                seen.push((*id).to_string());
+                entries.push(json!({
+                    "id": id,
+                    "object": "model",
+                    "created": 1753600000i64,
+                    "owned_by": "workbuddy",
+                    "context_length": 131072,
+                }));
+            }
+        }
+    }
+}
+
+/// 从指定区域的可用账号拉取动态模型列表（缓存 1h；失败 5 分钟负缓存）。
 /// 逐个尝试候选账号（最多 3 个）：临近过期的 token 先刷新再请求，
 /// 单账号失败换下一个 —— 外部客户端首次拉模型就能拿到完整动态列表，
 /// 不再因单个失效账号回落静态表、直到面板进一次网关页才被修复。
-fn fetch_dynamic_models() -> Option<Vec<ModelInfo>> {
+fn fetch_dynamic_models_for_realm(realm: &'static WorkbuddyRealm) -> Option<Vec<ModelInfo>> {
     {
-        let cache = models_cache().lock().ok()?;
+        let cache = models_cache_for_realm(realm).lock().ok()?;
         if let Some(fetched) = cache.fetched {
             if !cache.infos.is_empty() && fetched.elapsed() < Duration::from_secs(3600) {
                 return Some(cache.infos.clone());
@@ -468,7 +595,10 @@ fn fetch_dynamic_models() -> Option<Vec<ModelInfo>> {
     }
     let mut tried: Vec<String> = Vec::new();
     for _ in 0..3 {
-        let Some(account) = pick_account(&tried) else { break };
+        // 各区域从自己的账号池取号拉取
+        let Some(account) = pick_account(&tried, realm) else {
+            break;
+        };
         tried.push(account.id.clone());
         // 与 chat 链路一致：临近过期先刷新，避免拿失效 token 拉模型必然 401
         let needs_refresh = account
@@ -476,7 +606,9 @@ fn fetch_dynamic_models() -> Option<Vec<ModelInfo>> {
             .map(|ms| ms - REFRESH_SKEW_MS < now_ms())
             .unwrap_or(false);
         let fresh = if needs_refresh {
-            match tauri::async_runtime::block_on(workbuddy_account::refresh_account_token(&account.id)) {
+            match tauri::async_runtime::block_on(
+                workbuddy_account::refresh_account_token_for_realm(&account.id, realm),
+            ) {
                 Ok(refreshed) => refreshed,
                 Err(_) => continue,
             }
@@ -484,11 +616,11 @@ fn fetch_dynamic_models() -> Option<Vec<ModelInfo>> {
             account
         };
         let response = json_client()
-            .get(format!("{CHAT_BASE}{MODEL_LIST_PATH}"))
+            .get(format!("{}{MODEL_LIST_PATH}", realm.api_endpoint))
             .header("Authorization", format!("Bearer {}", fresh.access_token))
             .header("Accept", "application/json")
-            .header("Origin", ORIGIN_CN)
-            .header("Referer", format!("{ORIGIN_CN}/"))
+            .header("Origin", realm.web_origin)
+            .header("Referer", format!("{}/", realm.web_origin))
             .header("User-Agent", CLIENT_UA)
             .timeout(Duration::from_secs(60))
             .send();
@@ -502,10 +634,12 @@ fn fetch_dynamic_models() -> Option<Vec<ModelInfo>> {
             note_error(&fresh.id, classify(status, &body));
             continue;
         }
-        let Ok(value) = response.json::<Value>() else { continue };
+        let Ok(value) = response.json::<Value>() else {
+            continue;
+        };
         match parse_model_infos(&value) {
             Some(infos) if !infos.is_empty() => {
-                let mut cache = models_cache().lock().ok()?;
+                let mut cache = models_cache_for_realm(realm).lock().ok()?;
                 cache.infos = infos.clone();
                 cache.fetched = Some(Instant::now());
                 cache.last_fail = None;
@@ -514,7 +648,7 @@ fn fetch_dynamic_models() -> Option<Vec<ModelInfo>> {
             _ => continue,
         }
     }
-    mark_models_fail();
+    mark_models_fail(realm);
     None
 }
 
@@ -530,7 +664,12 @@ fn parse_model_infos(value: &Value) -> Option<Vec<ModelInfo>> {
                 .find(|a| a.get("name").and_then(Value::as_str) == Some("cli"))
                 .and_then(|a| a.get("models").and_then(Value::as_array).cloned())
         })?;
-    let find = |id: &str| models.iter().find(|m| m.get("id").and_then(Value::as_str) == Some(id)).cloned();
+    let find = |id: &str| {
+        models
+            .iter()
+            .find(|m| m.get("id").and_then(Value::as_str) == Some(id))
+            .cloned()
+    };
     let mut infos = Vec::new();
     for id in cli_ids.iter().filter_map(|v| v.as_str()) {
         let Some(model) = find(id) else { continue };
@@ -539,21 +678,32 @@ fn parse_model_infos(value: &Value) -> Option<Vec<ModelInfo>> {
         }
         infos.push(ModelInfo {
             id: id.to_string(),
-            context_window: model.get("maxInputTokens").and_then(Value::as_i64).unwrap_or(0),
-            max_tokens: model.get("maxOutputTokens").and_then(Value::as_i64).unwrap_or(0),
+            context_window: model
+                .get("maxInputTokens")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+            max_tokens: model
+                .get("maxOutputTokens")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
             efforts: model
                 .pointer("/reasoning/supportedEfforts")
                 .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .map(String::from)
+                        .collect()
+                })
                 .unwrap_or_default(),
         });
     }
     Some(infos)
 }
 
-/// 标记模型拉取失败（进入 5 分钟负缓存）
-fn mark_models_fail() {
-    if let Ok(mut cache) = models_cache().lock() {
+/// 标记指定区域的模型拉取失败（进入 5 分钟负缓存）
+fn mark_models_fail(realm: &'static WorkbuddyRealm) {
+    if let Ok(mut cache) = models_cache_for_realm(realm).lock() {
         cache.last_fail = Some(Instant::now());
     }
 }
@@ -579,11 +729,21 @@ enum InboundProtocol {
 /// 对两种协议完全共用。
 fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
     if check_auth(&request).is_err() {
-        return write_openai_error(request, 401, "invalid_api_key", "missing or invalid API key");
+        return write_openai_error(
+            request,
+            401,
+            "invalid_api_key",
+            "missing or invalid API key",
+        );
     }
     // 读取请求体（限 8MB）
     let mut body = Vec::new();
-    if request.as_reader().take(BODY_LIMIT as u64).read_to_end(&mut body).is_err() {
+    if request
+        .as_reader()
+        .take(BODY_LIMIT as u64)
+        .read_to_end(&mut body)
+        .is_err()
+    {
         return write_openai_error(request, 400, "invalid_request", "read body failed");
     }
     // Responses 入站：翻译为 chat 请求体后再走统一链路；翻译失败即报 400
@@ -607,8 +767,16 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
     // Responses 缺省即流式（对齐官方行为）。
     // 请求体不是 JSON 对象时直接 400：静默透传会被上游以
     // "Non-stream chat request is not supported" 之类的晦涩错误拒绝，还白白轮换账号。
-    let Some(body_value) = serde_json::from_slice::<Value>(&body).ok().filter(Value::is_object) else {
-        return write_openai_error(request, 400, "invalid_request", "request body must be a JSON object");
+    let Some(body_value) = serde_json::from_slice::<Value>(&body)
+        .ok()
+        .filter(Value::is_object)
+    else {
+        return write_openai_error(
+            request,
+            400,
+            "invalid_request",
+            "request body must be a JSON object",
+        );
     };
     let client_wants_stream = body_value
         .get("stream")
@@ -620,11 +788,26 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
         .unwrap_or("-")
         .to_string();
 
+    // 按请求的模型判定走哪个区域；两区动态列表都确认没有时直接拒绝
+    let Some(realm) = realm_for_model(&model_name) else {
+        return write_openai_error(
+            request,
+            400,
+            "model_not_available",
+            &format!("model {model_name} is not available in any WorkBuddy realm"),
+        );
+    };
+    if realm.id == REALM_INTL.id {
+        logger::log_info(&format!(
+            "[WorkBuddyGateway] 模型 {model_name} 命中国际版，走国际版账号池与上游"
+        ));
+    }
+
     // 单请求轮换：最多 MAX_ROTATE 次，tried 防重复选号
     let mut tried: Vec<String> = Vec::new();
     let mut last_error = String::new();
     for _ in 0..MAX_ROTATE {
-        let Some(account) = pick_account(&tried) else {
+        let Some(account) = pick_account(&tried, realm) else {
             break;
         };
         tried.push(account.id.clone());
@@ -635,7 +818,9 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
             .map(|ms| ms - REFRESH_SKEW_MS < now_ms())
             .unwrap_or(false);
         let fresh = if needs_refresh {
-            match tauri::async_runtime::block_on(workbuddy_account::refresh_account_token(&account.id)) {
+            match tauri::async_runtime::block_on(
+                workbuddy_account::refresh_account_token_for_realm(&account.id, realm),
+            ) {
                 Ok(refreshed) => refreshed,
                 Err(error) => {
                     last_error = format!("refresh failed: {error}");
@@ -648,7 +833,7 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
         };
 
         // 在途租约：满载换号（对齐 Go 版 Acquire/Release）；守卫 Drop 覆盖所有退出路径
-        if !acquire_in_flight(&fresh.id) {
+        if !acquire_in_flight(&fresh.id, realm) {
             last_error = format!("account {} in-flight full", fresh.id);
             continue;
         }
@@ -656,8 +841,9 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
 
         // 转发上游
         let payload = prepare_body(&body);
-        let response = chat_client().post(format!("{CHAT_BASE}{UPSTREAM_CHAT_PATH}"))
-            .headers(chat_headers(&fresh))
+        let response = chat_client()
+            .post(format!("{}{UPSTREAM_CHAT_PATH}", realm.api_endpoint))
+            .headers(chat_headers(&fresh, realm))
             .body(payload)
             .send();
         let response = match response {
@@ -676,7 +862,10 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
         if status >= 400 {
             let body_text = response.text().unwrap_or_default();
             let kind = classify(status, &body_text);
-            last_error = format!("upstream {kind:?} (http {status}): {}", truncate(&body_text, 200));
+            last_error = format!(
+                "upstream {kind:?} (http {status}): {}",
+                truncate(&body_text, 200)
+            );
             logger::log_warn(&format!(
                 "[WorkBuddyGateway] chat 账号 {} 上游失败（{kind:?} http {status}），换号重试",
                 fresh.uid.as_deref().unwrap_or("-")
@@ -712,16 +901,25 @@ fn handle_chat(mut request: tiny_http::Request, protocol: InboundProtocol) {
         };
     }
     let message = if last_error.is_empty() {
-        "all accounts unavailable (cooling/disabled)".to_string()
+        "no candidate accounts available (cooling/disabled)".to_string()
     } else {
-        format!("all accounts unavailable (cooling/disabled): {last_error}")
+        format!(
+            "all candidate accounts failed (attempts={}/{}): {last_error}",
+            tried.len(),
+            MAX_ROTATE
+        )
     };
-    logger::log_warn(&format!("[WorkBuddyGateway] chat model={model_name} 无可用账号: {message}"));
+    logger::log_warn(&format!(
+        "[WorkBuddyGateway] chat model={model_name} 无可用账号: {message}"
+    ));
     write_openai_error(request, 503, "no_healthy_account", &message);
 }
 
 /// 组装上游 chat 请求头（对齐 Go 版 ChatHeaders，缺省字段用 X-No-* 约定）
-fn chat_headers(account: &crate::models::workbuddy::WorkbuddyAccount) -> reqwest::header::HeaderMap {
+fn chat_headers(
+    account: &crate::models::workbuddy::WorkbuddyAccount,
+    realm: &WorkbuddyRealm,
+) -> reqwest::header::HeaderMap {
     let mut headers = reqwest::header::HeaderMap::new();
     let mut insert = |name: &str, value: String| {
         if let (Ok(name), Ok(value)) = (
@@ -734,8 +932,9 @@ fn chat_headers(account: &crate::models::workbuddy::WorkbuddyAccount) -> reqwest
     insert("Content-Type", "application/json".into());
     insert("Accept", "application/json, text/plain, */*".into());
     insert("X-Requested-With", "XMLHttpRequest".into());
-    insert("Origin", ORIGIN_CN.into());
-    insert("Referer", format!("{ORIGIN_CN}/"));
+    // Origin / Referer 必须与账号所属区域一致，伪装错区域会被上游拒绝
+    insert("Origin", realm.web_origin.into());
+    insert("Referer", format!("{}/", realm.web_origin));
     insert("User-Agent", CLIENT_UA.into());
     if account.access_token.is_empty() {
         insert("X-No-Authorization", "1".into());
@@ -786,14 +985,17 @@ fn chat_client() -> reqwest::blocking::Client {
 
 /// 当前毫秒时间戳
 fn now_ms() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 /// 探测本机局域网 IPv4（供容器/局域网访问），5 分钟缓存：
 /// Windows 下解析 ipconfig（GUI 进程派生控制台程序必须 CREATE_NO_WINDOW，
 /// 否则面板每次拉取 /api/config 都会闪现控制台窗口），跳过代理 TUN 伪 IP（198.18.x）/
 /// 链路本地/虚拟交换机，优先 192.168.x；其他平台或解析失败时回退 UDP 路由法。
-fn local_lan_ip() -> Option<String> {
+pub(crate) fn local_lan_ip() -> Option<String> {
     static CACHE: OnceLock<Mutex<Option<(Instant, Option<String>)>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(None));
     if let Ok(guard) = cache.lock() {
@@ -863,7 +1065,9 @@ fn extract_ipv4(line: &str) -> Vec<String> {
         .filter(|token| {
             let parts: Vec<&str> = token.split('.').collect();
             parts.len() == 4
-                && parts.iter().all(|p| !p.is_empty() && p.len() <= 3 && p.chars().all(|c| c.is_ascii_digit()))
+                && parts
+                    .iter()
+                    .all(|p| !p.is_empty() && p.len() <= 3 && p.chars().all(|c| c.is_ascii_digit()))
         })
         .map(String::from)
         .collect()
@@ -872,7 +1076,11 @@ fn extract_ipv4(line: &str) -> Vec<String> {
 /// 截断字符串（日志用）
 fn truncate(text: &str, max: usize) -> String {
     let text = text.trim();
-    if text.len() > max { format!("{}...", &text[..max]) } else { text.to_string() }
+    if text.len() > max {
+        format!("{}...", &text[..max])
+    } else {
+        text.to_string()
+    }
 }
 
 /// ---------------------------------------------------------------------------
@@ -880,10 +1088,67 @@ fn truncate(text: &str, max: usize) -> String {
 /// ---------------------------------------------------------------------------
 
 /// 轮换选号：跳过冷却 / 禁用 / 在途满载 / 已尝试的账号；成功号记一条统计。
-/// 加权轮询：并发上限即票数（上限 1 → 1 票，默认 3 → 3 票），上限高的号承担更多流量；
-/// 低上限号（如设为 1）基本分不到流量，仅在其他号满载/冷却/熔断或轮询恰好命中其唯一票位时被选中。
-fn pick_account(tried: &[String]) -> Option<crate::models::workbuddy::WorkbuddyAccount> {
-    let accounts = workbuddy_account::list_accounts();
+/// 加权轮询：权重 = 积分占比票数 ×（1 + 并发上限 × 0.1）。积分票数按「占总积分池
+/// 比例」从固定票池（100）里分配 —— 占比多少拿多少票，票数有界不膨胀；
+/// 并发只做小幅加成（每 1 并发 +0.1 倍率），不做倍数。
+/// 积分耗尽的号 0 票，全部为 0 时兜底回退按并发轮询。
+/// 按请求模型判定应走哪个区域。
+///
+/// ⚠️ 判定顺序很重要：**国内版模型表优先**。两区域存在同名模型（hy3 / glm-5.2 等），
+/// 同名一律走国内版，确保国内版链路行为与改造前完全一致（零回归）；
+/// 只有国内版表里没有、国际版表里有的模型（gpt-5.x / gemini 等）才走国际版。
+fn realm_for_model(model: &str) -> Option<&'static WorkbuddyRealm> {
+    let cn_models = cached_model_ids(&REALM_CN);
+    let intl_models = cached_model_ids(&REALM_INTL);
+    resolve_realm_for_model(model, cn_models.as_deref(), intl_models.as_deref())
+}
+
+/// 按动态模型列表解析区域。`None` 表示两区动态列表都确认没有该模型。
+fn resolve_realm_for_model(
+    model: &str,
+    cn_models: Option<&[String]>,
+    intl_models: Option<&[String]>,
+) -> Option<&'static WorkbuddyRealm> {
+    if cn_models.is_some_and(|models| models.iter().any(|id| id == model)) {
+        return Some(&REALM_CN);
+    }
+    if intl_models.is_some_and(|models| models.iter().any(|id| id == model)) {
+        return Some(&REALM_INTL);
+    }
+    // 动态数据缺失的区域才允许静态白名单兜底；已有动态列表的区域以动态为准。
+    if cn_models.is_none() && REALM_CN.models.contains(&model) {
+        return Some(&REALM_CN);
+    }
+    if intl_models.is_none() && REALM_INTL.models.contains(&model) {
+        return Some(&REALM_INTL);
+    }
+    if cn_models.is_some() && intl_models.is_some() {
+        // 两区都已经拿到权威动态列表，但都没收录：明确拒绝，不把请求浪费在错误区域。
+        return None;
+    }
+    // 两区都没有明确支持标记时拒绝请求，不能把未知模型盲发给国内上游。
+    None
+}
+
+/// 读取当前区域仍有效的动态模型 ID 列表（空/过期缓存返回 None）。
+fn cached_model_ids(realm: &'static WorkbuddyRealm) -> Option<Vec<String>> {
+    let cache = models_cache_for_realm(realm).lock().ok()?;
+    let fresh = cache
+        .fetched
+        .is_some_and(|fetched| fetched.elapsed() < Duration::from_secs(3600));
+    if cache.infos.is_empty() || !fresh {
+        None
+    } else {
+        Some(cache.infos.iter().map(|model| model.id.clone()).collect())
+    }
+}
+
+/// 轮换选号（按指定区域的账号池）。传入的区域决定从哪个账号目录取号。
+fn pick_account(
+    tried: &[String],
+    realm: &WorkbuddyRealm,
+) -> Option<crate::models::workbuddy::WorkbuddyAccount> {
+    let accounts = workbuddy_account::list_accounts_for_realm(realm);
     if accounts.is_empty() {
         return None;
     }
@@ -892,34 +1157,242 @@ fn pick_account(tried: &[String]) -> Option<crate::models::workbuddy::WorkbuddyA
     let candidates: Vec<_> = accounts
         .into_iter()
         .filter(|a| !tried.iter().any(|t| t == &a.id))
-        .filter(|a| {
-            match states.get(&a.id) {
-                Some(state) => !state.disabled && !state.cooldown_until.map(|t| t > now).unwrap_or(false),
-                None => true,
+        .filter(|a| match states.get(&a.id) {
+            Some(state) => {
+                !state.disabled && !state.cooldown_until.map(|t| t > now).unwrap_or(false)
             }
+            None => true,
         })
         // 在途满载过滤：已达生效上限（覆盖>全局）的账号本轮跳过，请求发散到其他号
         .filter(|a| {
-            states.get(&a.id).map(|s| s.in_flight).unwrap_or(0)
-                < effective_max_in_flight(&a.id) as usize
+            let limit = effective_max_in_flight(&a.id, realm);
+            limit == 0 || states.get(&a.id).map(|s| s.in_flight).unwrap_or(0) < limit as usize
         })
         .collect();
     drop(states);
     if candidates.is_empty() {
         return None;
     }
-    // 上限即票数：按生效上限展开候选（0=不限按全局默认计），再对票位做轮询，
-    // 使各账号的流量占比 ≈ 其并发上限占比（对齐用户"上限进权重"的预期）。
-    let mut tickets: Vec<&crate::models::workbuddy::WorkbuddyAccount> = Vec::new();
-    for account in &candidates {
-        let limit = effective_max_in_flight(&account.id);
-        let n = if limit > 0 { limit as usize } else { DEFAULT_MAX_IN_FLIGHT as usize };
-        for _ in 0..n {
-            tickets.push(account);
+    // 权重 = 积分占比票数 × 并发加成倍率。
+    // 积分票数按「占总积分池的比例」从固定票池（CREDITS_TICKET_POOL）里分配；
+    // 并发不做倍数（避免票数翻倍膨胀），只做小幅加成：每 1 并发 +0.1 倍率。
+    let balances: Vec<Option<f64>> = candidates
+        .iter()
+        .map(|account| credits_balance(account))
+        .collect();
+    let weights: Vec<usize> = candidates
+        .iter()
+        .zip(&balances)
+        .map(|(account, balance)| {
+            let limit = effective_max_in_flight(&account.id, realm);
+            let concurrency = limit as f64;
+            let votes = credit_tickets(*balance, &balances) as f64;
+            (votes * (1.0 + concurrency * 0.1)).round().max(1.0) as usize
+        })
+        .collect();
+    let total: usize = weights.iter().sum();
+    let tickets: Vec<&crate::models::workbuddy::WorkbuddyAccount> = if total == 0 {
+        // 兜底：候选号的积分全为 0（例如都没签到/积分包耗尽），退回按并发上限轮询，
+        // 保证网关不因权重全 0 而拒绝服务。
+        let mut tickets = Vec::with_capacity(candidates.len());
+        for account in candidates.iter() {
+            let limit = effective_max_in_flight(&account.id, realm);
+            let n = if limit > 0 { limit as usize } else { 1 };
+            for _ in 0..n {
+                tickets.push(account);
+            }
         }
-    }
+        tickets
+    } else {
+        let mut tickets = Vec::with_capacity(total);
+        for (index, account) in candidates.iter().enumerate() {
+            for _ in 0..weights[index] {
+                tickets.push(account);
+            }
+        }
+        tickets
+    };
     let offset = ROUND_ROBIN.fetch_add(1, Ordering::Relaxed) % tickets.len();
     Some(tickets[offset].clone())
+}
+
+/// 固定积分票池：所有账号的积分票数加起来 ≈ 这个值（向上取整会有 ±1 误差）。
+const CREDITS_TICKET_POOL: usize = 100;
+
+/// 按「占总积分池的比例」分配票数。
+///
+/// - 无配额数据（None，从未查询过）→ 1 票中性，不惩罚也不倾斜；
+/// - 积分 ≤ 0 → 0 票（没积分的号不参与分配）；
+/// - 有积分 → 票数 = round(积分 / 总积分 × 票池)，至少 1 票（占比再小也保留兜底票）；
+/// - 无限包 → 独占整个票池（其余正积分账号各保留 1 票）。
+///
+/// 并发不在这里处理：调用方会把票数再乘「1 + 并发上限 × 0.1」。
+fn credit_tickets(balance: Option<f64>, all_balances: &[Option<f64>]) -> usize {
+    match balance {
+        None => 1,
+        Some(c) if c <= 0.0 => 0,
+        Some(c) => {
+            // 无限包：直接吃满票池
+            if c.is_infinite() {
+                return CREDITS_TICKET_POOL;
+            }
+            let total: f64 = all_balances
+                .iter()
+                .map(|b| match b {
+                    Some(v) if v.is_finite() && *v > 0.0 => *v,
+                    _ => 0.0,
+                })
+                .sum();
+            if total <= 0.0 {
+                return 1;
+            }
+            let share = (c / total * CREDITS_TICKET_POOL as f64).round() as usize;
+            share.clamp(1, CREDITS_TICKET_POOL)
+        }
+    }
+}
+
+/// 从 quota_raw / usage_raw 估算积分余额（口径对齐前端 getCreditsBalance：
+/// 活跃资源包的 CycleCapacityRemain 求和）。None = 没有可用配额数据。
+fn credits_balance(account: &crate::models::workbuddy::WorkbuddyAccount) -> Option<f64> {
+    let items = extract_resource_items(account)?;
+    let remains = collect_resource_remains(&items)?;
+    if remains.is_empty() {
+        return None;
+    }
+    let sum: f64 = remains
+        .iter()
+        .map(|r| {
+            if r.is_infinite() {
+                f64::INFINITY
+            } else {
+                r.max(0.0)
+            }
+        })
+        .sum();
+    Some(sum)
+}
+
+/// 提取资源包列表（口径对齐前端 extractResourceAccounts：
+/// 优先 quota_raw.userResource 的 Response.Data.Accounts，其次 resources 数组，再次企业资源）。
+fn extract_resource_items<'a>(
+    account: &'a crate::models::workbuddy::WorkbuddyAccount,
+) -> Option<Vec<&'a serde_json::Value>> {
+    let quota_root = account.quota_raw.as_ref();
+    let usage_root = account.usage_raw.as_ref();
+    let user_resource = quota_root
+        .and_then(|q| q.get("userResource"))
+        .filter(|v| v.is_object())
+        .or(usage_root);
+
+    let mut candidates: Vec<&serde_json::Value> = Vec::new();
+    if let Some(ur) = user_resource {
+        candidates.push(ur);
+        if let Some(d) = ur.get("data") {
+            candidates.push(d);
+            if let Some(dd) = d.get("data") {
+                candidates.push(dd);
+            }
+        }
+    }
+    if let Some(q) = quota_root {
+        if let Some(d) = q.get("data") {
+            candidates.push(d);
+            if let Some(dd) = d.get("data") {
+                candidates.push(dd);
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let mut legacy: Option<Vec<&serde_json::Value>> = None;
+    let mut credits: Option<Vec<&serde_json::Value>> = None;
+    let mut enterprise: Option<&serde_json::Value> = None;
+    for candidate in &candidates {
+        if legacy.is_none() {
+            for path in [
+                "/Response/Data/Accounts",
+                "/Response/data/Accounts",
+                "/response/Data/Accounts",
+                "/response/data/Accounts",
+            ] {
+                if let Some(list) = candidate.pointer(path).and_then(|v| v.as_array()) {
+                    legacy = Some(list.iter().collect());
+                    break;
+                }
+            }
+        }
+        if credits.is_none() {
+            if let Some(list) = candidate.get("resources").and_then(|v| v.as_array()) {
+                credits = Some(list.iter().collect());
+            }
+        }
+        if enterprise.is_none() {
+            let data = candidate
+                .get("data")
+                .filter(|v| v.is_object())
+                .unwrap_or(candidate);
+            if parse_f64(data.get("limit_num")).is_some()
+                || parse_f64(data.get("limitNum")).is_some()
+            {
+                enterprise = Some(data);
+            }
+        }
+    }
+
+    if let Some(list) = legacy {
+        return Some(list);
+    }
+    if let Some(list) = credits {
+        return Some(list);
+    }
+    enterprise.map(|item| vec![item])
+}
+
+/// 汇总各资源包的剩余量（无限包记为 INFINITY；非有效/用尽状态记 0）。
+fn collect_resource_remains(items: &[&serde_json::Value]) -> Option<Vec<f64>> {
+    if items.is_empty() {
+        return None;
+    }
+    let mut remains = Vec::with_capacity(items.len());
+    for item in items {
+        let unlimited = item
+            .get("Unlimited")
+            .and_then(|v| v.as_bool())
+            .or_else(|| item.get("unlimited").and_then(|v| v.as_bool()))
+            .unwrap_or(false);
+        if unlimited {
+            remains.push(f64::INFINITY);
+            continue;
+        }
+        if let Some(status) =
+            parse_f64(item.get("Status")).or_else(|| parse_f64(item.get("status")))
+        {
+            // 0=有效 3=用尽（用尽余量本来为 0）；退款/过期等状态不计入
+            if status != 0.0 && status != 3.0 {
+                remains.push(0.0);
+                continue;
+            }
+        }
+        remains.push(
+            parse_f64(item.get("CycleCapacityRemainPrecise"))
+                .or_else(|| parse_f64(item.get("CycleCapacityRemain")))
+                .or_else(|| parse_f64(item.get("CapacityRemainPrecise")))
+                .or_else(|| parse_f64(item.get("CapacityRemain")))
+                .unwrap_or(0.0),
+        );
+    }
+    Some(remains)
+}
+
+fn parse_f64(value: Option<&serde_json::Value>) -> Option<f64> {
+    match value? {
+        serde_json::Value::Number(n) => n.as_f64(),
+        serde_json::Value::String(s) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    }
 }
 
 /// 成功：清零连续错误计数
@@ -969,18 +1442,30 @@ fn next_4am() -> SystemTime {
     UNIX_EPOCH + Duration::from_secs((target - offset) as u64)
 }
 
+/// 汇总国内版 + 国际版两个账号池（国内版在前，保持原有顺序）。
+/// 管理端统计与查询都走这里，否则国际版账号被路由了却在面板里不可见、也改不了并发上限。
+fn list_all_realm_accounts() -> Vec<WorkbuddyAccount> {
+    let mut accounts = workbuddy_account::list_accounts_for_realm(&REALM_CN);
+    accounts.extend(workbuddy_account::list_accounts_for_realm(&REALM_INTL));
+    accounts
+}
+
 /// 统计池子概况：(总数, 健康数)
 fn pool_counts() -> (usize, usize) {
-    let accounts = workbuddy_account::list_accounts();
+    let accounts = list_all_realm_accounts();
     let now = SystemTime::now();
     let states = account_states().lock().ok();
     let total = accounts.len();
     let healthy = accounts
         .iter()
-        .filter(|a| match states.as_ref().and_then(|s| s.get(&a.id).cloned()) {
-            Some(state) => !state.disabled && !state.cooldown_until.map(|t| t > now).unwrap_or(false),
-            None => true,
-        })
+        .filter(
+            |a| match states.as_ref().and_then(|s| s.get(&a.id).cloned()) {
+                Some(state) => {
+                    !state.disabled && !state.cooldown_until.map(|t| t > now).unwrap_or(false)
+                }
+                None => true,
+            },
+        )
         .count();
     (total, healthy)
 }
@@ -998,6 +1483,7 @@ fn prepare_body(src: &[u8]) -> Vec<u8> {
     obj.insert("stream".into(), Value::Bool(true));
     normalize_tool_choice(&mut obj);
     normalize_roles(&mut obj);
+    ensure_system_first(&mut obj);
     normalize_reasoning_effort(&mut obj);
     sanitize_messages(&mut obj);
     serde_json::to_vec(&Value::Object(obj)).unwrap_or_else(|_| src.to_vec())
@@ -1005,7 +1491,9 @@ fn prepare_body(src: &[u8]) -> Vec<u8> {
 
 /// tool_choice 归一化（上游该字段是 string；对象形式会 400 code=11101）
 fn normalize_tool_choice(obj: &mut Map<String, Value>) {
-    let Some(tc) = obj.get("tool_choice").cloned() else { return };
+    let Some(tc) = obj.get("tool_choice").cloned() else {
+        return;
+    };
     let suppress = |obj: &mut Map<String, Value>| {
         obj.remove("tools");
         obj.remove("functions");
@@ -1016,7 +1504,12 @@ fn normalize_tool_choice(obj: &mut Map<String, Value>) {
             suppress(obj);
         }
         Value::Object(map) => {
-            let typ = map.get("type").and_then(Value::as_str).unwrap_or("").trim().to_lowercase();
+            let typ = map
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim()
+                .to_lowercase();
             match typ.as_str() {
                 "none" => {
                     obj.remove("tool_choice");
@@ -1054,11 +1547,62 @@ fn normalize_tool_choice(obj: &mut Map<String, Value>) {
 fn normalize_roles(obj: &mut Map<String, Value>) {
     if let Some(Value::Array(messages)) = obj.get_mut("messages") {
         for message in messages.iter_mut() {
-            if message.get("role").and_then(Value::as_str).map(|r| r.trim().eq_ignore_ascii_case("developer")).unwrap_or(false) {
+            if message
+                .get("role")
+                .and_then(Value::as_str)
+                .map(|r| r.trim().eq_ignore_ascii_case("developer"))
+                .unwrap_or(false)
+            {
                 if let Some(map) = message.as_object_mut() {
                     map.insert("role".into(), Value::String("system".into()));
                 }
             }
+        }
+    }
+}
+
+/// 上游要求首条消息是 system；客户端未提供时补一条中性提示，避免 11128。
+/// 若已有 system 但不在首位，移动第一条 system 到首位。
+fn ensure_system_first(obj: &mut Map<String, Value>) {
+    let Some(Value::Array(messages)) = obj.get_mut("messages") else {
+        return;
+    };
+    if messages.is_empty() {
+        messages.push(json!({
+            "role": "system",
+            "content": "You are a helpful assistant."
+        }));
+        return;
+    }
+    if messages
+        .first()
+        .and_then(|message| message.get("role"))
+        .and_then(Value::as_str)
+        .map(|role| role.trim().eq_ignore_ascii_case("system"))
+        .unwrap_or(false)
+    {
+        return;
+    }
+    let system_index = messages.iter().position(|message| {
+        message
+            .get("role")
+            .and_then(Value::as_str)
+            .map(|role| role.trim().eq_ignore_ascii_case("system"))
+            .unwrap_or(false)
+    });
+    match system_index {
+        Some(index) => {
+            let system = messages.remove(index);
+            messages.insert(0, system);
+        }
+        None => {
+            messages.insert(
+                0,
+                json!({
+                    "role": "system",
+                    "content": "You are a helpful assistant."
+                }),
+            );
         }
     }
 }
@@ -1079,22 +1623,28 @@ fn effort_rank(text: &str) -> Option<i32> {
 
 /// 按模型 supportedEfforts 降级 reasoning_effort（未知模型 / 未携带字段一律透传）
 fn normalize_reasoning_effort(obj: &mut Map<String, Value>) {
-    let efforts: HashMap<String, Vec<String>> = models_cache()
-        .lock()
-        .map(|cache| {
-            cache
-                .infos
-                .iter()
-                .filter(|m| !m.efforts.is_empty())
-                .map(|m| (m.id.clone(), m.efforts.clone()))
-                .collect()
-        })
-        .unwrap_or_default();
+    // 两区模型的 effort 档位都要认，否则国际版模型会被当成未知模型而跳过降级
+    let mut efforts: HashMap<String, Vec<String>> = HashMap::new();
+    for cache in [models_cache(), intl_models_cache()] {
+        if let Ok(guard) = cache.lock() {
+            for model in guard.infos.iter().filter(|m| !m.efforts.is_empty()) {
+                efforts
+                    .entry(model.id.clone())
+                    .or_insert_with(|| model.efforts.clone());
+            }
+        }
+    }
     if efforts.is_empty() {
         return;
     }
-    let model = obj.get("model").and_then(Value::as_str).unwrap_or("").to_string();
-    let Some(supported) = efforts.get(&model) else { return };
+    let model = obj
+        .get("model")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let Some(supported) = efforts.get(&model) else {
+        return;
+    };
     let key = if obj.contains_key("reasoning_effort") {
         "reasoning_effort"
     } else if obj.contains_key("reasoningEffort") {
@@ -1102,8 +1652,12 @@ fn normalize_reasoning_effort(obj: &mut Map<String, Value>) {
     } else {
         return;
     };
-    let Some(requested) = obj.get(key).and_then(Value::as_str) else { return };
-    let Some(request_idx) = effort_rank(&requested.trim().to_lowercase()) else { return };
+    let Some(requested) = obj.get(key).and_then(Value::as_str) else {
+        return;
+    };
+    let Some(request_idx) = effort_rank(&requested.trim().to_lowercase()) else {
+        return;
+    };
     // 在 ≤请求档位的支持档里选最高档
     let mut best: Option<(&String, i32)> = None;
     for effort in supported {
@@ -1157,7 +1711,9 @@ const SANITIZE_REWRITES: &[(&str, &str)] = &[
 /// header 型指纹剥离正则（整段删除）
 fn sanitize_hdr_regex() -> &'static regex::Regex {
     static RE: OnceLock<regex::Regex> = OnceLock::new();
-    RE.get_or_init(|| regex::Regex::new(r"(?i)x-anthropic-billing-header:[^;\n]*;?\s*").expect("有效正则"))
+    RE.get_or_init(|| {
+        regex::Regex::new(r"(?i)x-anthropic-billing-header:[^;\n]*;?\s*").expect("有效正则")
+    })
 }
 
 /// 尾随裸键值剥离正则（cc_xxx=...; 循环清理）
@@ -1168,7 +1724,8 @@ fn sanitize_kv_regex() -> &'static regex::Regex {
 
 /// 单段文本净化：预检不中 → 原串返回（零开销）
 fn sanitize_text(text: &str) -> String {
-    let hit = SANITIZE_FEATURES.iter().any(|f| text.contains(f)) || sanitize_hdr_regex().is_match(text);
+    let hit =
+        SANITIZE_FEATURES.iter().any(|f| text.contains(f)) || sanitize_hdr_regex().is_match(text);
     if !hit {
         return text.to_string();
     }
@@ -1191,9 +1748,13 @@ fn sanitize_text(text: &str) -> String {
 
 /// 净化 messages 内容（兼容字符串与多模态数组，只动 text part）
 fn sanitize_messages(obj: &mut Map<String, Value>) {
-    let Some(Value::Array(messages)) = obj.get_mut("messages") else { return };
+    let Some(Value::Array(messages)) = obj.get_mut("messages") else {
+        return;
+    };
     for message in messages.iter_mut() {
-        let Some(map) = message.as_object_mut() else { continue };
+        let Some(map) = message.as_object_mut() else {
+            continue;
+        };
         match map.get_mut("content") {
             Some(Value::String(text)) => {
                 *text = sanitize_text(text);
@@ -1225,13 +1786,22 @@ fn normalize_frame(payload: &str) -> String {
         return payload.to_string();
     };
     let mut out = Map::new();
-    for key in ["id", "object", "created", "model", "system_fingerprint", "service_tier"] {
+    for key in [
+        "id",
+        "object",
+        "created",
+        "model",
+        "system_fingerprint",
+        "service_tier",
+    ] {
         if let Some(v) = value.get(key).filter(|v| !v.is_null()) {
             out.insert(key.into(), v.clone());
         }
     }
-    out.entry("object".to_string()).or_insert_with(|| Value::String("chat.completion.chunk".into()));
-    out.entry("id".to_string()).or_insert_with(|| Value::String("chatcmpl-cockpit".into()));
+    out.entry("object".to_string())
+        .or_insert_with(|| Value::String("chat.completion.chunk".into()));
+    out.entry("id".to_string())
+        .or_insert_with(|| Value::String("chatcmpl-cockpit".into()));
     if let Some(choices) = value.get("choices").and_then(Value::as_array) {
         let mut new_choices = Vec::with_capacity(choices.len());
         for choice in choices {
@@ -1246,27 +1816,50 @@ fn normalize_frame(payload: &str) -> String {
                         delta.insert(key.into(), Value::String(v.to_string()));
                     }
                 }
-                if let Some(tcs) = d.get("tool_calls").and_then(Value::as_array).filter(|a| !a.is_empty()) {
+                if let Some(tcs) = d
+                    .get("tool_calls")
+                    .and_then(Value::as_array)
+                    .filter(|a| !a.is_empty())
+                {
                     delta.insert("tool_calls".into(), Value::Array(tcs.clone()));
                 }
                 if let Some(fc) = d.get("function_call") {
-                    let keep = fc.as_object().map(|m| {
-                        !m.get("name").and_then(Value::as_str).unwrap_or("").is_empty()
-                            || !m.get("arguments").and_then(Value::as_str).unwrap_or("").is_empty()
-                    }).unwrap_or(true);
+                    let keep = fc
+                        .as_object()
+                        .map(|m| {
+                            !m.get("name")
+                                .and_then(Value::as_str)
+                                .unwrap_or("")
+                                .is_empty()
+                                || !m
+                                    .get("arguments")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .is_empty()
+                        })
+                        .unwrap_or(true);
                     if keep {
                         delta.insert("function_call".into(), fc.clone());
                     }
                 }
             }
             new_choice.insert("delta".into(), Value::Object(delta));
-            let finish = choice.get("finish_reason").and_then(Value::as_str).filter(|s| !s.is_empty());
-            new_choice.insert("finish_reason".into(), finish.map(Value::from).unwrap_or(Value::Null));
+            let finish = choice
+                .get("finish_reason")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty());
+            new_choice.insert(
+                "finish_reason".into(),
+                finish.map(Value::from).unwrap_or(Value::Null),
+            );
             new_choices.push(Value::Object(new_choice));
         }
         out.insert("choices".into(), Value::Array(new_choices));
     }
-    out.insert("usage".into(), value.get("usage").cloned().unwrap_or(Value::Null));
+    out.insert(
+        "usage".into(),
+        value.get("usage").cloned().unwrap_or(Value::Null),
+    );
     serde_json::to_string(&Value::Object(out)).unwrap_or_else(|_| payload.to_string())
 }
 
@@ -1305,7 +1898,11 @@ impl Read for PipeReader {
 /// 正确次序：先 spawn 后台线程泵送，再 respond 让主线程消费管道。
 fn stream_response(request: tiny_http::Request, upstream: reqwest::blocking::Response) {
     let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let reader = PipeReader { rx, leftover: Vec::new(), offset: 0 };
+    let reader = PipeReader {
+        rx,
+        leftover: Vec::new(),
+        offset: 0,
+    };
     let response = tiny_http::Response::new(
         tiny_http::StatusCode(200),
         vec![
@@ -1345,7 +1942,10 @@ fn pump_upstream_stream(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking::
         if let Some(payload) = trimmed.strip_prefix("data: ") {
             let normalized = normalize_frame(payload);
             valid_frames += 1;
-            if tx.send(format!("data: {normalized}\n\n").into_bytes()).is_err() {
+            if tx
+                .send(format!("data: {normalized}\n\n").into_bytes())
+                .is_err()
+            {
                 return;
             }
         } else if !trimmed.is_empty() {
@@ -1355,7 +1955,10 @@ fn pump_upstream_stream(tx: mpsc::Sender<Vec<u8>>, upstream: reqwest::blocking::
         }
     }
     if valid_frames == 0 {
-        let _ = tx.send(br#"data: {"error":{"message":"empty upstream stream","type":"upstream_error"}}"#.to_vec());
+        let _ = tx.send(
+            br#"data: {"error":{"message":"empty upstream stream","type":"upstream_error"}}"#
+                .to_vec(),
+        );
     }
     let _ = tx.send(b"data: [DONE]\n\n".to_vec());
 }
@@ -1388,10 +1991,19 @@ fn responses_to_chat(src: &[u8]) -> Result<(Vec<u8>, ToolNamespaceMap), String> 
         out.insert("model".into(), model.clone());
     }
     // max_output_tokens → max_tokens；两者都接受
-    if let Some(v) = obj.get("max_output_tokens").or_else(|| obj.get("max_tokens")) {
+    if let Some(v) = obj
+        .get("max_output_tokens")
+        .or_else(|| obj.get("max_tokens"))
+    {
         out.insert("max_tokens".into(), v.clone());
     }
-    for key in ["temperature", "top_p", "stream", "user", "parallel_tool_calls"] {
+    for key in [
+        "temperature",
+        "top_p",
+        "stream",
+        "user",
+        "parallel_tool_calls",
+    ] {
         if let Some(v) = obj.get(key) {
             out.insert(key.into(), v.clone());
         }
@@ -1437,8 +2049,8 @@ fn responses_to_chat(src: &[u8]) -> Result<(Vec<u8>, ToolNamespaceMap), String> 
     if let Some(tc) = obj.get("tool_choice") {
         out.insert("tool_choice".into(), tc.clone());
     }
-    let encoded = serde_json::to_vec(&Value::Object(out))
-        .map_err(|e| format!("序列化翻译结果失败: {e}"))?;
+    let encoded =
+        serde_json::to_vec(&Value::Object(out)).map_err(|e| format!("序列化翻译结果失败: {e}"))?;
     Ok((encoded, ns_map))
 }
 
@@ -1448,12 +2060,7 @@ fn responses_to_chat(src: &[u8]) -> Result<(Vec<u8>, ToolNamespaceMap), String> 
 /// 包裹协作类工具（spawn_agent / wait_agent / send_message 等）。chat 协议没有命名空间
 /// 概念，必须把容器内的函数工具逐项摊平，否则它们对上游模型完全不可见
 /// —— 表现为「模型声称没有可调用的子代理」。
-fn collect_chat_tools(
-    tool: &Value,
-    out: &mut Vec<Value>,
-    ns: &str,
-    ns_map: &mut ToolNamespaceMap,
-) {
+fn collect_chat_tools(tool: &Value, out: &mut Vec<Value>, ns: &str, ns_map: &mut ToolNamespaceMap) {
     let Some(map) = tool.as_object() else { return };
     let kind = map.get("type").and_then(Value::as_str).unwrap_or("");
     // 命名空间容器：递归展开其 tools 子数组（可能多层嵌套），并向下传递容器名
@@ -1472,7 +2079,9 @@ fn collect_chat_tools(
         return;
     }
     // 标准 Responses 扁平工具 → chat 嵌套格式；无 name 的项直接跳过
-    let Some(name) = map.get("name").and_then(Value::as_str) else { return };
+    let Some(name) = map.get("name").and_then(Value::as_str) else {
+        return;
+    };
     // 记录「工具名 → 命名空间」，供响应侧还原 function_call.namespace
     if !ns.is_empty() {
         ns_map.insert(name.to_string(), ns.to_string());
@@ -1589,7 +2198,10 @@ fn chat_to_responses(chat: &Value) -> Value {
         }));
     }
     // 工具调用 item
-    if let Some(calls) = message.and_then(|m| m.get("tool_calls")).and_then(Value::as_array) {
+    if let Some(calls) = message
+        .and_then(|m| m.get("tool_calls"))
+        .and_then(Value::as_array)
+    {
         for call in calls {
             let name = call
                 .get("function")
@@ -1639,7 +2251,11 @@ fn stream_responses(
     tool_ns_map: ToolNamespaceMap,
 ) {
     let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let reader = PipeReader { rx, leftover: Vec::new(), offset: 0 };
+    let reader = PipeReader {
+        rx,
+        leftover: Vec::new(),
+        offset: 0,
+    };
     let response = tiny_http::Response::new(
         tiny_http::StatusCode(200),
         vec![
@@ -1891,7 +2507,11 @@ fn pump_chat_to_responses(
                             "output_index": item.output_index,
                             "delta": args
                         });
-                        if !send_responses_event(&tx, "response.function_call_arguments.delta", event) {
+                        if !send_responses_event(
+                            &tx,
+                            "response.function_call_arguments.delta",
+                            event,
+                        ) {
                             return;
                         }
                     }
@@ -2011,15 +2631,25 @@ fn pump_chat_to_responses(
 
 /// 上游 chat usage → Responses usage 形状：缺失字段补 0，保证 sub2api 等下游计费网关可解析。
 fn responses_usage_from_chat(chat_usage: &Value) -> Value {
-    let input = chat_usage.get("prompt_tokens").and_then(Value::as_i64).unwrap_or(0);
-    let output = chat_usage.get("completion_tokens").and_then(Value::as_i64).unwrap_or(0);
+    let input = chat_usage
+        .get("prompt_tokens")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let output = chat_usage
+        .get("completion_tokens")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
     // 缓存命中：优先 OpenAI 标准字段；GLM 风格上游两者恒为 0，回退 prompt_cache_hit_tokens
     let cached = chat_usage
         .pointer("/prompt_tokens_details/cached_tokens")
         .or_else(|| chat_usage.get("cached_tokens"))
         .and_then(Value::as_i64)
         .filter(|&v| v > 0)
-        .or_else(|| chat_usage.get("prompt_cache_hit_tokens").and_then(Value::as_i64))
+        .or_else(|| {
+            chat_usage
+                .get("prompt_cache_hit_tokens")
+                .and_then(Value::as_i64)
+        })
         .unwrap_or(0);
     let reasoning = chat_usage
         .pointer("/completion_tokens_details/reasoning_tokens")
@@ -2059,14 +2689,26 @@ fn aggregate_sse(upstream: reqwest::blocking::Response) -> Result<Value, String>
         if trimmed.starts_with("data: [DONE]") {
             break;
         }
-        let Some(payload) = trimmed.strip_prefix("data: ") else { continue };
-        let Ok(chunk) = serde_json::from_str::<Value>(payload) else { continue };
+        let Some(payload) = trimmed.strip_prefix("data: ") else {
+            continue;
+        };
+        let Ok(chunk) = serde_json::from_str::<Value>(payload) else {
+            continue;
+        };
         valid_events += 1;
         if id.is_empty() {
-            id = chunk.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+            id = chunk
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
         }
         if model.is_empty() {
-            model = chunk.get("model").and_then(Value::as_str).unwrap_or("").to_string();
+            model = chunk
+                .get("model")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
         }
         if created == 0 {
             created = chunk.get("created").and_then(Value::as_i64).unwrap_or(0);
@@ -2074,13 +2716,25 @@ fn aggregate_sse(upstream: reqwest::blocking::Response) -> Result<Value, String>
         if let Some(u) = chunk.get("usage").filter(|u| !u.is_null()) {
             usage = Some(u.clone());
         }
-        let Some(choices) = chunk.get("choices").and_then(Value::as_array) else { continue };
+        let Some(choices) = chunk.get("choices").and_then(Value::as_array) else {
+            continue;
+        };
         for choice in choices {
-            if let Some(fr) = choice.get("finish_reason").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+            if let Some(fr) = choice
+                .get("finish_reason")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+            {
                 finish_reason = fr.to_string();
             }
-            let Some(delta) = choice.get("delta").and_then(Value::as_object) else { continue };
-            if let Some(r) = delta.get("role").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+            let Some(delta) = choice.get("delta").and_then(Value::as_object) else {
+                continue;
+            };
+            if let Some(r) = delta
+                .get("role")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+            {
                 role = r.to_string();
             }
             if let Some(text) = delta.get("content").and_then(Value::as_str) {
@@ -2136,22 +2790,46 @@ fn aggregate_sse(upstream: reqwest::blocking::Response) -> Result<Value, String>
 /// 合并流式 tool_call 分片：id/type/function.name 直覆盖，arguments 拼接
 fn merge_tool_call(merged: &mut Value, delta: &Value) {
     let map = merged.as_object_mut().expect("merged 必为对象");
-    if let Some(id) = delta.get("id").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+    if let Some(id) = delta
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    {
         map.insert("id".into(), Value::String(id.to_string()));
     }
-    if let Some(t) = delta.get("type").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+    if let Some(t) = delta
+        .get("type")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    {
         map.insert("type".into(), Value::String(t.to_string()));
     }
-    let Some(function) = delta.get("function").and_then(Value::as_object) else { return };
+    let Some(function) = delta.get("function").and_then(Value::as_object) else {
+        return;
+    };
     let function_value = map
         .entry("function".to_string())
         .or_insert_with(|| json!({}));
-    let Some(function_map) = function_value.as_object_mut() else { return };
-    if let Some(name) = function.get("name").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+    let Some(function_map) = function_value.as_object_mut() else {
+        return;
+    };
+    if let Some(name) = function
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    {
         function_map.insert("name".into(), Value::String(name.to_string()));
     }
-    if let Some(arguments) = function.get("arguments").and_then(Value::as_str).filter(|s| !s.is_empty()) {
-        let prev = function_map.get("arguments").and_then(Value::as_str).unwrap_or("").to_string();
+    if let Some(arguments) = function
+        .get("arguments")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    {
+        let prev = function_map
+            .get("arguments")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
         let mut next = prev;
         next.push_str(arguments);
         function_map.insert("arguments".into(), Value::String(next));
@@ -2195,24 +2873,27 @@ fn handle_admin_request(mut request: tiny_http::Request) {
             write_json_response(request, 200, &json!({ "data": ids }));
         }
         "/api/accounts" => {
-            let accounts = workbuddy_account::list_accounts();
-            let list: Vec<Value> = accounts
-                .iter()
-                .map(|a| {
-                    json!({
+            // 两个区域都列出，并带上 realm 字段供面板区分（国内版在前）
+            let cn = workbuddy_account::list_accounts_for_realm(&REALM_CN);
+            let intl = workbuddy_account::list_accounts_for_realm(&REALM_INTL);
+            let mut list: Vec<Value> = Vec::new();
+            for (realm_id, accounts) in [(REALM_CN.id, &cn), (REALM_INTL.id, &intl)] {
+                for a in accounts.iter() {
+                    list.push(json!({
                         "uid": a.uid.clone().unwrap_or_default(),
                         "nickname": a.nickname.clone().unwrap_or_else(|| a.email.clone()),
                         "file": format!("workbuddy-{}.json", a.id),
+                        "realm": realm_id,
                         "checked": false,
-                    })
-                })
-                .collect();
+                    }));
+                }
+            }
             write_json_response(request, 200, &json!(list));
         }
         _ => {
             let body = b"404 page not found".to_vec();
-            let mut response = tiny_http::Response::from_data(body)
-                .with_status_code(tiny_http::StatusCode(404));
+            let mut response =
+                tiny_http::Response::from_data(body).with_status_code(tiny_http::StatusCode(404));
             for header in cors_headers() {
                 response = response.with_header(header);
             }
@@ -2223,44 +2904,70 @@ fn handle_admin_request(mut request: tiny_http::Request) {
 
 /// 管理端状态：账号运行态 + 池子统计（面板已改为读本地账号库，此接口保留兼容）
 fn handle_admin_status(request: tiny_http::Request) {
-    let accounts = workbuddy_account::list_accounts();
     let now = SystemTime::now();
     let states = account_states().lock().ok();
     let mut items = Vec::new();
     let mut cooling = 0usize;
     let mut disabled = 0usize;
     let mut in_flight_full = 0usize;
-    for account in &accounts {
-        let state = states.as_ref().and_then(|s| s.get(&account.id)).cloned().unwrap_or_default();
-        let is_cooling = state.cooldown_until.map(|t| t > now).unwrap_or(false);
-        if is_cooling { cooling += 1; }
-        if state.disabled { disabled += 1; }
-        // 并发维度：生效上限（覆盖>全局，0=不限）+ 是否满载
-        let limit = effective_max_in_flight(&account.id);
-        let full = limit > 0 && state.in_flight >= limit as usize;
-        if full { in_flight_full += 1; }
-        items.push(json!({
-            "uid": account.uid.clone().unwrap_or_else(|| account.id.clone()),
-            "nickname": account.nickname.clone().unwrap_or_else(|| account.email.clone()),
-            "email": account.email,
-            "cooling": is_cooling,
-            "disabled": state.disabled,
-            "err_streak": state.err_streak,
-            "in_flight": state.in_flight,
-            "max_in_flight": limit,
-            "in_flight_full": full,
-        }));
+    let mut total = 0usize;
+    for (realm, accounts) in [
+        (
+            &REALM_CN,
+            workbuddy_account::list_accounts_for_realm(&REALM_CN),
+        ),
+        (
+            &REALM_INTL,
+            workbuddy_account::list_accounts_for_realm(&REALM_INTL),
+        ),
+    ] {
+        total += accounts.len();
+        for account in &accounts {
+            let state = states
+                .as_ref()
+                .and_then(|s| s.get(&account.id))
+                .cloned()
+                .unwrap_or_default();
+            let is_cooling = state.cooldown_until.map(|t| t > now).unwrap_or(false);
+            if is_cooling {
+                cooling += 1;
+            }
+            if state.disabled {
+                disabled += 1;
+            }
+            // 并发维度：生效上限（区域默认或账号覆盖，0=不限）+ 是否满载
+            let limit = effective_max_in_flight(&account.id, realm);
+            let full = limit > 0 && state.in_flight >= limit as usize;
+            if full {
+                in_flight_full += 1;
+            }
+            items.push(json!({
+                "uid": account.uid.clone().unwrap_or_else(|| account.id.clone()),
+                "nickname": account.nickname.clone().unwrap_or_else(|| account.email.clone()),
+                "email": account.email,
+                "realm": realm.id,
+                "cooling": is_cooling,
+                "disabled": state.disabled,
+                "err_streak": state.err_streak,
+                "in_flight": state.in_flight,
+                "max_in_flight": limit,
+                "in_flight_full": full,
+            }));
+        }
     }
-    let healthy = items.iter().filter(|i| {
-        !i.get("cooling").and_then(Value::as_bool).unwrap_or(false)
-            && !i.get("disabled").and_then(Value::as_bool).unwrap_or(false)
-    }).count();
+    let healthy = items
+        .iter()
+        .filter(|i| {
+            !i.get("cooling").and_then(Value::as_bool).unwrap_or(false)
+                && !i.get("disabled").and_then(Value::as_bool).unwrap_or(false)
+        })
+        .count();
     write_json_response(
         request,
         200,
         &json!({
             "accounts": items,
-            "total": accounts.len(),
+            "total": total,
             "healthy": healthy,
             "cooling": cooling,
             "disabled": disabled,
@@ -2272,49 +2979,226 @@ fn handle_admin_status(request: tiny_http::Request) {
 }
 
 /// 管理端：设置单账号并发上限（POST {uid, limit}）。
-/// limit > 0 覆盖全局默认并持久化；limit <= 0 清除覆盖回落全局。
+/// 任意 0..99 都作为账号覆盖持久化；其中 0 表示不限制，不回落区域默认值。
 fn handle_admin_max_in_flight(mut request: tiny_http::Request) {
     let mut body = String::new();
     let _ = request.as_reader().read_to_string(&mut body);
     let value: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
-    let uid = value.get("uid").and_then(Value::as_str).unwrap_or("").to_string();
-    let limit = value.get("limit").and_then(Value::as_i64).unwrap_or(0).clamp(0, 99) as u32;
+    let uid = value
+        .get("uid")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let limit = value
+        .get("limit")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+        .clamp(0, 99) as u32;
     if uid.is_empty() {
         write_json_response(request, 200, &json!({ "ok": false, "message": "缺少 uid" }));
         return;
     }
     // uid 与 account.id 都接受（前端拿到的 uid 可能是 id 兜底）
-    let accounts = workbuddy_account::list_accounts();
+    let accounts = list_all_realm_accounts();
     let Some(account_id) = accounts
         .iter()
         .find(|a| a.uid.as_deref() == Some(uid.as_str()) || a.id == uid)
         .map(|a| a.id.clone())
     else {
-        write_json_response(request, 200, &json!({ "ok": false, "message": "账号不在本地账号库中" }));
+        write_json_response(
+            request,
+            200,
+            &json!({ "ok": false, "message": "账号不在本地账号库中" }),
+        );
         return;
     };
     {
         let mut map = match account_limits().write() {
             Ok(map) => map,
             Err(_) => {
-                write_json_response(request, 200, &json!({ "ok": false, "message": "内部锁异常" }));
+                write_json_response(
+                    request,
+                    200,
+                    &json!({ "ok": false, "message": "内部锁异常" }),
+                );
                 return;
             }
         };
-        if limit > 0 {
-            map.insert(account_id, limit);
-        } else {
-            map.remove(&account_id);
-        }
+        map.insert(account_id, limit);
         save_account_limits(&map);
     }
     let message = if limit > 0 {
         format!("已设置并发上限 {limit}")
     } else {
-        "已清除覆盖，回落全局上限".to_string()
+        "已设置并发上限 0（不限制）".to_string()
     };
     logger::log_info(&format!(
         "[WorkBuddyGateway] account {uid} max_in_flight → {limit}",
     ));
-    write_json_response(request, 200, &json!({ "ok": true, "uid": uid, "limit": limit, "message": message }));
+    write_json_response(
+        request,
+        200,
+        &json!({ "ok": true, "uid": uid, "limit": limit, "message": message }),
+    );
+}
+
+#[cfg(test)]
+mod credits_weight_tests {
+    use super::{
+        credit_tickets, credits_balance, ensure_system_first, resolve_max_in_flight,
+        resolve_realm_for_model, CREDITS_TICKET_POOL, REALM_CN, REALM_INTL,
+    };
+    use serde_json::json;
+
+    fn account_with_quota(quota: serde_json::Value) -> crate::models::workbuddy::WorkbuddyAccount {
+        serde_json::from_value(json!({
+            "id": "acc-1",
+            "email": "a@b.c",
+            "access_token": "t",
+            "created_at": 0,
+            "last_used": 0,
+            "quota_raw": quota,
+        }))
+        .expect("构造测试账号失败")
+    }
+
+    #[test]
+    fn tickets_by_pool_share() {
+        // 经典场景：1213 / 54 / 1.74 / 0 → 占比票 96 / 4 / 1 / 0
+        let balances = vec![Some(1213.25), Some(54.04), Some(1.74), Some(0.0)];
+        let votes: Vec<usize> = balances
+            .iter()
+            .map(|b| credit_tickets(*b, &balances))
+            .collect();
+        assert_eq!(votes, vec![96, 4, 1, 0], "按积分池占比分配票数");
+    }
+
+    #[test]
+    fn tickets_edge_cases() {
+        // 无配额数据 → 中性 1 票
+        let balances = vec![None, Some(100.0)];
+        assert_eq!(credit_tickets(None, &balances), 1);
+        // 积分 0 → 0 票
+        assert_eq!(credit_tickets(Some(0.0), &balances), 0);
+        // 均分：两个同积分号各拿一半
+        let equal = vec![Some(100.0), Some(100.0)];
+        let votes: Vec<usize> = equal.iter().map(|b| credit_tickets(*b, &equal)).collect();
+        assert_eq!(votes, vec![50, 50]);
+        // 票数不超过票池
+        assert!(credit_tickets(Some(f64::INFINITY), &[Some(f64::INFINITY)]) <= CREDITS_TICKET_POOL);
+    }
+
+    #[test]
+    fn concurrency_bonus_multiplier() {
+        // 并发加成：占比票 96 × (1 + 2×0.1) = 115
+        let votes = 96.0_f64;
+        assert_eq!((votes * (1.0 + 2.0 * 0.1)).round() as usize, 115);
+        // 占比票 4 × (1 + 1×0.1) = 4
+        assert_eq!((4.0_f64 * (1.0 + 1.0 * 0.1)).round() as usize, 4);
+        // 权重至少保留 1 票
+        assert_eq!((1.0_f64 * (1.0 + 1.0 * 0.1)).round().max(1.0) as usize, 1);
+    }
+
+    #[test]
+    fn concurrency_defaults_and_explicit_zero() {
+        assert_eq!(resolve_max_in_flight(None, &REALM_CN), 3);
+        assert_eq!(resolve_max_in_flight(None, &REALM_INTL), 1);
+        assert_eq!(resolve_max_in_flight(Some(0), &REALM_CN), 0);
+        assert_eq!(resolve_max_in_flight(Some(0), &REALM_INTL), 0);
+    }
+
+    #[test]
+    fn realm_uses_dynamic_model_lists_before_static_fallback() {
+        let cn = vec!["glm-5.2".to_string()];
+        let intl = vec!["hy4-preview".to_string()];
+        let intl_without_hy4: Vec<String> = Vec::new();
+        assert_eq!(
+            resolve_realm_for_model("hy4-preview", None, Some(&intl)),
+            Some(&REALM_INTL)
+        );
+        assert_eq!(
+            resolve_realm_for_model("glm-5.2", Some(&cn), Some(&intl)),
+            Some(&REALM_CN)
+        );
+        // 动态列表确认国际版没有 hy4-preview 时，静态表不能再把它派到国际版。
+        assert_eq!(
+            resolve_realm_for_model("hy4-preview", Some(&cn), Some(&intl_without_hy4)),
+            None
+        );
+        assert_eq!(
+            resolve_realm_for_model("hy4-preview", None, None),
+            Some(&REALM_INTL)
+        );
+        // 冷启动时动态模型缓存可能尚未建立，已确认的国内模型必须由静态表兜底。
+        assert_eq!(
+            resolve_realm_for_model("glm-5.3-flash", None, None),
+            Some(&REALM_CN)
+        );
+        assert_eq!(
+            resolve_realm_for_model("kimi-k3-1", None, None),
+            Some(&REALM_CN)
+        );
+        assert_eq!(resolve_realm_for_model("__unknown__", None, None), None);
+    }
+
+    #[test]
+    fn system_message_is_moved_or_inserted_first() {
+        let mut moved = serde_json::json!({
+            "messages": [
+                { "role": "user", "content": "hi" },
+                { "role": "system", "content": "rules" }
+            ]
+        });
+        ensure_system_first(moved.as_object_mut().unwrap());
+        assert_eq!(moved["messages"][0]["role"], "system");
+        assert_eq!(moved["messages"][0]["content"], "rules");
+
+        let mut inserted = serde_json::json!({
+            "messages": [{ "role": "user", "content": "hi" }]
+        });
+        ensure_system_first(inserted.as_object_mut().unwrap());
+        assert_eq!(inserted["messages"][0]["role"], "system");
+        assert_eq!(inserted["messages"][1]["role"], "user");
+    }
+
+    #[test]
+    fn balance_from_user_resource_accounts() {
+        let quota = json!({
+            "userResource": {
+                "Response": { "Data": { "Accounts": [
+                    { "PackageCode": "free", "Status": 0, "CycleCapacityRemainPrecise": "1213.25" },
+                    { "PackageCode": "gift", "Status": 3, "CycleCapacityRemainPrecise": "0" },
+                    { "PackageCode": "expired", "Status": 2, "CycleCapacityRemainPrecise": "999" }
+                ]}}
+            }
+        });
+        let balance = credits_balance(&account_with_quota(quota)).expect("应能取到积分");
+        assert!(
+            (balance - 1213.25).abs() < 0.001,
+            "过期包不计入，实际 {balance}"
+        );
+    }
+
+    #[test]
+    fn balance_from_credits_resources() {
+        let quota = json!({
+            "userResource": {
+                "resources": [
+                    { "commodity_code": "extra", "remaining": "54.04" },
+                    { "commodity_code": "extra", "remaining": "1.74" }
+                ]
+            }
+        });
+        let balance = credits_balance(&account_with_quota(quota)).expect("应能取到积分");
+        assert!((balance - 55.78).abs() < 0.001, "实际 {balance}");
+    }
+
+    #[test]
+    fn balance_none_without_quota() {
+        let account: crate::models::workbuddy::WorkbuddyAccount = serde_json::from_value(json!({
+            "id": "acc-2", "email": "a@b.c", "access_token": "t", "created_at": 0, "last_used": 0
+        }))
+        .expect("构造测试账号失败");
+        assert!(credits_balance(&account).is_none(), "无配额数据应返回 None");
+    }
 }

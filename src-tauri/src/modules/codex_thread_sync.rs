@@ -454,7 +454,8 @@ fn is_instance_running(
 
 fn load_thread_snapshots(instance: &CodexSyncInstance) -> Result<Vec<ThreadSnapshot>, String> {
     let session_index_map = read_session_index_map(&instance.data_dir)?;
-    let display_context = modules::codex_session_display::SessionDisplayContext::load(&instance.data_dir);
+    let display_context =
+        modules::codex_session_display::SessionDisplayContext::load(&instance.data_dir);
     let mut snapshots = Vec::new();
     for dir_name in SESSION_DIRS {
         let root_dir = instance.data_dir.join(dir_name);
@@ -469,9 +470,7 @@ fn load_thread_snapshots(instance: &CodexSyncInstance) -> Result<Vec<ThreadSnaps
                 continue;
             };
             let freshness = build_thread_freshness(session_index_map.get(&id), &rollout_path);
-            let index_title = session_index_map
-                .get(&id)
-                .and_then(session_index_title);
+            let index_title = session_index_map.get(&id).and_then(session_index_title);
             let title = display_context
                 .resolve_title(&id, index_title.as_deref())
                 .unwrap_or_else(|| id.clone());

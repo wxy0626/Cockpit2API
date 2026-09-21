@@ -16,12 +16,14 @@ export type Page =
   | 'codebuddy'
   | 'codebuddy-cn'
   | 'qoder'
+  | 'qoderwork-intl'
   | 'zcode'
   | 'trae'
   | 'trae-solo'
   | 'trae-cn'
   | 'trae-solo-cn'
   | 'workbuddy'
+  | 'workbuddy-intl'
   | 'cindy'
   | 'codex-instances'
   | 'instances'
@@ -50,12 +52,14 @@ export const MAIN_WINDOW_NAVIGABLE_PAGES: readonly Page[] = [
   'codebuddy',
   'codebuddy-cn',
   'qoder',
+  'qoderwork-intl',
   'zcode',
   'trae',
   'trae-solo',
   'trae-cn',
   'trae-solo-cn',
   'workbuddy',
+  'workbuddy-intl',
   'settings',
 ] as const;
 

@@ -9,7 +9,7 @@ import { isCodexOAuthBindingEligibleAccount } from "../utils/codexLocalAccessAcc
 import { mergeIdListsPreferExisting, subscribeUserMemory } from "../utils/userMemory";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { confirm as confirmDialog } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openOAuthUrlInChromeIncognito } from "../services/oauthBrowserService";
 import type { CodexAccount } from "../types/codex";
 import type { CodexLocalAccessOAuthQuotaReserve } from "../types/codexLocalAccess";
 import { CODEX_ADDITIONAL_QUOTA_VISIBILITY_CHANGED_EVENT, CODEX_CODE_REVIEW_QUOTA_VISIBILITY_CHANGED_EVENT, isCodexAdditionalQuotaVisibleByDefault, isCodexCodeReviewQuotaVisibleByDefault } from "../utils/codexPreferences";
@@ -1673,7 +1673,7 @@ export function useCodexAccountsOAuthController(context: Pick<ReturnType<typeof 
     const handleOpenOauthUrl = async () => {
       if (!oauthUrl) return;
       try {
-        await openUrl(oauthUrl);
+        await openOAuthUrlInChromeIncognito(oauthUrl);
       } catch {
         await navigator.clipboard.writeText(oauthUrl).catch(() => {});
         setOauthUrlCopied(true);
@@ -1765,7 +1765,7 @@ export function useCodexAccountsOAuthController(context: Pick<ReturnType<typeof 
     const handleOpenDeviceAuthUrl = async () => {
       if (!deviceAuthInfo?.verificationUrl) return;
       try {
-        await openUrl(deviceAuthInfo.verificationUrl);
+        await openOAuthUrlInChromeIncognito(deviceAuthInfo.verificationUrl);
       } catch (error) {
         setDeviceAuthError(String(error).replace(/^Error:\s*/, ""));
       }
@@ -1773,7 +1773,7 @@ export function useCodexAccountsOAuthController(context: Pick<ReturnType<typeof 
   
     const handleOpenCodexSecuritySettings = async () => {
       try {
-        await openUrl("https://chatgpt.com/#settings/Security");
+        await openOAuthUrlInChromeIncognito("https://chatgpt.com/#settings/Security");
       } catch (error) {
         setDeviceAuthError(String(error).replace(/^Error:\s*/, ""));
       }

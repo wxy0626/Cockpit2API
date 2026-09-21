@@ -307,7 +307,10 @@ mod tests {
         );
 
         let has_field_6 = payload.windows(2).any(|w| w == [0x30, 0x01]);
-        assert!(has_field_6, "Protobuf must encode field 6 when is_gcp_tos is Some(true)");
+        assert!(
+            has_field_6,
+            "Protobuf must encode field 6 when is_gcp_tos is Some(true)"
+        );
     }
 
     #[test]
@@ -322,7 +325,9 @@ mod tests {
         );
 
         let has_field_6 = payload.windows(2).any(|w| w == [0x30, 0x01]);
-        assert!(!has_field_6, "Protobuf must NOT encode field 6 when is_gcp_tos is None");
+        assert!(
+            !has_field_6,
+            "Protobuf must NOT encode field 6 when is_gcp_tos is None"
+        );
     }
 }
-

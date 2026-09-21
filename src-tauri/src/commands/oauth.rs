@@ -216,6 +216,12 @@ pub async fn prepare_oauth_url(app_handle: AppHandle) -> Result<String, String> 
     modules::oauth_server::prepare_oauth_url(app_handle).await
 }
 
+/// 所有平台 OAuth 都使用 Chrome 可信用户配置。
+#[tauri::command]
+pub fn open_oauth_url_in_chrome_incognito(url: String) -> Result<(), String> {
+    modules::chrome_oauth::open_oauth_url(&url)
+}
+
 #[tauri::command]
 pub async fn submit_oauth_callback_url(
     app_handle: AppHandle,

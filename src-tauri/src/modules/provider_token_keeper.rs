@@ -9,6 +9,7 @@ use serde_json::Value;
 use tauri::AppHandle;
 use tokio::sync::Notify;
 
+use crate::modules::workbuddy_realm::{WorkbuddyRealm, REALM_CN, REALM_INTL};
 use crate::modules::{
     codebuddy_account, codebuddy_cn_account, codex_account, config, cursor_account,
     github_copilot_account, grok_account, kiro_account, kiro_instance, logger, process,
@@ -130,6 +131,8 @@ async fn run_refresh_cycle(app_handle: &AppHandle) {
     refreshed_any |=
         refresh_platform_if_due("codebuddy_cn", refresh_due_codebuddy_cn_accounts).await;
     refreshed_any |= refresh_platform_if_due("workbuddy", refresh_due_workbuddy_accounts).await;
+    refreshed_any |=
+        refresh_platform_if_due("workbuddy_intl", refresh_due_workbuddy_intl_accounts).await;
     refreshed_any |= refresh_platform_if_due("trae", refresh_due_trae_accounts).await;
 
     if refreshed_any {
@@ -692,18 +695,45 @@ async fn refresh_due_codebuddy_cn_accounts() -> bool {
     refreshed_any
 }
 
+/// 国内版账号保活（保持原行为：会回写本地 WorkBuddy 客户端登录态）
 async fn refresh_due_workbuddy_accounts() -> bool {
-    let accounts =
-        match list_accounts_blocking("workbuddy", workbuddy_account::list_accounts_checked).await {
-            Ok(accounts) => accounts,
-            Err(err) => {
-                logger::log_warn(&format!(
-                    "[TokenKeeper][WorkBuddy] 读取账号列表失败，跳过本轮保活: {}",
-                    err
-                ));
-                return false;
-            }
-        };
+    refresh_due_workbuddy_accounts_for_realm(&REALM_CN).await
+}
+
+/// 国际版账号保活。国际版没有本地客户端注入，因此不回写登录态。
+async fn refresh_due_workbuddy_intl_accounts() -> bool {
+    refresh_due_workbuddy_accounts_for_realm(&REALM_INTL).await
+}
+
+/// 按区域保活 WorkBuddy 账号。国内版与国际版账号池物理隔离，需各自独立扫描，
+/// 否则国际版 token 过期后网关会拿到失效凭据。
+async fn refresh_due_workbuddy_accounts_for_realm(realm: &'static WorkbuddyRealm) -> bool {
+    // 单飞锁的平台键同样要区分区域，避免两区互相挤占
+    let platform_key: &'static str = if realm.id == "cn" {
+        "workbuddy"
+    } else {
+        "workbuddy_intl"
+    };
+    let tag = if realm.id == "cn" {
+        "WorkBuddy"
+    } else {
+        "WorkBuddyIntl"
+    };
+
+    let accounts = match list_accounts_blocking(platform_key, move || {
+        workbuddy_account::list_accounts_checked_for_realm(realm)
+    })
+    .await
+    {
+        Ok(accounts) => accounts,
+        Err(err) => {
+            logger::log_warn(&format!(
+                "[TokenKeeper][{}] 读取账号列表失败，跳过本轮保活: {}",
+                tag, err
+            ));
+            return false;
+        }
+    };
 
     let current_id = workbuddy_account::resolve_current_account_id(&accounts);
     let mut refreshed_any = false;
@@ -717,35 +747,36 @@ async fn refresh_due_workbuddy_accounts() -> bool {
             continue;
         }
 
-        let key = format!("workbuddy:{}", account.id);
+        let key = format!("{}:{}", platform_key, account.id);
         if !allow_attempt(&key) {
             continue;
         }
 
         attempted_refreshes += 1;
-        match workbuddy_account::refresh_account_token(&account.id).await {
+        match workbuddy_account::refresh_account_token_for_realm(&account.id, realm).await {
             Ok(updated) => {
                 clear_attempt_backoff(&key);
                 refreshed_any = true;
-                if current_id.as_deref() == Some(updated.id.as_str()) {
+                // 仅国内版回写本地客户端：国际版不做本地 IDE 注入
+                if realm.id == "cn" && current_id.as_deref() == Some(updated.id.as_str()) {
                     if let Err(err) = workbuddy_account::sync_account_to_default_client(&updated.id)
                     {
                         logger::log_warn(&format!(
-                            "[TokenKeeper][WorkBuddy] 当前本地登录回写失败: account_id={}, error={}",
-                            updated.id, err
+                            "[TokenKeeper][{}] 当前本地登录回写失败: account_id={}, error={}",
+                            tag, updated.id, err
                         ));
                     }
                 }
                 logger::log_info(&format!(
-                    "[TokenKeeper][WorkBuddy] Token 保活成功: account_id={}, email={}",
-                    updated.id, updated.email
+                    "[TokenKeeper][{}] Token 保活成功: account_id={}, email={}",
+                    tag, updated.id, updated.email
                 ));
             }
             Err(err) => {
                 mark_attempt_failure(&key);
                 logger::log_warn(&format!(
-                    "[TokenKeeper][WorkBuddy] Token 保活失败，进入退避: account_id={}, error={}",
-                    account.id, err
+                    "[TokenKeeper][{}] Token 保活失败，进入退避: account_id={}, error={}",
+                    tag, account.id, err
                 ));
             }
         }

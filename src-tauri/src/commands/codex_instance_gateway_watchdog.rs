@@ -202,7 +202,8 @@ async fn check_profile(lease: Lease, target: Target, app: AppHandle) -> Result<(
     if !current(&lease) {
         return Ok(());
     }
-    let (target_instance_id, profile_dir, account_id, routing, last_pid, is_default) = match target {
+    let (target_instance_id, profile_dir, account_id, routing, last_pid, is_default) = match target
+    {
         Target::Default(s) => (
             crate::modules::codex_instance::CODEX_DEFAULT_INSTANCE_ID.to_string(),
             modules::codex_instance::get_default_codex_home()?,

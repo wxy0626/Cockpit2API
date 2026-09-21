@@ -11,7 +11,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager};
 use url::Url;
 use uuid::Uuid;
 
@@ -667,35 +667,13 @@ pub fn open_incognito_oauth_window(app: &AppHandle, auth_url: &str) -> Result<()
     if let Some(window) = app.get_webview_window(OAUTH_WINDOW_LABEL) {
         window
             .destroy()
-            .map_err(|error| format!("重置 Codex OAuth 无痕窗口失败: {}", error))?;
+            .map_err(|error| format!("重置 Codex OAuth 授权窗口失败: {}", error))?;
     }
 
-    let callback_port = pending.port;
-    WebviewWindowBuilder::new(app, OAUTH_WINDOW_LABEL, WebviewUrl::External(parsed))
-        .title("Codex OAuth")
-        .inner_size(920.0, 720.0)
-        .min_inner_size(640.0, 560.0)
-        .center()
-        .incognito(true)
-        .on_navigation(move |url| {
-            if is_callback_navigation(url, callback_port) {
-                logger::log_info("Codex OAuth 无痕窗口正在访问本地回调地址");
-                return true;
-            }
-            let allowed = matches!(url.scheme(), "https" | "about");
-            if !allowed {
-                logger::log_warn(&format!(
-                    "Codex OAuth 无痕窗口已阻止非 HTTPS 导航: scheme={}",
-                    url.scheme()
-                ));
-            }
-            allowed
-        })
-        .build()
-        .map_err(|error| format!("创建 Codex OAuth 无痕窗口失败: {}", error))?;
+    crate::modules::chrome_oauth::open_trusted(parsed.as_str())?;
 
     logger::log_info(&format!(
-        "Codex OAuth 无痕窗口已打开: login_id={}, port={}",
+        "Codex OAuth Chrome 可信窗口已打开: login_id={}, port={}",
         pending.login_id, pending.port
     ));
     Ok(())
@@ -705,7 +683,7 @@ pub fn close_oauth_window(app: &AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(OAUTH_WINDOW_LABEL) {
         window
             .destroy()
-            .map_err(|error| format!("关闭 Codex OAuth 无痕窗口失败: {}", error))?;
+            .map_err(|error| format!("关闭 Codex OAuth 授权窗口失败: {}", error))?;
     }
     Ok(())
 }

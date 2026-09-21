@@ -391,14 +391,10 @@ pub async fn start_oauth_flow(
 ) -> Result<oauth::TokenResponse, String> {
     let auth_url = ensure_oauth_flow_prepared(&app_handle).await?;
 
-    use tauri_plugin_opener::OpenerExt;
-    app_handle
-        .opener()
-        .open_url(&auth_url, None::<String>)
-        .map_err(|e| {
-            cancel_oauth_flow();
-            format!("无法打开浏览器: {}", e)
-        })?;
+    if let Err(error) = crate::modules::chrome_oauth::open_oauth_url(&auth_url) {
+        cancel_oauth_flow();
+        return Err(error);
+    }
 
     let (code_rx, redirect_uri) = {
         let mut lock = get_oauth_flow_state()

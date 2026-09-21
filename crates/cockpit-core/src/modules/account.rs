@@ -1620,7 +1620,11 @@ pub async fn switch_account_internal(account_id: &str) -> Result<Account, String
             continue;
         }
         if let Err(e) = modules::instance::inject_account_to_profile(&target_dir, account_id) {
-            modules::logger::log_warn(&format!("[Switch] 注入目录 {} 失败: {}", target_dir.display(), e));
+            modules::logger::log_warn(&format!(
+                "[Switch] 注入目录 {} 失败: {}",
+                target_dir.display(),
+                e
+            ));
         }
     }
 

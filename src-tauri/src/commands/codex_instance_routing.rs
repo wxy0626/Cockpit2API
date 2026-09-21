@@ -7,15 +7,18 @@ pub(super) fn launch_mode_uses_desktop_runtime(launch_mode: &InstanceLaunchMode)
 
 /// 绑定账号是否是可以直接登录的 OAuth 订阅账号（混合模型路由的底座账号）。
 pub(super) fn routing_base_account_is_oauth(bind_account_id: Option<&str>) -> bool {
-    let Some(bind_account_id) = bind_account_id.map(str::trim).filter(|value| !value.is_empty())
+    let Some(bind_account_id) = bind_account_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
     else {
         return false;
     };
     if modules::codex_instance::is_api_service_bind_account_id(bind_account_id) {
         return false;
     }
-    let account_id = modules::codex_instance::parse_provider_gateway_bind_account_id(bind_account_id)
-        .unwrap_or_else(|| bind_account_id.to_string());
+    let account_id =
+        modules::codex_instance::parse_provider_gateway_bind_account_id(bind_account_id)
+            .unwrap_or_else(|| bind_account_id.to_string());
     let Some(account) = modules::codex_account::load_account(&account_id) else {
         return false;
     };
@@ -107,13 +110,10 @@ mod tests {
     #[test]
     fn routing_on_non_desktop_launch_mode_is_disabled_instead_of_rejected() {
         let routing = enabled_routing();
-        let normalized = validate_instance_model_routing(
-            None,
-            &InstanceLaunchMode::Cli,
-            Some(&routing),
-        )
-        .expect("路由不应再拦截 CLI 启动")
-        .expect("路由配置需要保留");
+        let normalized =
+            validate_instance_model_routing(None, &InstanceLaunchMode::Cli, Some(&routing))
+                .expect("路由不应再拦截 CLI 启动")
+                .expect("路由配置需要保留");
         assert!(!normalized.enabled);
         assert_eq!(normalized.routes.len(), 1);
     }

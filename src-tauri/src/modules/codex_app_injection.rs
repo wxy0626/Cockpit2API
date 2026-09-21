@@ -921,8 +921,7 @@ fn deepseek_model_injection_script(
     payload: &serde_json::Value,
     handled_selected_model: Option<&str>,
 ) -> String {
-    let payload =
-        serde_json::to_string(payload).unwrap_or_else(|_| "{\"models\":[]}".to_string());
+    let payload = serde_json::to_string(payload).unwrap_or_else(|_| "{\"models\":[]}".to_string());
     let handled =
         serde_json::to_string(&handled_selected_model).unwrap_or_else(|_| "null".to_string());
     format!(
@@ -3063,10 +3062,9 @@ async fn api_service_account_pool_is_empty() -> Result<Option<bool>, String> {
         .map(|collection| collection.account_ids.is_empty()))
 }
 
-async fn refresh_api_service_quota_pool(
-    app: &AppHandle,
-) -> Result<Option<(i32, usize)>, String> {
-    let Some((existing_account_count, target_ids)) = api_service_quota_refresh_targets().await? else {
+async fn refresh_api_service_quota_pool(app: &AppHandle) -> Result<Option<(i32, usize)>, String> {
+    let Some((existing_account_count, target_ids)) = api_service_quota_refresh_targets().await?
+    else {
         return Ok(None);
     };
     if existing_account_count == 0 {
@@ -3095,7 +3093,8 @@ async fn run_quota_refresh_singleflight(app: &AppHandle) -> Result<Option<(i32, 
         Ok(_guard) => refresh_api_service_quota_pool(app).await,
         Err(_) => {
             let _guard = lock.lock().await;
-            let Some((existing_account_count, _)) = api_service_quota_refresh_targets().await? else {
+            let Some((existing_account_count, _)) = api_service_quota_refresh_targets().await?
+            else {
                 return Ok(None);
             };
             Ok((existing_account_count == 0).then_some((0, 0)))

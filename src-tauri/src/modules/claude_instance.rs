@@ -2092,7 +2092,8 @@ mod store_claude_process_match_tests {
     #[test]
     fn store_claude_desktop_processes_are_matched_including_children() {
         // exe 路径按 normalize_path_for_compare 的 Windows 形态（小写 + 反斜杠）断言。
-        let store_exe = r"c:\program files\windowsapps\claude_1.40609.0.0_x64__pzs8sxrjxfjjc\app\claude.exe";
+        let store_exe =
+            r"c:\program files\windowsapps\claude_1.40609.0.0_x64__pzs8sxrjxfjjc\app\claude.exe";
         assert!(is_store_claude_desktop_process("claude.exe", store_exe, ""));
         // Electron 子进程（真正持有 Network\Cookies 的是 network service）也必须命中。
         assert!(is_store_claude_desktop_process(

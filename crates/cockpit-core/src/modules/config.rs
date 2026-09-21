@@ -867,8 +867,7 @@ impl Default for UserConfig {
             ghcp_launch_on_switch: default_ghcp_launch_on_switch(),
             openclaw_auth_overwrite_on_switch: default_openclaw_auth_overwrite_on_switch(),
             codex_launch_on_switch: default_codex_launch_on_switch(),
-            codex_auto_restore_takeover_on_launch:
-                default_codex_auto_restore_takeover_on_launch(),
+            codex_auto_restore_takeover_on_launch: default_codex_auto_restore_takeover_on_launch(),
             antigravity_dual_switch_no_restart_enabled:
                 default_antigravity_dual_switch_no_restart_enabled(),
             auto_switch_enabled: default_auto_switch_enabled(),

@@ -59,7 +59,9 @@ fn main() {
         .output()
         .expect("重新执行 build 脚本失败");
 
-    std::io::stdout().write_all(&normalize(&output.stdout)).unwrap();
+    std::io::stdout()
+        .write_all(&normalize(&output.stdout))
+        .unwrap();
     if !output.status.success() {
         std::process::exit(output.status.code().unwrap_or(1));
     }

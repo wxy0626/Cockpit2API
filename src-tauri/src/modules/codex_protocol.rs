@@ -189,9 +189,10 @@ fn apply_reasoning_effort_override(object: &mut Map<String, Value>, efforts: &[S
         .get("default_reasoning_level")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    if !selected.iter().any(|level| {
-        level.get("effort").and_then(Value::as_str) == Some(current_default)
-    }) {
+    if !selected
+        .iter()
+        .any(|level| level.get("effort").and_then(Value::as_str) == Some(current_default))
+    {
         if let Some(first) = selected
             .first()
             .and_then(|level| level.get("effort"))
@@ -972,12 +973,23 @@ mod tests {
         for upstream in ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-luna"] {
             let routed = format!("cpa/{upstream}");
             let catalog = build_codex_client_models_response(&[upstream.into(), routed.clone()]);
-            for field in ["service_tiers", "additional_speed_tiers", "supported_reasoning_levels", "context_window"] {
-                assert_eq!(catalog["models"][0][field], catalog["models"][1][field], "{upstream}: {field}");
+            for field in [
+                "service_tiers",
+                "additional_speed_tiers",
+                "supported_reasoning_levels",
+                "context_window",
+            ] {
+                assert_eq!(
+                    catalog["models"][0][field], catalog["models"][1][field],
+                    "{upstream}: {field}"
+                );
             }
             assert_eq!(catalog["models"][1]["slug"], routed);
             assert_eq!(catalog["models"][1]["priority"], json!(1001));
-            assert_ne!(catalog["models"][0]["priority"], catalog["models"][1]["priority"]);
+            assert_ne!(
+                catalog["models"][0]["priority"],
+                catalog["models"][1]["priority"]
+            );
         }
         let catalog = build_codex_client_models_response(&["cpa/unknown-model".into()]);
         assert_eq!(catalog["models"][0]["service_tiers"], json!([]));
@@ -1006,10 +1018,15 @@ mod tests {
 
     #[test]
     fn routed_gpt_models_keep_explicit_reasoning_selection() {
-        let catalog = build_codex_client_models_response_with_model_definitions_and_reasoning(&[
-            ("cpa/gpt-6-astra".into(), "CPA Astra".into(), Some(vec!["ultra".into()])),
-        ]);
-        assert_eq!(catalog["models"][0]["supported_reasoning_levels"][0]["effort"], "ultra");
+        let catalog = build_codex_client_models_response_with_model_definitions_and_reasoning(&[(
+            "cpa/gpt-6-astra".into(),
+            "CPA Astra".into(),
+            Some(vec!["ultra".into()]),
+        )]);
+        assert_eq!(
+            catalog["models"][0]["supported_reasoning_levels"][0]["effort"],
+            "ultra"
+        );
         assert_eq!(catalog["models"][0]["display_name"], "CPA Astra");
     }
 
@@ -1047,9 +1064,14 @@ mod tests {
         assert_eq!(custom["models"][1]["visibility"], "list");
 
         let mut catalog = build_codex_client_models_response(&[CODEX_RESERVE_MODEL_ID.to_string()]);
-        apply_model_context_overrides(&mut catalog, &[
-            (CODEX_RESERVE_MODEL_ID.to_string(), Some(516_000), Some(460_000))
-        ]);
+        apply_model_context_overrides(
+            &mut catalog,
+            &[(
+                CODEX_RESERVE_MODEL_ID.to_string(),
+                Some(516_000),
+                Some(460_000),
+            )],
+        );
         ensure_codex_reserve_fallback(&mut catalog);
         assert_eq!(catalog["models"][0]["context_window"], 516_000);
         assert_eq!(catalog["models"][0]["auto_compact_token_limit"], 460_000);
@@ -1685,13 +1707,16 @@ mod tests {
 
     #[test]
     fn gpt_6_astra_filters_reasoning_efforts_to_official_six_levels() {
-        let response = build_codex_client_models_response_with_model_definitions_and_reasoning(&[
-            (
+        let response =
+            build_codex_client_models_response_with_model_definitions_and_reasoning(&[(
                 "gpt-6-astra".to_string(),
                 "6 Astra".to_string(),
-                Some(vec!["low".to_string(), "ultra".to_string(), "max".to_string()]),
-            ),
-        ]);
+                Some(vec![
+                    "low".to_string(),
+                    "ultra".to_string(),
+                    "max".to_string(),
+                ]),
+            )]);
         let model = response
             .pointer("/models/0")
             .expect("Astra model should be present");

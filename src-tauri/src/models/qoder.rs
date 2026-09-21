@@ -37,6 +37,11 @@ pub struct QoderAccount {
     pub last_used: i64,
 }
 
+/// QoderWork 国际版账号；字段与 Qoder 保持一致，但独立存储。
+pub type QoderWorkAccount = QoderAccount;
+/// QoderWork 国际版账号索引；字段与 Qoder 保持一致，但独立存储。
+pub type QoderWorkAccountIndex = QoderAccountIndex;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QoderAccountSummary {
     pub id: String,

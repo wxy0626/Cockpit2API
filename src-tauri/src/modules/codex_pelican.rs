@@ -139,8 +139,7 @@ fn same_pelican_quota_window(
     before: &crate::modules::codex_local_access::PelicanQuotaSnapshot,
     after: &crate::modules::codex_local_access::PelicanQuotaSnapshot,
 ) -> bool {
-    if let (Some(before_window), Some(after_window)) =
-        (before.window_minutes, after.window_minutes)
+    if let (Some(before_window), Some(after_window)) = (before.window_minutes, after.window_minutes)
     {
         if before_window != after_window {
             return false;

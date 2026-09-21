@@ -1,8 +1,8 @@
 use crate::modules::announcement;
 use crate::modules::announcement::AnnouncementState;
 use crate::modules::announcement::SponsorModuleState;
-use crate::modules::sponsor_route_sync::SponsorRouteSyncSummary;
 use crate::modules::announcement::TopRightAdState;
+use crate::modules::sponsor_route_sync::SponsorRouteSyncSummary;
 
 #[tauri::command]
 pub async fn announcement_get_state() -> Result<AnnouncementState, String> {

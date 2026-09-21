@@ -1551,8 +1551,8 @@ export function CodebuddySuiteAccountsSharedView<
                                       "打开授权窗口",
                                   )
                                 : t(
-                                    "common.shared.oauth.openBrowser",
-                                    "在浏览器中打开",
+                                    "common.shared.oauth.incognitoWindow",
+                                    "在 Chrome 可信窗口中打开",
                                   )}
                           </button>
                           {platformConfig.showOauthIncognitoOpenButton && (
@@ -1565,7 +1565,7 @@ export function CodebuddySuiteAccountsSharedView<
                               <ShieldCheck size={16} />
                               {t(
                                 "common.shared.oauth.incognitoWindow",
-                                "打开无痕授权窗口",
+                                "打开可信授权窗口",
                               )}
                             </button>
                           )}

@@ -542,7 +542,7 @@ export function CodexAddAccountDialog(props: CodexAccountsViewProps) {
                                   <ShieldCheck size={16} />
                                   {t(
                                     "common.shared.oauth.incognitoWindow",
-                                    "无痕窗口",
+                                    "可信窗口",
                                   )}
                                 </button>
                               )}

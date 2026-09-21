@@ -18,8 +18,12 @@ const INSTANCE_LOCK_PORT: u16 = 27863;
 
 /// 尝试获取实例锁；获取失败说明已有实例在运行，调用方应立即终止本次启动
 pub fn acquire() -> Result<(), String> {
-    let listener = TcpListener::bind(("127.0.0.1", INSTANCE_LOCK_PORT))
-        .map_err(|_| format!("端口 {} 已被占用：另一个 Cockpit Tools 实例正在运行", INSTANCE_LOCK_PORT))?;
+    let listener = TcpListener::bind(("127.0.0.1", INSTANCE_LOCK_PORT)).map_err(|_| {
+        format!(
+            "端口 {} 已被占用：另一个 Cockpit Tools 实例正在运行",
+            INSTANCE_LOCK_PORT
+        )
+    })?;
     let _ = INSTANCE_LOCK.set(listener);
     Ok(())
 }

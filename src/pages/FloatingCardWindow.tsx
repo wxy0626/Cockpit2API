@@ -226,12 +226,16 @@ function resolveInstanceStoreApi(platformId: PlatformId): FloatingCardInstanceSt
       return useTraeSoloCnInstanceStore.getState();
     case 'workbuddy':
       return useWorkbuddyInstanceStore.getState();
+    case 'workbuddy_intl':
+      return null; // 国际版暂无实例存储（仅有账号池）
     case 'zcode':
       return useZcodeInstanceStore.getState();
     case 'zed':
       return null;
     case 'cindy':
       return null; // Cindy 平台没有实例存储（账号即实例）
+    default:
+      return null;
   }
 }
 

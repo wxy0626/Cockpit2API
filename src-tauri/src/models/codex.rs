@@ -766,10 +766,8 @@ mod tests {
     fn team_history_requires_account_identity_and_reset_windows() {
         let mut missing_identity = history_account();
         missing_identity.user_id = None;
-        missing_identity.replace_quota_preserving_team_history(
-            history_quota("team", Some(200)),
-            100,
-        );
+        missing_identity
+            .replace_quota_preserving_team_history(history_quota("team", Some(200)), 100);
         assert!(missing_identity.team_quota_history.is_none());
 
         let mut account = history_account();

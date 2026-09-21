@@ -48,6 +48,7 @@ import {
 import * as accountService from './accountService';
 import * as codexService from './codexService';
 import * as zedService from './zedService';
+import * as qoderWorkIntlService from './qoderWorkIntlService';
 import * as githubCopilotService from './githubCopilotService';
 import * as windsurfService from './windsurfService';
 import * as kiroService from './kiroService';
@@ -59,6 +60,7 @@ import * as qoderService from './qoderService';
 import * as zcodeService from './zcodeService';
 import * as traeService from './traeService';
 import * as workbuddyService from './workbuddyService';
+import * as workbuddyIntlService from './workbuddyIntlService';
 import type { InstanceLaunchMode } from '../types/instance';
 import type { ClaudeAccount } from '../types/claude';
 
@@ -296,12 +298,16 @@ const ACCOUNT_LOADERS: Record<PlatformId, AccountLoader> = {
   codebuddy_cn: async () =>
     (await codebuddyCnService.listCodebuddyCnAccounts()) as unknown as TransferAccountRecord[],
   qoder: async () => (await qoderService.listQoderAccounts()) as unknown as TransferAccountRecord[],
+  qoderwork_intl: async () =>
+    (await qoderWorkIntlService.listQoderWorkAccounts()) as unknown as TransferAccountRecord[],
   zcode: async () => (await zcodeService.listZcodeAccounts()) as unknown as TransferAccountRecord[],
   trae: async () => (await traeService.listTraeAccounts()) as unknown as TransferAccountRecord[],
   trae_solo: async () => (await traeService.listTraeAccounts()) as unknown as TransferAccountRecord[],
   trae_cn: async () => (await traeService.listTraeAccounts()) as unknown as TransferAccountRecord[],
   trae_solo_cn: async () => (await traeService.listTraeAccounts()) as unknown as TransferAccountRecord[],
   workbuddy: async () => (await workbuddyService.listWorkbuddyAccounts()) as unknown as TransferAccountRecord[],
+  workbuddy_intl: async () =>
+    (await workbuddyIntlService.listWorkbuddyIntlAccounts()) as unknown as TransferAccountRecord[],
   cindy: async () => [], // Cindy 账号来源在本机登录态（由 sidecar 解密），不参与本地账号导出
 };
 
@@ -320,12 +326,14 @@ const LEGACY_IMPORTERS: Record<PlatformId, ((jsonContent: string) => Promise<unk
   codebuddy: codebuddyService.importCodebuddyFromJson,
   codebuddy_cn: codebuddyCnService.importCodebuddyCnFromJson,
   qoder: qoderService.importQoderFromJson,
+  qoderwork_intl: qoderWorkIntlService.importQoderWorkFromJson,
   zcode: zcodeService.importZcodeFromJson,
   trae: traeService.importTraeFromJson,
   trae_solo: traeService.importTraeFromJson,
   trae_cn: traeService.importTraeFromJson,
   trae_solo_cn: traeService.importTraeFromJson,
   workbuddy: workbuddyService.importWorkbuddyFromJson,
+  workbuddy_intl: workbuddyIntlService.importWorkbuddyIntlFromJson,
   cindy: undefined, // 不支持从本地 JSON 导入：Cindy 账号始终来自本机登录态
 };
 
@@ -1214,6 +1222,8 @@ function detectLegacyPlatform(value: unknown): PlatformId | null {
 
   const id = normalizeString(sample.id);
   if (id?.startsWith('codebuddy_cn_')) return 'codebuddy_cn';
+  // 国际版前缀更长，必须放在国内版之前判断
+  if (id?.startsWith('workbuddy_intl_')) return 'workbuddy_intl';
   if (id?.startsWith('workbuddy_')) return 'workbuddy';
   if (id?.startsWith('codebuddy_')) return 'codebuddy';
   if (

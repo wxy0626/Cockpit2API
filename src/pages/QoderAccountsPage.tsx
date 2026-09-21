@@ -25,7 +25,6 @@ import {
   Check,
 } from 'lucide-react';
 import { confirm as confirmDialog } from '@tauri-apps/plugin-dialog';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { useTranslation } from 'react-i18next';
 import { TagEditModal } from '../components/TagEditModal';
 import { ExportJsonModal } from '../components/ExportJsonModal';
@@ -43,6 +42,7 @@ import {
   PlatformOverviewTabsHeader,
 } from '../components/platform/PlatformOverviewTabsHeader';
 import { QoderInstancesContent } from './QoderInstancesPage';
+import { QoderWorkGatewayPanel } from '../components/qoder/QoderWorkGatewayPanel';
 import { useQoderAccountStore } from '../stores/useQoderAccountStore';
 import * as qoderService from '../services/qoderService';
 import {
@@ -1285,10 +1285,10 @@ export function QoderAccountsPage() {
   const handleOpenOauthUrl = useCallback(async () => {
     if (!oauthUrl) return;
     try {
-      logQoderOauthUi('link:open-browser', { urlLength: oauthUrl.length });
-      await openUrl(oauthUrl);
+      logQoderOauthUi('link:open-incognito-window', { urlLength: oauthUrl.length });
+      await qoderService.openQoderWorkOAuthWindow(oauthUrl);
     } catch (error) {
-      logQoderOauthUi('link:open-browser-failed', { error: String(error) });
+      logQoderOauthUi('link:open-incognito-window-failed', { error: String(error) });
       const msg = String(error);
       setOauthError(msg);
       setAddStatus('error');
@@ -1896,9 +1896,16 @@ export function QoderAccountsPage() {
 
   return (
     <div className="ghcp-accounts-page qoder-accounts-page">
-      <PlatformOverviewTabsHeader platform="qoder" active={activeTab} onTabChange={setActiveTab} />
+      <PlatformOverviewTabsHeader
+        platform="qoder"
+        active={activeTab}
+        onTabChange={setActiveTab}
+        tabs={['overview', 'instances', 'providers']}
+      />
 
-      {activeTab === 'instances' ? (
+      {activeTab === 'providers' ? (
+        <QoderWorkGatewayPanel />
+      ) : activeTab === 'instances' ? (
         <QoderInstancesContent accountsForSelect={filteredAccounts} />
       ) : (
         <>

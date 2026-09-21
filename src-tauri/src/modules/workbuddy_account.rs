@@ -12,10 +12,11 @@ use tauri::Emitter;
 use crate::models::workbuddy::{
     WorkbuddyAccount, WorkbuddyAccountIndex, WorkbuddyOAuthCompletePayload,
 };
+use crate::modules::workbuddy_realm::{realm_by_id, WorkbuddyRealm, REALM_CN};
 use crate::modules::{account, logger, workbuddy_oauth};
 
-const ACCOUNTS_INDEX_FILE: &str = "workbuddy_accounts.json";
-const ACCOUNTS_DIR: &str = "workbuddy_accounts";
+// ⚠️ 账号索引文件名与目录名已迁移到 `workbuddy_realm.rs`（REALM_CN / REALM_INTL），
+// 两区域使用不同目录，物理隔离防串号。此处不再保留硬编码值。
 const WORKBUDDY_QUOTA_ALERT_COOLDOWN_SECONDS: i64 = 10 * 60;
 const WORKBUDDY_AUTH_FILE_NAME: &str = "workbuddy-desktop.info";
 
@@ -32,21 +33,40 @@ fn get_data_dir() -> Result<PathBuf, String> {
     account::get_data_dir()
 }
 
-fn get_accounts_dir() -> Result<PathBuf, String> {
+/// 按区域取账号目录：国内版与国际版分目录存放，互不干扰
+fn get_accounts_dir_with_realm(realm: &WorkbuddyRealm) -> Result<PathBuf, String> {
     let base = get_data_dir()?;
-    let dir = base.join(ACCOUNTS_DIR);
+    let dir = base.join(realm.accounts_dir);
     if !dir.exists() {
-        fs::create_dir_all(&dir).map_err(|e| format!("创建 WorkBuddy 账号目录失败:{}", e))?;
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("创建 WorkBuddy[{}] 账号目录失败:{}", realm.id, e))?;
     }
     Ok(dir)
 }
 
-fn get_accounts_index_path() -> Result<PathBuf, String> {
-    Ok(get_data_dir()?.join(ACCOUNTS_INDEX_FILE))
+fn get_accounts_dir() -> Result<PathBuf, String> {
+    get_accounts_dir_with_realm(&REALM_CN)
 }
 
+fn get_accounts_index_path_with_realm(realm: &WorkbuddyRealm) -> Result<PathBuf, String> {
+    Ok(get_data_dir()?.join(realm.accounts_index_file))
+}
+
+fn get_accounts_index_path() -> Result<PathBuf, String> {
+    get_accounts_index_path_with_realm(&REALM_CN)
+}
+
+/// 国内版索引路径（保持既有行为）
 pub fn accounts_index_path_string() -> Result<String, String> {
     Ok(get_accounts_index_path()?.to_string_lossy().to_string())
+}
+
+/// 按区域取索引路径
+pub fn accounts_index_path_string_for_realm(realm_id: &str) -> Result<String, String> {
+    let realm = realm_by_id(realm_id);
+    Ok(get_accounts_index_path_with_realm(realm)?
+        .to_string_lossy()
+        .to_string())
 }
 
 fn normalize_account_id(account_id: &str) -> Result<String, String> {
@@ -66,13 +86,30 @@ fn normalize_account_id(account_id: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
-fn resolve_account_file_path(account_id: &str) -> Result<PathBuf, String> {
+/// 按区域解析单个账号文件路径
+fn resolve_account_file_path_with_realm(
+    account_id: &str,
+    realm: &WorkbuddyRealm,
+) -> Result<PathBuf, String> {
     let normalized = normalize_account_id(account_id)?;
-    Ok(get_accounts_dir()?.join(format!("{}.json", normalized)))
+    Ok(get_accounts_dir_with_realm(realm)?.join(format!("{}.json", normalized)))
 }
 
+fn resolve_account_file_path(account_id: &str) -> Result<PathBuf, String> {
+    resolve_account_file_path_with_realm(account_id, &REALM_CN)
+}
+
+/// 国内版加载账号（保持既有行为）
 pub fn load_account(account_id: &str) -> Option<WorkbuddyAccount> {
-    let account_path = resolve_account_file_path(account_id).ok()?;
+    load_account_for_realm(account_id, &REALM_CN)
+}
+
+/// 按区域加载账号
+pub fn load_account_for_realm(
+    account_id: &str,
+    realm: &WorkbuddyRealm,
+) -> Option<WorkbuddyAccount> {
+    let account_path = resolve_account_file_path_with_realm(account_id, realm).ok()?;
     if !account_path.exists() {
         return None;
     }
@@ -103,16 +140,16 @@ pub fn load_account(account_id: &str) -> Option<WorkbuddyAccount> {
     }
 }
 
-fn save_account_file(account: &WorkbuddyAccount) -> Result<(), String> {
-    let path = resolve_account_file_path(account.id.as_str())?;
+fn save_account_file(account: &WorkbuddyAccount, realm: &WorkbuddyRealm) -> Result<(), String> {
+    let path = resolve_account_file_path_with_realm(account.id.as_str(), realm)?;
     let content =
         crate::modules::secure_account_storage::serialize_account_file("workbuddy", account)?;
     crate::modules::atomic_write::write_string_atomic(&path, &content)
         .map_err(|e| format!("保存账号失败:{}", e))
 }
 
-fn delete_account_file(account_id: &str) -> Result<(), String> {
-    let path = resolve_account_file_path(account_id)?;
+fn delete_account_file(account_id: &str, realm: &WorkbuddyRealm) -> Result<(), String> {
+    let path = resolve_account_file_path_with_realm(account_id, realm)?;
     if path.exists() {
         crate::modules::atomic_write::remove_file_locked(&path)
             .map_err(|e| format!("删除账号文件失败:{}", e))?;
@@ -120,18 +157,18 @@ fn delete_account_file(account_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn load_account_index() -> WorkbuddyAccountIndex {
-    let path = match get_accounts_index_path() {
+fn load_account_index(realm: &WorkbuddyRealm) -> WorkbuddyAccountIndex {
+    let path = match get_accounts_index_path_with_realm(realm) {
         Ok(p) => p,
         Err(_) => return WorkbuddyAccountIndex::new(),
     };
     if !path.exists() {
-        return repair_account_index_from_details("索引文件不存在")
+        return repair_account_index_from_details("索引文件不存在", realm)
             .unwrap_or_else(WorkbuddyAccountIndex::new);
     }
     match fs::read_to_string(&path) {
         Ok(content) if content.trim().is_empty() => {
-            repair_account_index_from_details("索引文件为空")
+            repair_account_index_from_details("索引文件为空", realm)
                 .unwrap_or_else(WorkbuddyAccountIndex::new)
         }
         Ok(content) => match crate::modules::atomic_write::parse_json_with_auto_restore::<
@@ -139,15 +176,16 @@ fn load_account_index() -> WorkbuddyAccountIndex {
         >(&path, &content)
         {
             Ok(index) if !index.accounts.is_empty() => index,
-            Ok(_) => repair_account_index_from_details("索引账号列表为空")
+            Ok(_) => repair_account_index_from_details("索引账号列表为空", realm)
                 .unwrap_or_else(WorkbuddyAccountIndex::new),
             Err(err) => {
                 logger::log_warn(&format!(
-                    "[WorkBuddy Account] 账号索引解析失败，尝试按详情文件自动修复: path={}, error={}",
+                    "[WorkBuddy Account][{}] 账号索引解析失败，尝试按详情文件自动修复: path={}, error={}",
+                    realm.id,
                     path.display(),
                     err
                 ));
-                repair_account_index_from_details("索引文件损坏")
+                repair_account_index_from_details("索引文件损坏", realm)
                     .unwrap_or_else(WorkbuddyAccountIndex::new)
             }
         },
@@ -155,10 +193,10 @@ fn load_account_index() -> WorkbuddyAccountIndex {
     }
 }
 
-fn load_account_index_checked() -> Result<WorkbuddyAccountIndex, String> {
-    let path = get_accounts_index_path()?;
+fn load_account_index_checked(realm: &WorkbuddyRealm) -> Result<WorkbuddyAccountIndex, String> {
+    let path = get_accounts_index_path_with_realm(realm)?;
     if !path.exists() {
-        if let Some(index) = repair_account_index_from_details("索引文件不存在") {
+        if let Some(index) = repair_account_index_from_details("索引文件不存在", realm) {
             return Ok(index);
         }
         return Ok(WorkbuddyAccountIndex::new());
@@ -167,7 +205,8 @@ fn load_account_index_checked() -> Result<WorkbuddyAccountIndex, String> {
     let content = match fs::read_to_string(&path) {
         Ok(content) => content,
         Err(err) => {
-            if let Some(index) = repair_account_index_from_details("索引文件读取失败") {
+            if let Some(index) = repair_account_index_from_details("索引文件读取失败", realm)
+            {
                 return Ok(index);
             }
             return Err(format!("读取账号索引失败: {}", err));
@@ -175,7 +214,7 @@ fn load_account_index_checked() -> Result<WorkbuddyAccountIndex, String> {
     };
 
     if content.trim().is_empty() {
-        if let Some(index) = repair_account_index_from_details("索引文件为空") {
+        if let Some(index) = repair_account_index_from_details("索引文件为空", realm) {
             return Ok(index);
         }
         return Ok(WorkbuddyAccountIndex::new());
@@ -186,17 +225,18 @@ fn load_account_index_checked() -> Result<WorkbuddyAccountIndex, String> {
     ) {
         Ok(index) if !index.accounts.is_empty() => Ok(index),
         Ok(index) => {
-            if let Some(repaired) = repair_account_index_from_details("索引账号列表为空") {
+            if let Some(repaired) = repair_account_index_from_details("索引账号列表为空", realm)
+            {
                 return Ok(repaired);
             }
             Ok(index)
         }
         Err(err) => {
-            if let Some(index) = repair_account_index_from_details("索引文件损坏") {
+            if let Some(index) = repair_account_index_from_details("索引文件损坏", realm) {
                 return Ok(index);
             }
             Err(crate::error::file_corrupted_error(
-                ACCOUNTS_INDEX_FILE,
+                realm.accounts_index_file,
                 &path.to_string_lossy(),
                 &err.to_string(),
             ))
@@ -204,20 +244,23 @@ fn load_account_index_checked() -> Result<WorkbuddyAccountIndex, String> {
     }
 }
 
-fn save_account_index(index: &WorkbuddyAccountIndex) -> Result<(), String> {
-    let path = get_accounts_index_path()?;
+fn save_account_index(index: &WorkbuddyAccountIndex, realm: &WorkbuddyRealm) -> Result<(), String> {
+    let path = get_accounts_index_path_with_realm(realm)?;
     let content =
         serde_json::to_string_pretty(index).map_err(|e| format!("序列化账号索引失败:{}", e))?;
     crate::modules::atomic_write::write_string_atomic(&path, &content)
         .map_err(|e| format!("写入账号索引失败:{}", e))
 }
 
-fn repair_account_index_from_details(reason: &str) -> Option<WorkbuddyAccountIndex> {
-    let index_path = get_accounts_index_path().ok()?;
-    let accounts_dir = get_accounts_dir().ok()?;
+fn repair_account_index_from_details(
+    reason: &str,
+    realm: &WorkbuddyRealm,
+) -> Option<WorkbuddyAccountIndex> {
+    let index_path = get_accounts_index_path_with_realm(realm).ok()?;
+    let accounts_dir = get_accounts_dir_with_realm(realm).ok()?;
     let mut accounts = crate::modules::account_index_repair::load_accounts_from_details(
         &accounts_dir,
-        |account_id| load_account(account_id),
+        |account_id| load_account_for_realm(account_id, realm),
     )
     .ok()?;
 
@@ -245,9 +288,10 @@ fn repair_account_index_from_details(reason: &str) -> Option<WorkbuddyAccountInd
             None
         });
 
-    if let Err(err) = save_account_index(&index) {
+    if let Err(err) = save_account_index(&index, realm) {
         logger::log_warn(&format!(
-            "[WorkBuddy Account] 自动修复索引保存失败，将以内存结果继续运行: reason={}, recovered_accounts={}, error={}",
+            "[WorkBuddy Account][{}] 自动修复索引保存失败，将以内存结果继续运行: reason={}, recovered_accounts={}, error={}",
+            realm.id,
             reason,
             index.accounts.len(),
             err
@@ -255,7 +299,8 @@ fn repair_account_index_from_details(reason: &str) -> Option<WorkbuddyAccountInd
     }
 
     logger::log_warn(&format!(
-        "[WorkBuddy Account] 检测到账号索引异常，已根据详情文件自动重建: reason={}, recovered_accounts={}, backup_path={}",
+        "[WorkBuddy Account][{}] 检测到账号索引异常，已根据详情文件自动重建: reason={}, recovered_accounts={}, backup_path={}",
+        realm.id,
         reason,
         index.accounts.len(),
         backup_path
@@ -275,14 +320,17 @@ fn refresh_summary(index: &mut WorkbuddyAccountIndex, account: &WorkbuddyAccount
     index.accounts.push(account.summary());
 }
 
-fn upsert_account_record(account: WorkbuddyAccount) -> Result<WorkbuddyAccount, String> {
+fn upsert_account_record(
+    account: WorkbuddyAccount,
+    realm: &WorkbuddyRealm,
+) -> Result<WorkbuddyAccount, String> {
     let _lock = WORKBUDDY_ACCOUNT_INDEX_LOCK
         .lock()
         .map_err(|_| "获取 WorkBuddy 账号锁失败".to_string())?;
-    let mut index = load_account_index();
-    save_account_file(&account)?;
+    let mut index = load_account_index(realm);
+    save_account_file(&account, realm)?;
     refresh_summary(&mut index, &account);
-    save_account_index(&index)?;
+    save_account_index(&index, realm)?;
     Ok(account)
 }
 
@@ -448,14 +496,17 @@ fn choose_primary_account_index(group: &[usize], accounts: &[WorkbuddyAccount]) 
         .unwrap_or(group[0])
 }
 
-fn normalize_account_index(index: &mut WorkbuddyAccountIndex) -> Vec<WorkbuddyAccount> {
+fn normalize_account_index(
+    index: &mut WorkbuddyAccountIndex,
+    realm: &WorkbuddyRealm,
+) -> Vec<WorkbuddyAccount> {
     let mut loaded = Vec::new();
     let mut seen = HashSet::new();
     for summary in &index.accounts {
         if !seen.insert(summary.id.clone()) {
             continue;
         }
-        if let Some(account) = load_account(&summary.id) {
+        if let Some(account) = load_account_for_realm(&summary.id, realm) {
             loaded.push(account);
         }
     }
@@ -526,10 +577,10 @@ fn normalize_account_index(index: &mut WorkbuddyAccountIndex) -> Vec<WorkbuddyAc
 
     if !removed_ids.is_empty() {
         for acc in &normalized {
-            let _ = save_account_file(acc);
+            let _ = save_account_file(acc, realm);
         }
         for id in &removed_ids {
-            let _ = delete_account_file(id);
+            let _ = delete_account_file(id, realm);
         }
         logger::log_warn(&format!(
             "[WorkBuddy Account] 检测到重复账号并已合并:removed_ids={}",
@@ -541,11 +592,17 @@ fn normalize_account_index(index: &mut WorkbuddyAccountIndex) -> Vec<WorkbuddyAc
     normalized
 }
 
+/// 国内版账号列表（保持既有行为）
 pub fn list_accounts() -> Vec<WorkbuddyAccount> {
-    let mut index = load_account_index();
+    list_accounts_for_realm(&REALM_CN)
+}
+
+/// 按区域列出账号
+pub fn list_accounts_for_realm(realm: &WorkbuddyRealm) -> Vec<WorkbuddyAccount> {
+    let mut index = load_account_index(realm);
     let had_index_accounts = !index.accounts.is_empty();
     let index_before_normalize = serde_json::to_vec(&index).ok();
-    let accounts = normalize_account_index(&mut index);
+    let accounts = normalize_account_index(&mut index, realm);
     if had_index_accounts && accounts.is_empty() {
         logger::log_warn(
             "[WorkBuddy Account] 账号索引中存在账号，但详情文件均无法读取，已跳过空索引写回",
@@ -557,18 +614,26 @@ pub fn list_accounts() -> Vec<WorkbuddyAccount> {
         .map(|before| Some(before.as_slice()) != serde_json::to_vec(&index).ok().as_deref())
         .unwrap_or(true);
     if index_changed {
-        if let Err(err) = save_account_index(&index) {
+        if let Err(err) = save_account_index(&index, realm) {
             logger::log_warn(&format!("[WorkBuddy Account] 保存账号索引失败:{}", err));
         }
     }
     accounts
 }
 
+/// 国内版账号列表（带错误返回，保持既有行为）
 pub fn list_accounts_checked() -> Result<Vec<WorkbuddyAccount>, String> {
-    let mut index = load_account_index_checked()?;
+    list_accounts_checked_for_realm(&REALM_CN)
+}
+
+/// 按区域列出账号（带错误返回）
+pub fn list_accounts_checked_for_realm(
+    realm: &WorkbuddyRealm,
+) -> Result<Vec<WorkbuddyAccount>, String> {
+    let mut index = load_account_index_checked(realm)?;
     let had_index_accounts = !index.accounts.is_empty();
     let index_before_normalize = serde_json::to_vec(&index).ok();
-    let accounts = normalize_account_index(&mut index);
+    let accounts = normalize_account_index(&mut index, realm);
     if had_index_accounts && accounts.is_empty() {
         return Err("WorkBuddy 账号索引中存在账号，但详情文件均无法读取；已保留前端缓存，请从账号备份或本地账号文件恢复。".to_string());
     }
@@ -577,7 +642,7 @@ pub fn list_accounts_checked() -> Result<Vec<WorkbuddyAccount>, String> {
         .map(|before| Some(before.as_slice()) != serde_json::to_vec(&index).ok().as_deref())
         .unwrap_or(true);
     if index_changed {
-        if let Err(err) = save_account_index(&index) {
+        if let Err(err) = save_account_index(&index, realm) {
             logger::log_warn(&format!("[WorkBuddy Account] 保存账号索引失败:{}", err));
         }
     }
@@ -628,12 +693,21 @@ fn apply_payload(account: &mut WorkbuddyAccount, payload: WorkbuddyOAuthComplete
     account.last_used = now_ts();
 }
 
+/// 国内版写入/更新账号（保持既有行为）
 pub fn upsert_account(payload: WorkbuddyOAuthCompletePayload) -> Result<WorkbuddyAccount, String> {
+    upsert_account_for_realm(payload, &REALM_CN)
+}
+
+/// 按区域写入/更新账号
+pub fn upsert_account_for_realm(
+    payload: WorkbuddyOAuthCompletePayload,
+    realm: &WorkbuddyRealm,
+) -> Result<WorkbuddyAccount, String> {
     let _lock = WORKBUDDY_ACCOUNT_INDEX_LOCK
         .lock()
         .map_err(|_| "获取 WorkBuddy 账号锁失败".to_string())?;
     let now = now_ts();
-    let mut index = load_account_index();
+    let mut index = load_account_index(realm);
 
     let incoming_uid = normalize_identity(payload.uid.as_deref());
     let incoming_email = normalize_email_identity(Some(payload.email.as_str()));
@@ -643,12 +717,19 @@ pub fn upsert_account(payload: WorkbuddyOAuthCompletePayload) -> Result<Workbudd
         .or_else(|| incoming_email.clone())
         .unwrap_or_else(|| "workbuddy_user".to_string())
         .to_lowercase();
-    let generated_id = format!("workbuddy_{:x}", md5::compute(identity_seed.as_bytes()));
+    // 账号 ID 前缀带区域：国内版保持历史格式 workbuddy_<hash> 不变（避免改动已有账号），
+    // 国际版用 workbuddy_intl_<hash>，防止两个区域的同名账号在识别/迁移时串池。
+    let id_prefix = if realm.id == "cn" {
+        "workbuddy".to_string()
+    } else {
+        format!("workbuddy_{}", realm.id)
+    };
+    let generated_id = format!("{}_{:x}", id_prefix, md5::compute(identity_seed.as_bytes()));
 
     let account_id = index
         .accounts
         .iter()
-        .filter_map(|item| load_account(&item.id))
+        .filter_map(|item| load_account_for_realm(&item.id, realm))
         .find(|account| {
             let existing_uid = normalize_identity(account.uid.as_deref());
             let existing_email = normalize_email_identity(Some(account.email.as_str()));
@@ -662,7 +743,7 @@ pub fn upsert_account(payload: WorkbuddyOAuthCompletePayload) -> Result<Workbudd
         .map(|a| a.id)
         .unwrap_or(generated_id);
 
-    let existing = load_account(&account_id);
+    let existing = load_account_for_realm(&account_id, realm);
     let tags = existing.as_ref().and_then(|a| a.tags.clone());
     let created_at = existing.as_ref().map(|a| a.created_at).unwrap_or(now);
 
@@ -707,27 +788,32 @@ pub fn upsert_account(payload: WorkbuddyOAuthCompletePayload) -> Result<Workbudd
     account.created_at = created_at;
     account.last_used = now;
 
-    save_account_file(&account)?;
+    save_account_file(&account, realm)?;
     refresh_summary(&mut index, &account);
-    save_account_index(&index)?;
+    save_account_index(&index, realm)?;
 
     logger::log_info(&format!(
-        "WorkBuddy 账号已保存:id={}, email={}",
-        account.id, account.email
+        "WorkBuddy[{}] 账号已保存:id={}, email={}",
+        realm.id, account.id, account.email
     ));
     Ok(account)
 }
 
-async fn refresh_account_token_once(account_id: &str) -> Result<WorkbuddyAccount, String> {
+async fn refresh_account_token_once(
+    account_id: &str,
+    realm: &WorkbuddyRealm,
+) -> Result<WorkbuddyAccount, String> {
     let started_at = Instant::now();
-    let mut account = load_account(account_id).ok_or_else(|| "账号不存在".to_string())?;
+    let mut account =
+        load_account_for_realm(account_id, realm).ok_or_else(|| "账号不存在".to_string())?;
     logger::log_info(&format!(
-        "[WorkBuddy Refresh] 开始刷新账号:id={}, email={}",
-        account.id, account.email
+        "[WorkBuddy Refresh][{}] 开始刷新账号:id={}, email={}",
+        realm.id, account.id, account.email
     ));
 
+    // 按账号所属区域走对应网关刷新，国际版账号不会打到国内版接口
     let (payload, quota_refresh_error) =
-        workbuddy_oauth::refresh_payload_for_account(&account).await?;
+        workbuddy_oauth::refresh_payload_for_account_for_realm(&account, realm).await?;
     let usage_refreshed = quota_refresh_error.is_none()
         && (payload.quota_raw.is_some() || payload.usage_raw.is_some());
     let tags = account.tags.clone();
@@ -749,9 +835,10 @@ async fn refresh_account_token_once(account_id: &str) -> Result<WorkbuddyAccount
     account.last_used = refreshed_at;
 
     let updated = account.clone();
-    upsert_account_record(account)?;
+    upsert_account_record(account, realm)?;
     logger::log_info(&format!(
-        "[WorkBuddy Refresh] 刷新完成:id={}, email={}, elapsed={}ms",
+        "[WorkBuddy Refresh][{}] 刷新完成:id={}, email={}, elapsed={}ms",
+        realm.id,
         updated.id,
         updated.email,
         started_at.elapsed().as_millis()
@@ -759,30 +846,48 @@ async fn refresh_account_token_once(account_id: &str) -> Result<WorkbuddyAccount
     Ok(updated)
 }
 
+/// 国内版刷新单个账号（保持既有行为）
 pub async fn refresh_account_token(account_id: &str) -> Result<WorkbuddyAccount, String> {
-    refresh_account_token_once(account_id).await
+    refresh_account_token_for_realm(account_id, &REALM_CN).await
 }
 
+/// 按区域刷新单个账号
+pub async fn refresh_account_token_for_realm(
+    account_id: &str,
+    realm: &WorkbuddyRealm,
+) -> Result<WorkbuddyAccount, String> {
+    refresh_account_token_once(account_id, realm).await
+}
+
+/// 国内版批量刷新（保持既有行为）
 pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<WorkbuddyAccount, String>)>, String>
 {
+    refresh_all_tokens_for_realm(&REALM_CN).await
+}
+
+/// 按区域批量刷新全部账号
+pub async fn refresh_all_tokens_for_realm(
+    realm: &WorkbuddyRealm,
+) -> Result<Vec<(String, Result<WorkbuddyAccount, String>)>, String> {
     use futures::future::join_all;
     use std::sync::Arc;
     use tokio::sync::Semaphore;
 
     const MAX_CONCURRENT: usize = 5;
-    let accounts = list_accounts();
+    let accounts = list_accounts_for_realm(realm);
     let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT));
     let tasks: Vec<_> = accounts
         .into_iter()
         .map(|account| {
             let id = account.id;
             let semaphore = semaphore.clone();
+            let realm = *realm;
             async move {
                 let _permit = semaphore
                     .acquire_owned()
                     .await
                     .map_err(|e| format!("获取并发许可失败:{}", e))?;
-                let result = refresh_account_token(&id).await;
+                let result = refresh_account_token_for_realm(&id, &realm).await;
                 Ok::<(String, Result<WorkbuddyAccount, String>), String>((id, result))
             }
         })
@@ -798,59 +903,97 @@ pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<WorkbuddyAccount
     Ok(results)
 }
 
+/// 国内版删除账号（保持既有行为）
 pub fn remove_account(account_id: &str) -> Result<(), String> {
+    remove_account_for_realm(account_id, &REALM_CN)
+}
+
+/// 按区域删除账号
+pub fn remove_account_for_realm(account_id: &str, realm: &WorkbuddyRealm) -> Result<(), String> {
     let _lock = WORKBUDDY_ACCOUNT_INDEX_LOCK
         .lock()
         .map_err(|_| "获取 WorkBuddy 账号锁失败".to_string())?;
-    let mut index = load_account_index();
+    let mut index = load_account_index(realm);
     index.accounts.retain(|item| item.id != account_id);
-    save_account_index(&index)?;
-    delete_account_file(account_id)?;
+    save_account_index(&index, realm)?;
+    delete_account_file(account_id, realm)?;
     Ok(())
 }
 
+/// 国内版批量删除（保持既有行为）
 pub fn remove_accounts(account_ids: &[String]) -> Result<(), String> {
+    remove_accounts_for_realm(account_ids, &REALM_CN)
+}
+
+/// 按区域批量删除
+pub fn remove_accounts_for_realm(
+    account_ids: &[String],
+    realm: &WorkbuddyRealm,
+) -> Result<(), String> {
     for id in account_ids {
-        remove_account(id)?;
+        remove_account_for_realm(id, realm)?;
     }
     Ok(())
 }
 
+/// 国内版修改标签（保持既有行为）
 pub fn update_account_tags(
     account_id: &str,
     tags: Vec<String>,
 ) -> Result<WorkbuddyAccount, String> {
-    let mut account = load_account(account_id).ok_or_else(|| "账号不存在".to_string())?;
+    update_account_tags_for_realm(account_id, tags, &REALM_CN)
+}
+
+/// 按区域修改标签
+pub fn update_account_tags_for_realm(
+    account_id: &str,
+    tags: Vec<String>,
+    realm: &WorkbuddyRealm,
+) -> Result<WorkbuddyAccount, String> {
+    let mut account =
+        load_account_for_realm(account_id, realm).ok_or_else(|| "账号不存在".to_string())?;
     account.tags = Some(tags);
     account.last_used = now_ts();
     let updated = account.clone();
-    upsert_account_record(account)?;
+    upsert_account_record(account, realm)?;
     Ok(updated)
 }
 
+/// 国内版导入账号（保持既有行为）
 pub fn import_from_json(json_content: &str) -> Result<Vec<WorkbuddyAccount>, String> {
+    import_from_json_for_realm(json_content, &REALM_CN)
+}
+
+/// 按区域导入账号
+pub fn import_from_json_for_realm(
+    json_content: &str,
+    realm: &WorkbuddyRealm,
+) -> Result<Vec<WorkbuddyAccount>, String> {
     if let Ok(account) = serde_json::from_str::<WorkbuddyAccount>(json_content) {
-        let saved = upsert_account_record(account)?;
+        let saved = upsert_account_record(account, realm)?;
         return Ok(vec![saved]);
     }
 
     if let Ok(accounts) = serde_json::from_str::<Vec<WorkbuddyAccount>>(json_content) {
         let mut result = Vec::new();
         for account in accounts {
-            let saved = upsert_account_record(account)?;
+            let saved = upsert_account_record(account, realm)?;
             result.push(saved);
         }
         return Ok(result);
     }
 
     if let Ok(value) = serde_json::from_str::<Value>(json_content) {
-        return import_from_json_value(value);
+        return import_from_json_value(value, realm);
     }
 
     Err("无法解析 WorkBuddy JSON 导入内容".to_string())
 }
 
-fn import_from_json_value(value: Value) -> Result<Vec<WorkbuddyAccount>, String> {
+fn import_from_json_value(
+    value: Value,
+    realm: &WorkbuddyRealm,
+) -> Result<Vec<WorkbuddyAccount>, String> {
     match value {
         Value::Array(items) => {
             if items.is_empty() {
@@ -860,7 +1003,7 @@ fn import_from_json_value(value: Value) -> Result<Vec<WorkbuddyAccount>, String>
             for (idx, item) in items.into_iter().enumerate() {
                 let payload = payload_from_import_value(item)
                     .map_err(|e| format!("第 {} 条记录解析失败: {}", idx + 1, e))?;
-                let account = upsert_account_record_from_payload(payload)?;
+                let account = upsert_account_record_from_payload(payload, realm)?;
                 results.push(account);
             }
             Ok(results)
@@ -868,7 +1011,7 @@ fn import_from_json_value(value: Value) -> Result<Vec<WorkbuddyAccount>, String>
         Value::Object(mut obj) => {
             let object_value = Value::Object(obj.clone());
             if let Ok(payload) = payload_from_import_value(object_value) {
-                let account = upsert_account_record_from_payload(payload)?;
+                let account = upsert_account_record_from_payload(payload, realm)?;
                 return Ok(vec![account]);
             }
 
@@ -884,7 +1027,7 @@ fn import_from_json_value(value: Value) -> Result<Vec<WorkbuddyAccount>, String>
                 for (idx, item) in accounts.into_iter().enumerate() {
                     let payload = payload_from_import_value(item)
                         .map_err(|e| format!("第 {} 条记录解析失败: {}", idx + 1, e))?;
-                    let account = upsert_account_record_from_payload(payload)?;
+                    let account = upsert_account_record_from_payload(payload, realm)?;
                     results.push(account);
                 }
                 return Ok(results);
@@ -898,6 +1041,7 @@ fn import_from_json_value(value: Value) -> Result<Vec<WorkbuddyAccount>, String>
 
 fn upsert_account_record_from_payload(
     payload: WorkbuddyOAuthCompletePayload,
+    realm: &WorkbuddyRealm,
 ) -> Result<WorkbuddyAccount, String> {
     drop(
         WORKBUDDY_ACCOUNT_INDEX_LOCK
@@ -910,7 +1054,14 @@ fn upsert_account_record_from_payload(
     let identity_seed = incoming_uid
         .or_else(|| incoming_email)
         .unwrap_or_else(|| "workbuddy_user".to_string());
-    let generated_id = format!("workbuddy_{:x}", md5::compute(identity_seed.as_bytes()));
+    // 账号 ID 前缀带区域：国内版保持历史格式 workbuddy_<hash> 不变（避免改动已有账号），
+    // 国际版用 workbuddy_intl_<hash>，防止两个区域的同名账号在识别/迁移时串池。
+    let id_prefix = if realm.id == "cn" {
+        "workbuddy".to_string()
+    } else {
+        format!("workbuddy_{}", realm.id)
+    };
+    let generated_id = format!("{}_{:x}", id_prefix, md5::compute(identity_seed.as_bytes()));
 
     let account = WorkbuddyAccount {
         id: generated_id,
@@ -947,7 +1098,7 @@ fn upsert_account_record_from_payload(
         last_used: now,
         web_session_enabled: None,
     };
-    upsert_account_record(account)
+    upsert_account_record(account, realm)
 }
 
 fn payload_from_import_value(raw: Value) -> Result<WorkbuddyOAuthCompletePayload, String> {
@@ -1033,10 +1184,19 @@ fn payload_from_import_value(raw: Value) -> Result<WorkbuddyOAuthCompletePayload
     })
 }
 
+/// 国内版导出账号（保持既有行为）
 pub fn export_accounts(account_ids: &[String]) -> Result<String, String> {
+    export_accounts_for_realm(account_ids, &REALM_CN)
+}
+
+/// 按区域导出账号
+pub fn export_accounts_for_realm(
+    account_ids: &[String],
+    realm: &WorkbuddyRealm,
+) -> Result<String, String> {
     let accounts: Vec<WorkbuddyAccount> = account_ids
         .iter()
-        .filter_map(|id| load_account(id))
+        .filter_map(|id| load_account_for_realm(id, realm))
         .collect();
     serde_json::to_string_pretty(&accounts).map_err(|e| format!("导出失败:{}", e))
 }
@@ -1707,37 +1867,47 @@ pub fn sync_account_to_default_client(account_id: &str) -> Result<(), String> {
 }
 
 pub(crate) fn resolve_current_account_id(accounts: &[WorkbuddyAccount]) -> Option<String> {
-    match import_payload_from_local() {
-        Ok(Some(payload)) => {
-            let incoming_uid = normalize_identity(payload.uid.as_deref());
-            let incoming_email = normalize_email_identity(Some(payload.email.as_str()));
+    resolve_current_account_id_for_realm(accounts, "workbuddy")
+}
 
-            if let Some(account_id) = accounts
-                .iter()
-                .find(|account| {
-                    let existing_uid = normalize_identity(account.uid.as_deref());
-                    let existing_email = normalize_email_identity(Some(account.email.as_str()));
-                    account_matches_payload_identity(
-                        existing_uid.as_ref(),
-                        existing_email.as_ref(),
-                        incoming_uid.as_ref(),
-                        incoming_email.as_ref(),
-                    )
-                })
-                .map(|account| account.id.clone())
-            {
-                return Some(account_id);
+pub(crate) fn resolve_current_account_id_for_realm(
+    accounts: &[WorkbuddyAccount],
+    provider_key: &str,
+) -> Option<String> {
+    // 只有国内版跟随默认客户端登录态；国际版当前账号完全由内部状态决定。
+    if provider_key == "workbuddy" {
+        match import_payload_from_local() {
+            Ok(Some(payload)) => {
+                let incoming_uid = normalize_identity(payload.uid.as_deref());
+                let incoming_email = normalize_email_identity(Some(payload.email.as_str()));
+
+                if let Some(account_id) = accounts
+                    .iter()
+                    .find(|account| {
+                        let existing_uid = normalize_identity(account.uid.as_deref());
+                        let existing_email = normalize_email_identity(Some(account.email.as_str()));
+                        account_matches_payload_identity(
+                            existing_uid.as_ref(),
+                            existing_email.as_ref(),
+                            incoming_uid.as_ref(),
+                            incoming_email.as_ref(),
+                        )
+                    })
+                    .map(|account| account.id.clone())
+                {
+                    return Some(account_id);
+                }
             }
+            Ok(None) => {}
+            Err(err) => logger::log_warn(&format!(
+                "[WorkBuddy Account] 读取默认客户端当前账号失败，回退内部当前账号: {}",
+                err
+            )),
         }
-        Ok(None) => {}
-        Err(err) => logger::log_warn(&format!(
-            "[WorkBuddy Account] 读取默认客户端当前账号失败，回退内部当前账号: {}",
-            err
-        )),
     }
 
     crate::modules::provider_current_state::resolve_existing_current_account_id(
-        "workbuddy",
+        provider_key,
         accounts.iter().map(|account| account.id.as_str()),
     )
 }
@@ -1873,7 +2043,8 @@ pub fn update_checkin_info(
 
     account.last_used = now_ts();
     let updated = account.clone();
-    save_account_file(&account)?;
+    // 签到仅国内版支持，固定走国内版存储
+    save_account_file(&account, &REALM_CN)?;
 
     logger::log_info(&format!(
         "[WorkBuddy Checkin] 签到信息已更新: account_id={}, streak={}",
@@ -1883,14 +2054,25 @@ pub fn update_checkin_info(
     Ok(updated)
 }
 
-/// 更新账号上次自动保活时间（毫秒时间戳），供按天保活间隔判断使用
+/// 更新账号上次自动保活时间（毫秒时间戳），供按天保活间隔判断使用。
+/// 国内版入口，保持既有行为。
 pub fn update_last_keepalive_at(
     account_id: &str,
     timestamp_ms: i64,
 ) -> Result<WorkbuddyAccount, String> {
-    let mut account = load_account(account_id).ok_or_else(|| "账号不存在".to_string())?;
+    update_last_keepalive_at_for_realm(account_id, timestamp_ms, &REALM_CN)
+}
+
+/// 按区域更新保活时间：国际版账号也走这里
+pub fn update_last_keepalive_at_for_realm(
+    account_id: &str,
+    timestamp_ms: i64,
+    realm: &WorkbuddyRealm,
+) -> Result<WorkbuddyAccount, String> {
+    let mut account =
+        load_account_for_realm(account_id, realm).ok_or_else(|| "账号不存在".to_string())?;
     account.last_keepalive_at = Some(timestamp_ms);
-    save_account_file(&account)?;
+    save_account_file(&account, realm)?;
     Ok(account)
 }
 

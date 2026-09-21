@@ -20,7 +20,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { openOAuthUrlInChromeIncognito } from '../services/oauthBrowserService';
 import {
   isPrivacyModeEnabledByDefault,
   maskSensitiveValue,
@@ -2444,7 +2444,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       if (oauthService?.openAuthUrl) {
         await oauthService.openAuthUrl(oauthUrl, incognito);
       } else {
-        await openUrl(oauthUrl);
+        await openOAuthUrlInChromeIncognito(oauthUrl);
       }
     } catch (e) {
       console.error('打开授权链接失败:', e);

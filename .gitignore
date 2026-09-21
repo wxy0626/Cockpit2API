@@ -25,6 +25,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.rs.bak
+
+# 本地 Codex 会话与诊断目录
+.codex/
 
 
 locale-check-report.md

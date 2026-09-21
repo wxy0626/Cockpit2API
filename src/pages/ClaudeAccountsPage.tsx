@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { openOAuthUrlInChromeIncognito } from '../services/oauthBrowserService';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import md5 from 'blueimp-md5';
@@ -1586,7 +1586,7 @@ export function ClaudeAccountsPage({ subPlatform = 'desktop' }: ClaudeAccountsPa
     const login = oauthLogin ?? await prepareOAuthLogin();
     if (!login?.verificationUri) return;
     try {
-      await openUrl(login.verificationUri);
+      await openOAuthUrlInChromeIncognito(login.verificationUri);
     } catch (error) {
       setAddModalError(
         t('claude.oauth.openFailed', '打开授权链接失败：{{error}}', {

@@ -5,12 +5,16 @@
  * 账号由 sidecars/cindy2api 提供（本机登录态自动发现 + OAuth 授权添加）。
  * 所以本文件是 sidecar 管理接口的薄客户端，不做任何本地持久化。
  *
+ * ⚠️ 唯一两处例外是授权窗口的开关（`openOAuthWindow` / `closeOAuthWindow`）：
+ * 那是 Tauri 命令，因为授权窗口由宿主统一创建，sidecar 自身拉起的是系统浏览器。
+ *
  * 语义映射提醒：
  *   - 「刷新 token」在 Cindy 语境下没有对应动作（凭据由 Cindy 客户端或 OAuth 维护），
  *     统一映射为「重新探测该账号」，不要凭空造 token 刷新。
  *   - 「删除」只允许删除 `oauth-` 前缀的授权账号；本机账号属于 Cindy 客户端，
  *     删除本地凭据会破坏用户登录态，sidecar 侧会明确拒绝。
  */
+import { invoke } from '@tauri-apps/api/core';
 import {
   toCindyAccount,
   type CindyAccount,
@@ -168,7 +172,12 @@ export async function getProviders(region: 'global' | 'cn'): Promise<CindyProvid
   return call<CindyProviders>(`/api/login/providers?region=${region}`);
 }
 
-/** 发起 OAuth 授权：返回会话 id 与授权地址（sidecar 会同时拉起系统浏览器） */
+/**
+ * 发起 OAuth 授权：返回会话 id 与授权地址。
+ *
+ * `openBrowser: false` 时不拉起系统浏览器 —— 由调用方用可信授权窗口打开
+ * （CockpitTools 走这条，避免复用系统浏览器登录态导致「再次授权还是上一个账号」）。
+ */
 export interface OAuthStartResult {
   sessionId: string;
   authorizeUrl: string;
@@ -176,11 +185,25 @@ export interface OAuthStartResult {
   region: string;
 }
 
-export async function startOAuth(provider: string, region: 'global' | 'cn'): Promise<OAuthStartResult> {
+export async function startOAuth(
+  provider: string,
+  region: 'global' | 'cn',
+  openBrowser = true,
+): Promise<OAuthStartResult> {
   return call<OAuthStartResult>('/api/login/oauth/start', {
     method: 'POST',
-    body: JSON.stringify({ provider, region }),
+    body: JSON.stringify({ provider, region, openBrowser }),
   });
+}
+
+/** 打开可信授权窗口（区域取自授权地址，Rust 侧按授权域校验）。 */
+export async function openOAuthWindow(authorizeUrl: string): Promise<void> {
+  return await invoke('cindy_oauth_window_open', { authorizeUrl });
+}
+
+/** 关闭应用内授权窗口（用户中途放弃时调用）。 */
+export async function closeOAuthWindow(): Promise<void> {
+  return await invoke('cindy_oauth_window_close');
 }
 
 /** 轮询授权结果；status 为 ok 时账号已由 sidecar 落库 */

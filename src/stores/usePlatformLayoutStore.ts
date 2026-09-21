@@ -24,6 +24,7 @@ const TRAY_MIGRATED_PLATFORM_IDS: PlatformId[] = [
   'workbuddy',
 ];
 const DEFAULT_CODEBUDDY_GROUP_ID = 'codebuddy-suite';
+const DEFAULT_QODER_GROUP_ID = 'qoder-suite';
 const DEFAULT_ANTIGRAVITY_GROUP_ID = 'antigravity-suite';
 const DEFAULT_TRAE_GROUP_ID = 'trae-suite';
 const DEFAULT_CODEX_GROUP_ID = 'codex-suite';
@@ -70,6 +71,10 @@ type PersistedPlatformLayout = {
   antigravityGroupFirstMigrated?: boolean;
   traeSuiteDefaultGroupRestored?: boolean;
   codexApiServiceSuiteMigrated?: boolean;
+  /// 一次性迁移标记：WorkBuddy 国际版已并入 WorkBuddy 所属分组
+  workbuddyIntlSuiteGroupMigrated?: boolean;
+  /// 一次性迁移标记：QoderWork 国际版已并入 Qoder 所属分组
+  qoderWorkIntlSuiteGroupMigrated?: boolean;
   apiRelaySidebarVisible?: boolean;
   apiRelayDashboardVisible?: boolean;
   apiRelayEntryOrder?: number;
@@ -89,6 +94,10 @@ interface PlatformLayoutState {
   antigravityGroupFirstMigrated: boolean;
   traeSuiteDefaultGroupRestored: boolean;
   codexApiServiceSuiteMigrated: boolean;
+  /// 一次性迁移标记：WorkBuddy 国际版已并入 WorkBuddy 所属分组
+  workbuddyIntlSuiteGroupMigrated: boolean;
+  /// 一次性迁移标记：QoderWork 国际版已并入 Qoder 所属分组
+  qoderWorkIntlSuiteGroupMigrated: boolean;
   apiRelaySidebarVisible: boolean;
   apiRelayDashboardVisible: boolean;
   apiRelayEntryOrder: number;
@@ -133,6 +142,10 @@ interface NormalizedLayoutStateData {
   antigravityGroupFirstMigrated: boolean;
   traeSuiteDefaultGroupRestored: boolean;
   codexApiServiceSuiteMigrated: boolean;
+  /// 一次性迁移标记：WorkBuddy 国际版已并入 WorkBuddy 所属分组
+  workbuddyIntlSuiteGroupMigrated: boolean;
+  /// 一次性迁移标记：QoderWork 国际版已并入 Qoder 所属分组
+  qoderWorkIntlSuiteGroupMigrated: boolean;
   apiRelaySidebarVisible: boolean;
   apiRelayDashboardVisible: boolean;
   apiRelayEntryOrder: number;
@@ -316,12 +329,23 @@ function defaultPlatformGroups(): PlatformLayoutGroup[] {
     {
       id: DEFAULT_CODEBUDDY_GROUP_ID,
       name: 'CodeBuddy',
-      platformIds: ['codebuddy', 'codebuddy_cn', 'workbuddy'],
+      // WorkBuddy 国际版与国内版同属一个系统，收进同一分组，
+      // 在 WorkBuddy 页面顶部的分组切换器里切换，而不是在侧栏另立一个平台项。
+      platformIds: ['codebuddy', 'codebuddy_cn', 'workbuddy', 'workbuddy_intl'],
       defaultPlatformId: 'codebuddy',
       iconKind: 'platform',
       iconPlatformId: 'codebuddy',
     },
     createDefaultTraeSuiteGroup(),
+    {
+      id: DEFAULT_QODER_GROUP_ID,
+      name: 'Qoder',
+      // QoderWork 国际版与 Qoder CLI 同属一个系统分组，在页头切换器里切换。
+      platformIds: ['qoder', 'qoderwork_intl'],
+      defaultPlatformId: 'qoder',
+      iconKind: 'platform',
+      iconPlatformId: 'qoder',
+    },
   ];
 }
 
@@ -592,10 +616,16 @@ function normalizePlatformGroups(
   options: {
     restoreDefaultTraeSuiteGroup?: boolean;
     attachCodexApiServiceToCodexGroup?: boolean;
+    /// 一次性迁移：把 WorkBuddy 国际版并入 WorkBuddy 所在分组
+    attachWorkbuddyIntlToSuiteGroup?: boolean;
+    /// 一次性迁移：把 QoderWork 国际版并入 Qoder 所在分组
+    attachQoderWorkIntlToQoderGroup?: boolean;
   } = {},
 ): PlatformLayoutGroup[] {
   const shouldRestoreDefaultTraeSuiteGroup = options.restoreDefaultTraeSuiteGroup === true;
   const shouldAttachCodexApiService = options.attachCodexApiServiceToCodexGroup === true;
+  const shouldAttachWorkbuddyIntl = options.attachWorkbuddyIntlToSuiteGroup === true;
+  const shouldAttachQoderWorkIntl = options.attachQoderWorkIntlToQoderGroup === true;
   const source = Array.isArray(raw) ? raw : (fallbackToDefault ? defaultPlatformGroups() : []);
   const result: PlatformLayoutGroup[] = [];
   const usedPlatformIds = new Set<PlatformId>();
@@ -689,6 +719,33 @@ function normalizePlatformGroups(
         codexGroup.platformIds,
       );
       usedPlatformIds.add('codex_api_service');
+    }
+  }
+
+  // 一次性升级：把 WorkBuddy 国际版并入 WorkBuddy 所在分组。
+  // 迁移后用户可自行把它移出或设为分组默认项；不要重复附加。
+  if (shouldAttachWorkbuddyIntl && !usedPlatformIds.has('workbuddy_intl')) {
+    const workbuddyGroup = result.find((group) => group.platformIds.includes('workbuddy'));
+    if (workbuddyGroup) {
+      workbuddyGroup.platformIds = [...workbuddyGroup.platformIds, 'workbuddy_intl'];
+      workbuddyGroup.childConfigs = normalizeGroupChildConfigs(
+        workbuddyGroup.childConfigs ?? [],
+        workbuddyGroup.platformIds,
+      );
+      usedPlatformIds.add('workbuddy_intl');
+    }
+  }
+
+  // 一次性升级：把 QoderWork 国际版并入 Qoder 所在分组。
+  if (shouldAttachQoderWorkIntl && !usedPlatformIds.has('qoderwork_intl')) {
+    const qoderGroup = result.find((group) => group.platformIds.includes('qoder'));
+    if (qoderGroup) {
+      qoderGroup.platformIds = [...qoderGroup.platformIds, 'qoderwork_intl'];
+      qoderGroup.childConfigs = normalizeGroupChildConfigs(
+        qoderGroup.childConfigs ?? [],
+        qoderGroup.platformIds,
+      );
+      usedPlatformIds.add('qoderwork_intl');
     }
   }
 
@@ -1160,6 +1217,8 @@ function normalizeStateData(
     antigravityGroupFirstMigrated?: boolean;
     traeSuiteDefaultGroupRestored?: boolean;
     codexApiServiceSuiteMigrated?: boolean;
+    workbuddyIntlSuiteGroupMigrated?: boolean;
+    qoderWorkIntlSuiteGroupMigrated?: boolean;
     apiRelaySidebarVisible?: boolean;
     apiRelayDashboardVisible?: boolean;
     apiRelayEntryOrder?: number;
@@ -1168,11 +1227,17 @@ function normalizeStateData(
     allowLegacyTrayMigration?: boolean;
     promoteAntigravityGroupEntry?: boolean;
     attachCodexApiServiceToCodexGroup?: boolean;
+    /// 一次性迁移：把 WorkBuddy 国际版并入 WorkBuddy 所在分组
+    attachWorkbuddyIntlToSuiteGroup?: boolean;
+    /// 一次性迁移：把 QoderWork 国际版并入 Qoder 所在分组
+    attachQoderWorkIntlToQoderGroup?: boolean;
   } = {},
 ): NormalizedLayoutStateData {
   const normalizedPlatformOrder = normalizeOrder(raw.orderedPlatformIds);
   const platformGroups = normalizePlatformGroups(raw.platformGroups, false, {
     attachCodexApiServiceToCodexGroup: options.attachCodexApiServiceToCodexGroup === true,
+        attachWorkbuddyIntlToSuiteGroup: options.attachWorkbuddyIntlToSuiteGroup === true,
+        attachQoderWorkIntlToQoderGroup: options.attachQoderWorkIntlToQoderGroup === true,
   })
     .map((group) => sortGroupPlatformsByOrder(group, normalizedPlatformOrder));
   const normalizedEntryIds = normalizeEntryOrder(raw.orderedEntryIds, platformGroups, normalizedPlatformOrder);
@@ -1219,6 +1284,8 @@ function normalizeStateData(
       raw.antigravityGroupFirstMigrated !== false || options.promoteAntigravityGroupEntry === true,
     traeSuiteDefaultGroupRestored: raw.traeSuiteDefaultGroupRestored !== false,
     codexApiServiceSuiteMigrated: raw.codexApiServiceSuiteMigrated !== false,
+    workbuddyIntlSuiteGroupMigrated: raw.workbuddyIntlSuiteGroupMigrated !== false,
+    qoderWorkIntlSuiteGroupMigrated: raw.qoderWorkIntlSuiteGroupMigrated !== false,
     apiRelaySidebarVisible: raw.apiRelaySidebarVisible !== false,
     apiRelayDashboardVisible: raw.apiRelayDashboardVisible !== false,
     apiRelayEntryOrder: normalizeApiRelayEntryOrder(raw.apiRelayEntryOrder, orderedEntryIds.length),
@@ -1244,6 +1311,8 @@ function loadPersistedState(): NormalizedLayoutStateData {
         antigravityGroupFirstMigrated: true,
         traeSuiteDefaultGroupRestored: true,
         codexApiServiceSuiteMigrated: true,
+        workbuddyIntlSuiteGroupMigrated: true,
+        qoderWorkIntlSuiteGroupMigrated: true,
         apiRelaySidebarVisible: true,
         apiRelayDashboardVisible: true,
         apiRelayEntryOrder: 0,
@@ -1255,6 +1324,14 @@ function loadPersistedState(): NormalizedLayoutStateData {
     const antigravityGroupFirstMigrated = parsed.antigravityGroupFirstMigrated === true;
     const traeSuiteDefaultGroupRestored = parsed.traeSuiteDefaultGroupRestored === true;
     const codexApiServiceSuiteMigrated = parsed.codexApiServiceSuiteMigrated === true;
+    // 旧版本曾用 qoderWorkIntlSuiteGroupMigrated 同时记录两个国际版分组迁移。
+    // 新版本拆开记录；没有新字段时沿用旧值，避免重复改写用户自定义布局。
+    const legacySharedIntlMigration = parsed.qoderWorkIntlSuiteGroupMigrated === true;
+    const workbuddyIntlSuiteGroupMigrated =
+      typeof parsed.workbuddyIntlSuiteGroupMigrated === 'boolean'
+        ? parsed.workbuddyIntlSuiteGroupMigrated
+        : legacySharedIntlMigration;
+    const qoderWorkIntlSuiteGroupMigrated = parsed.qoderWorkIntlSuiteGroupMigrated === true;
     const orderedPlatformIds = normalizeOrder(parsed.orderedPlatformIds ?? defaultPlatformOrder());
     const hiddenPlatformIds = normalizeHidden(parsed.hiddenPlatformIds ?? []);
     const sidebarPlatformIds = normalizeSidebar(
@@ -1268,6 +1345,8 @@ function loadPersistedState(): NormalizedLayoutStateData {
       {
         restoreDefaultTraeSuiteGroup: !traeSuiteDefaultGroupRestored,
         attachCodexApiServiceToCodexGroup: !codexApiServiceSuiteMigrated,
+        attachWorkbuddyIntlToSuiteGroup: !workbuddyIntlSuiteGroupMigrated,
+        attachQoderWorkIntlToQoderGroup: !qoderWorkIntlSuiteGroupMigrated,
       },
     ).map((group) => sortGroupPlatformsByOrder(group, orderedPlatformIds));
 
@@ -1303,6 +1382,8 @@ function loadPersistedState(): NormalizedLayoutStateData {
       antigravityGroupFirstMigrated,
       traeSuiteDefaultGroupRestored: true,
       codexApiServiceSuiteMigrated: true,
+      workbuddyIntlSuiteGroupMigrated,
+      qoderWorkIntlSuiteGroupMigrated,
       apiRelaySidebarVisible: parsed.apiRelaySidebarVisible,
       apiRelayDashboardVisible: parsed.apiRelayDashboardVisible,
       apiRelayEntryOrder: parsed.apiRelayEntryOrder,
@@ -1328,6 +1409,8 @@ function loadPersistedState(): NormalizedLayoutStateData {
       antigravityGroupFirstMigrated: true,
       traeSuiteDefaultGroupRestored: true,
       codexApiServiceSuiteMigrated: true,
+      workbuddyIntlSuiteGroupMigrated: true,
+      qoderWorkIntlSuiteGroupMigrated: true,
       apiRelaySidebarVisible: true,
       apiRelayDashboardVisible: true,
       apiRelayEntryOrder: 0,
@@ -1350,6 +1433,8 @@ function persist(
     | 'antigravityGroupFirstMigrated'
     | 'traeSuiteDefaultGroupRestored'
     | 'codexApiServiceSuiteMigrated'
+    | 'workbuddyIntlSuiteGroupMigrated'
+    | 'qoderWorkIntlSuiteGroupMigrated'
     | 'apiRelaySidebarVisible'
     | 'apiRelayDashboardVisible'
     | 'apiRelayEntryOrder'
@@ -1866,6 +1951,8 @@ export const usePlatformLayoutStore = create<PlatformLayoutState>((set, get) => 
       antigravityGroupFirstMigrated: true,
       traeSuiteDefaultGroupRestored: true,
       codexApiServiceSuiteMigrated: true,
+      workbuddyIntlSuiteGroupMigrated: true,
+      qoderWorkIntlSuiteGroupMigrated: true,
       apiRelaySidebarVisible: true,
       apiRelayDashboardVisible: true,
       apiRelayEntryOrder: 0,

@@ -19,6 +19,10 @@ const OAUTH_POLL_INTERVAL_MS: u64 = 1000;
 const DEFAULT_LOGIN_BASE_URL: &str = "https://qoder.com/device/selectAccounts";
 const DEFAULT_OPENAPI_BASE_URL: &str = "https://openapi.qoder.sh";
 const QODER_IDE_REDIRECT_URI: &str = "qoder://aicoding.aicoding-agent/login-success";
+/// QoderWork 客户端 device flow 使用的 OAuth client。
+const QODERWORK_CLIENT_ID: &str = "1c5e33e1-364d-4ce6-b02c-acaa81274a5c";
+/// QoderWork 桌面端注册的深链回调；实际完成仍走 deviceToken/poll。
+const QODERWORK_REDIRECT_URI: &str = "qoder-work://";
 const QODER_DEVICE_LOGIN_CHALLENGE_METHOD: &str = "S256";
 const DEVICE_TOKEN_POLL_PATH: &str = "/api/v1/deviceToken/poll";
 const USER_INFO_PATH: &str = "/api/v1/userinfo";
@@ -151,6 +155,7 @@ fn build_cli_device_login_url(
     challenge: &str,
     challenge_method: &str,
     machine_id: Option<&str>,
+    product: Option<&str>,
 ) -> Result<String, String> {
     let mut url =
         Url::parse(login_base_url).map_err(|err| format!("解析 Qoder 登录地址失败: {}", err))?;
@@ -159,7 +164,15 @@ fn build_cli_device_login_url(
         query_pairs.append_pair("nonce", nonce);
         query_pairs.append_pair("challenge", challenge);
         query_pairs.append_pair("challenge_method", challenge_method);
-        query_pairs.append_pair("redirect_uri", QODER_IDE_REDIRECT_URI);
+        let redirect_uri = if product == Some("qoderwork") {
+            QODERWORK_REDIRECT_URI
+        } else {
+            QODER_IDE_REDIRECT_URI
+        };
+        query_pairs.append_pair("redirect_uri", redirect_uri);
+        if product == Some("qoderwork") {
+            query_pairs.append_pair("client_id", QODERWORK_CLIENT_ID);
+        }
         if let Some(machine_id) = machine_id.and_then(|value| normalize_non_empty(Some(value))) {
             query_pairs.append_pair("machine_id", &machine_id);
         }
@@ -1118,7 +1131,9 @@ fn get_string_from_object(
 ) -> Option<String> {
     get_object_field(object, keys).and_then(value_to_string)
 }
-pub async fn start_login() -> Result<QoderOAuthStartResponse, String> {
+pub async fn start_login_for_product(
+    product: Option<&str>,
+) -> Result<QoderOAuthStartResponse, String> {
     logger::log_info("[Qoder OAuth] 开始创建登录会话");
     let login_base_url = resolve_qoder_cli_login_endpoint();
     let machine_info = match read_qoder_machine_info_cache() {
@@ -1158,6 +1173,7 @@ pub async fn start_login() -> Result<QoderOAuthStartResponse, String> {
         &code_challenge,
         &challenge_method,
         login_machine_id.as_deref(),
+        product,
     )?;
     let login_machine_id_source = if machine_info.is_some() {
         "machine_token"
@@ -1203,7 +1219,13 @@ pub async fn start_login() -> Result<QoderOAuthStartResponse, String> {
 
     logger::log_info(&format!(
         "[Qoder OAuth] 登录会话已创建: login_id={}, redirect_uri={}, expires_in={}s",
-        login_id, QODER_IDE_REDIRECT_URI, OAUTH_TIMEOUT_SECONDS
+        login_id,
+        if product == Some("qoderwork") {
+            QODERWORK_REDIRECT_URI
+        } else {
+            QODER_IDE_REDIRECT_URI
+        },
+        OAUTH_TIMEOUT_SECONDS
     ));
 
     Ok(QoderOAuthStartResponse {
@@ -1213,6 +1235,11 @@ pub async fn start_login() -> Result<QoderOAuthStartResponse, String> {
         interval_seconds: (OAUTH_POLL_INTERVAL_MS / 1000).max(1),
         callback_url: None,
     })
+}
+
+/// Qoder CLI 仍使用默认 device flow；QoderWork 单独走国际版客户端参数。
+pub async fn start_login() -> Result<QoderOAuthStartResponse, String> {
+    start_login_for_product(None).await
 }
 
 pub async fn complete_login(login_id: &str) -> Result<QoderAccount, String> {
@@ -1431,6 +1458,7 @@ mod tests {
             "test-challenge",
             QODER_DEVICE_LOGIN_CHALLENGE_METHOD,
             Some("test-machine-id"),
+            None,
         )
         .expect("build login url");
 
@@ -1452,6 +1480,31 @@ mod tests {
         )));
         assert!(query.contains(&("machine_id".to_string(), "test-machine-id".to_string())));
         assert!(!query.iter().any(|(key, _)| key == "client_id"));
+    }
+
+    #[test]
+    fn builds_qoderwork_device_login_url() {
+        let url = build_cli_device_login_url(
+            DEFAULT_LOGIN_BASE_URL,
+            "test-nonce",
+            "test-challenge",
+            QODER_DEVICE_LOGIN_CHALLENGE_METHOD,
+            Some("test-machine-id"),
+            Some("qoderwork"),
+        )
+        .expect("build qoderwork login url");
+
+        let parsed = Url::parse(&url).expect("parse login url");
+        let query = parsed
+            .query_pairs()
+            .into_owned()
+            .collect::<Vec<(String, String)>>();
+
+        assert!(query.contains(&("client_id".to_string(), QODERWORK_CLIENT_ID.to_string())));
+        assert!(query.contains(&(
+            "redirect_uri".to_string(),
+            QODERWORK_REDIRECT_URI.to_string()
+        )));
     }
 
     #[test]

@@ -1,7 +1,7 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::collections::HashSet;
 
 use chrono::Utc;
 use uuid::Uuid;
@@ -1172,7 +1172,11 @@ pub fn disable_model_routing(instance_id: &str) -> Result<bool, String> {
     }
     if instance_id == CODEX_DEFAULT_INSTANCE_ID {
         let current = load_default_settings()?;
-        let Some(routing) = current.model_routing.clone().filter(|routing| routing.enabled) else {
+        let Some(routing) = current
+            .model_routing
+            .clone()
+            .filter(|routing| routing.enabled)
+        else {
             return Ok(false);
         };
         update_default_settings(
@@ -1215,9 +1219,7 @@ pub fn disable_model_routing(instance_id: &str) -> Result<bool, String> {
 }
 
 /// 读取指定实例（或默认实例）当前启用中的混合模型路由配置。
-pub fn load_enabled_model_routing(
-    instance_id: &str,
-) -> Result<CodexInstanceModelRouting, String> {
+pub fn load_enabled_model_routing(instance_id: &str) -> Result<CodexInstanceModelRouting, String> {
     let instance_id = instance_id.trim();
     if instance_id == CODEX_DEFAULT_INSTANCE_ID {
         return load_default_settings()?
@@ -1254,7 +1256,10 @@ fn routing_references_accounts(
     bind_account_id: Option<&str>,
     deleted: &HashSet<&str>,
 ) -> bool {
-    if let Some(bind_account_id) = bind_account_id.map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(bind_account_id) = bind_account_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         let resolved = parse_provider_gateway_bind_account_id(bind_account_id)
             .unwrap_or_else(|| bind_account_id.to_string());
         if deleted.contains(resolved.trim()) {
@@ -1288,11 +1293,7 @@ pub fn disable_model_routing_for_deleted_accounts(
     let settings = load_default_settings()?;
     if settings.model_routing.as_ref().is_some_and(|routing| {
         routing.enabled
-            && routing_references_accounts(
-                routing,
-                settings.bind_account_id.as_deref(),
-                &deleted,
-            )
+            && routing_references_accounts(routing, settings.bind_account_id.as_deref(), &deleted)
     }) {
         disable_model_routing(CODEX_DEFAULT_INSTANCE_ID)?;
         affected.push(CODEX_DEFAULT_INSTANCE_ID.to_string());

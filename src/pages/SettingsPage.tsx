@@ -276,6 +276,7 @@ type AppPathTarget =
   | 'codebuddy'
   | 'codebuddy_cn'
   | 'qoder'
+  | 'qoderwork_intl'
   | 'zcode'
   | 'trae'
   | 'trae_solo'
@@ -317,14 +318,16 @@ const FALLBACK_PLATFORM_SETTINGS_ORDER: Record<PlatformId, number> = {
   codebuddy: 10,
   codebuddy_cn: 11,
   qoder: 12,
+  qoderwork_intl: 20,
   zcode: 13,
   trae: 14,
   trae_solo: 15,
   trae_cn: 16,
   trae_solo_cn: 17,
   workbuddy: 18,
-  zed: 19,
-  cindy: 20,
+  workbuddy_intl: 19,
+  zed: 20,
+  cindy: 21,
 };
 type ConfigUpdatedEventDetail = {
   source?: string;
@@ -501,6 +504,7 @@ export function useSettingsPageController() {
     { value: 'codebuddy', label: 'CodeBuddy' },
     { value: 'codebuddy_cn', label: 'CodeBuddy CN' },
     { value: 'qoder', label: 'Qoder' },
+    { value: 'qoderwork_intl', label: 'QoderWork 国际版' },
     { value: 'zcode', label: 'ZCode' },
     { value: 'trae', label: 'Trae' },
     { value: 'trae_solo', label: 'TRAE SOLO' },

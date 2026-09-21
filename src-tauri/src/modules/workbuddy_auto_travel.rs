@@ -42,7 +42,10 @@ pub fn ensure_started() {
 
 /// 执行一轮自动旅行：逐账号查状态并派发/领奖（串行处理，避免并发限流）
 async fn run_travel_cycle() {
-    if TRAVEL_CYCLE_RUNNING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+    if TRAVEL_CYCLE_RUNNING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
         return;
     }
     let result = run_travel_cycle_inner().await;

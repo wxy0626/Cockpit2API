@@ -46,6 +46,8 @@ export function getPlatformLabel(platformId: PlatformId, _t: TFunction): string 
       return _t('nav.codebuddyCn', 'CodeBuddy CN');
     case 'qoder':
       return _t('nav.qoder', 'Qoder');
+    case 'qoderwork_intl':
+      return 'QoderWork 国际版';
     case 'zcode':
       return 'ZCode';
     case 'trae':
@@ -58,6 +60,8 @@ export function getPlatformLabel(platformId: PlatformId, _t: TFunction): string 
       return _t('nav.traeSoloCn', 'TRAE SOLO CN');
     case 'workbuddy':
       return 'WorkBuddy';
+    case 'workbuddy_intl':
+      return _t('nav.workbuddyIntl', 'WorkBuddy 国际版');
     case 'cindy':
       return 'Cindy';
     default:
@@ -95,6 +99,9 @@ export function renderPlatformIcon(platformId: PlatformId, size = 20): ReactNode
       return <CodebuddyIcon style={{ width: size, height: size }} />;
     case 'qoder':
       return <QoderIcon style={{ width: size, height: size }} />;
+    case 'qoderwork_intl':
+      // 国际版沿用同一品牌图标
+      return <QoderIcon style={{ width: size, height: size }} />;
     case 'zcode':
       return <ZcodeIcon size={size} />;
     case 'trae':
@@ -106,6 +113,9 @@ export function renderPlatformIcon(platformId: PlatformId, size = 20): ReactNode
     case 'trae_solo_cn':
       return <TraeSoloCnIcon style={{ width: size, height: size }} />;
     case 'workbuddy':
+      return <WorkbuddyIcon style={{ width: size, height: size }} />;
+    case 'workbuddy_intl':
+      // 国际版沿用同一品牌图标（与 CodeBuddy CN / CodeBuddy 的处理方式一致）
       return <WorkbuddyIcon style={{ width: size, height: size }} />;
     case 'cindy':
       // Cindy 暂无品牌图标资源，用与「反代网关」语义一致的线缆图形占位

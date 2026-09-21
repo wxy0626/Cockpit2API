@@ -360,8 +360,8 @@ fn read_logs_from_path(path: &Path) -> Result<Vec<WorkbuddyAutoTasksLogRecord>, 
 
 /// 原子写入日志
 fn write_logs_to_path(path: &Path, logs: &[WorkbuddyAutoTasksLogRecord]) -> Result<(), String> {
-    let content = serde_json::to_string_pretty(logs)
-        .map_err(|e| format!("序列化自动任务日志失败: {}", e))?;
+    let content =
+        serde_json::to_string_pretty(logs).map_err(|e| format!("序列化自动任务日志失败: {}", e))?;
     atomic_write::write_string_atomic(path, &content)
         .map_err(|e| format!("保存自动任务日志失败: {}", e))
 }
@@ -424,15 +424,15 @@ fn add_log_record(record: WorkbuddyAutoTasksLogRecord) -> Result<(), String> {
 
     // 清理超过保留期的日志
     let cutoff = Local::now().timestamp() - TASKS_LOG_KEEP_DAYS * 24 * 60 * 60;
-    logs.retain(|r| {
-        match NaiveDateTime::parse_from_str(&r.timestamp, "%Y-%m-%d %H:%M:%S") {
+    logs.retain(
+        |r| match NaiveDateTime::parse_from_str(&r.timestamp, "%Y-%m-%d %H:%M:%S") {
             Ok(ndt) => match Local.from_local_datetime(&ndt).single() {
                 Some(local_dt) => local_dt.timestamp() >= cutoff,
                 None => ndt.and_utc().timestamp() >= cutoff,
             },
             Err(_) => true,
-        }
-    });
+        },
+    );
 
     write_logs_to_path(&path, &logs)
 }
@@ -445,7 +445,10 @@ fn add_log_record(record: WorkbuddyAutoTasksLogRecord) -> Result<(), String> {
 fn allow_attempt(account_id: &str) -> bool {
     let now = chrono::Utc::now().timestamp();
     match NEXT_ATTEMPT_AT.lock() {
-        Ok(state) => state.get(account_id).map(|next| *next <= now).unwrap_or(true),
+        Ok(state) => state
+            .get(account_id)
+            .map(|next| *next <= now)
+            .unwrap_or(true),
         Err(_) => true,
     }
 }
@@ -490,10 +493,7 @@ fn apply_headers(
         .header("Accept", "application/json")
         .header("x-client-platform", "web")
         .header("Origin", WB_API_BASE)
-        .header(
-            "Referer",
-            format!("{}/profile/growth-center", WB_API_BASE),
-        );
+        .header("Referer", format!("{}/profile/growth-center", WB_API_BASE));
     if let Some(uid) = account.uid.as_deref() {
         req = req.header("X-User-Id", uid);
     }
@@ -568,11 +568,7 @@ async fn http_get(account: &WorkbuddyAccount, path: &str) -> Result<Value, Strin
 }
 
 /// 发起一次 POST 并解析信封
-async fn http_post(
-    account: &WorkbuddyAccount,
-    path: &str,
-    body: Value,
-) -> Result<Value, String> {
+async fn http_post(account: &WorkbuddyAccount, path: &str, body: Value) -> Result<Value, String> {
     let client = build_http_client()?;
     let url = format!("{}{}", WB_API_BASE, path);
     // 注意：reqwest 的 HTTP 方法只能在 client.post(...) 创建时决定，
@@ -852,9 +848,18 @@ async fn play_redeem(account: &mut WorkbuddyAccount, messages: &mut Vec<String>)
         });
         match http_post_fresh(account, &path, body).await {
             Ok(data) => {
-                let credit = data.get("credit_granted").and_then(Value::as_i64).unwrap_or(0);
-                let energy = data.get("energy_granted").and_then(Value::as_i64).unwrap_or(0);
-                messages.push(format!("连签兑换 {}: +{}积分 +{}能量", tier, credit, energy));
+                let credit = data
+                    .get("credit_granted")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0);
+                let energy = data
+                    .get("energy_granted")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0);
+                messages.push(format!(
+                    "连签兑换 {}: +{}积分 +{}能量",
+                    tier, credit, energy
+                ));
                 done += 1;
             }
             Err(err) => {
@@ -871,10 +876,7 @@ async fn play_redeem(account: &mut WorkbuddyAccount, messages: &mut Vec<String>)
 }
 
 /// 补签卡：昨日漏签且有余额时使用一张
-async fn play_makeup_card(
-    account: &mut WorkbuddyAccount,
-    messages: &mut Vec<String>,
-) -> usize {
+async fn play_makeup_card(account: &mut WorkbuddyAccount, messages: &mut Vec<String>) -> usize {
     let streak_path = format!("{}/streak", WB_GROWTH_PREFIX);
     let balance = match http_get_fresh(account, &streak_path).await {
         Ok(data) => data
@@ -950,12 +952,12 @@ fn is_benign_business_result(err: &str) -> bool {
 }
 
 /// 新手礼包与活动补偿领取（幂等，重复调用只返回业务提示）
-async fn play_claim_gift(
-    account: &mut WorkbuddyAccount,
-    messages: &mut Vec<String>,
-) -> usize {
+async fn play_claim_gift(account: &mut WorkbuddyAccount, messages: &mut Vec<String>) -> usize {
     let mut done = 0usize;
-    for (name, suffix) in [("新手礼包", "claim-gift"), ("活动补偿", "claim-compensation")] {
+    for (name, suffix) in [
+        ("新手礼包", "claim-gift"),
+        ("活动补偿", "claim-compensation"),
+    ] {
         let path = format!("{}/{}", WB_BILLING_PREFIX, suffix);
         match http_post_fresh(account, &path, json!({})).await {
             Ok(data) => {
@@ -987,8 +989,14 @@ async fn play_blindbox(account: &mut WorkbuddyAccount, messages: &mut Vec<String
         }
     };
     let affordable = quota.get("affordable").and_then(Value::as_i64).unwrap_or(0);
-    let max_open = quota.get("max_open_count").and_then(Value::as_i64).unwrap_or(0);
-    let cost = quota.get("cost_per_open").and_then(Value::as_i64).unwrap_or(0);
+    let max_open = quota
+        .get("max_open_count")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let cost = quota
+        .get("cost_per_open")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
     let balance = quota.get("balance").and_then(Value::as_i64).unwrap_or(0);
     // 可开次数 = min(今日剩余额度, 能量可支撑的次数)
     let openable = if cost > 0 {
@@ -1045,9 +1053,8 @@ async fn play_theme_task(
     {
         Ok(_) => {
             if !with_report {
-                messages.push(
-                    "已应用「和平精英」主题，但未开启上报通道，该任务不会完成".to_string(),
-                );
+                messages
+                    .push("已应用「和平精英」主题，但未开启上报通道，该任务不会完成".to_string());
                 return 1;
             }
             let events = vec![json!({
@@ -1226,8 +1233,7 @@ async fn load_experts(account: &mut WorkbuddyAccount) -> Result<Vec<ExpertInfo>,
         .text()
         .await
         .map_err(|e| format!("读取专家市场失败: {}", e))?;
-    let body: Value =
-        serde_json::from_str(&raw).map_err(|e| format!("解析专家市场失败: {}", e))?;
+    let body: Value = serde_json::from_str(&raw).map_err(|e| format!("解析专家市场失败: {}", e))?;
     let experts: Vec<ExpertInfo> = body
         .get("experts")
         .and_then(Value::as_array)
@@ -1674,10 +1680,7 @@ async fn report_desktop_events(
         .header("X-Domain", url_for_header)
         .header("X-Product", "SaaS")
         .header("X-Request-ID", derive_device_id(account, "req"))
-        .header(
-            "X-User-Id",
-            account.uid.clone().unwrap_or_default(),
-        )
+        .header("X-User-Id", account.uid.clone().unwrap_or_default())
         .json(&Value::Array(payload))
         .send()
         .await
@@ -1755,7 +1758,10 @@ fn desktop_chat_sequence(
 // ---------------------------------------------------------------------------
 
 /// 处理单个账号：接受任务 → 领取奖励 → 执行玩法
-async fn process_account(account: &WorkbuddyAccount, cfg: &WorkbuddyAutoTasksConfig) -> WorkbuddyAutoTasksAccountDetail {
+async fn process_account(
+    account: &WorkbuddyAccount,
+    cfg: &WorkbuddyAutoTasksConfig,
+) -> WorkbuddyAutoTasksAccountDetail {
     let mut acc = account.clone();
     let mut messages: Vec<String> = Vec::new();
     let mut accepted = 0usize;
@@ -1908,7 +1914,8 @@ async fn process_account(account: &WorkbuddyAccount, cfg: &WorkbuddyAutoTasksCon
                         .map(|t| !is_task_done(t) && !is_task_claimable(t))
                         .unwrap_or(false);
                     if theme_pending {
-                        played += play_theme_task(&mut acc, cfg.enable_reporting, &mut messages).await;
+                        played +=
+                            play_theme_task(&mut acc, cfg.enable_reporting, &mut messages).await;
                         // 上报的事件需要 3~5 秒才落库，等够再让后续的复核逻辑看到结果
                         if cfg.enable_reporting {
                             tokio::time::sleep(Duration::from_millis(4000)).await;
@@ -1919,7 +1926,8 @@ async fn process_account(account: &WorkbuddyAccount, cfg: &WorkbuddyAutoTasksCon
                 // 传 `last_tasks` 而非函数入口处的 `tasks`——后者是接受操作之前的旧快照，
                 // 会让「本轮刚接受的任务」被整批跳过。
                 if cfg.enable_reporting {
-                    played += run_report_tasks(&mut acc, last_tasks.as_slice(), &mut messages).await;
+                    played +=
+                        run_report_tasks(&mut acc, last_tasks.as_slice(), &mut messages).await;
                 }
             }
 
@@ -1940,8 +1948,10 @@ async fn process_account(account: &WorkbuddyAccount, cfg: &WorkbuddyAutoTasksCon
                             claimed_this_pass += 1;
                             let credit = data.get("credit").and_then(Value::as_i64).unwrap_or(0);
                             let energy = data.get("energy").and_then(Value::as_i64).unwrap_or(0);
-                            messages
-                                .push(format!("领取「{}」+{}积分 +{}能量", task.title, credit, energy));
+                            messages.push(format!(
+                                "领取「{}」+{}积分 +{}能量",
+                                task.title, credit, energy
+                            ));
                         }
                         Err(err) => {
                             let lower = err.to_lowercase();

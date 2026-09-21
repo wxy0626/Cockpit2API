@@ -545,6 +545,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             modules::workbuddy_auto_travel::ensure_started();
             modules::workbuddy_auto_tasks::ensure_started(app.handle().clone());
             modules::cindy_gateway_sidecar::ensure_started();
+            modules::qoderwork_gateway::ensure_started();
 
             // Wakeup restore/start and Deep Link registration/read can hit disk or OS
             // APIs — never block setup (window + skeleton tray first).
@@ -814,6 +815,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             // OAuth Commands
             commands::oauth::start_oauth_login,
             commands::oauth::prepare_oauth_url,
+            commands::oauth::open_oauth_url_in_chrome_incognito,
             commands::oauth::complete_oauth_login,
             commands::oauth::submit_oauth_callback_url,
             commands::oauth::cancel_oauth_login,
@@ -828,6 +830,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             commands::data_transfer::data_transfer_get_instance_store,
             commands::data_transfer::data_transfer_replace_instance_store,
             commands::provider_current::get_provider_current_account_id,
+            commands::provider_current::set_provider_current_account_id,
             // Claude Commands
             commands::claude::list_claude_accounts,
             commands::claude::delete_claude_account,
@@ -1053,6 +1056,9 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             commands::codex::codex_oauth_login_start,
             commands::codex::codex_oauth_device_auth_start,
             commands::codex::codex_oauth_open_incognito_window,
+            modules::cindy_captcha_window::cindy_captcha_window_open,
+            modules::cindy_captcha_window::cindy_oauth_window_open,
+            modules::cindy_captcha_window::cindy_oauth_window_close,
             commands::codex::codex_oauth_login_completed,
             commands::codex::codex_oauth_submit_callback_url,
             commands::codex::codex_oauth_login_cancel,
@@ -1246,6 +1252,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             commands::workbuddy::refresh_workbuddy_token,
             commands::workbuddy::refresh_all_workbuddy_tokens,
             commands::workbuddy::workbuddy_oauth_login_start,
+            commands::workbuddy::workbuddy_oauth_open_window,
             commands::workbuddy::workbuddy_oauth_login_complete,
             commands::workbuddy::workbuddy_oauth_login_cancel,
             commands::workbuddy::add_workbuddy_account_with_token,
@@ -1256,6 +1263,21 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             commands::workbuddy::get_checkin_status_workbuddy,
             commands::workbuddy::get_workbuddy_account_live_status,
             commands::workbuddy::checkin_workbuddy,
+            // WorkBuddy 国际版（realm = intl）Commands —— 与国内版共用底层实现，仅 realm 不同
+            commands::workbuddy::list_workbuddy_intl_accounts,
+            commands::workbuddy::delete_workbuddy_intl_account,
+            commands::workbuddy::delete_workbuddy_intl_accounts,
+            commands::workbuddy::import_workbuddy_intl_from_json,
+            commands::workbuddy::export_workbuddy_intl_accounts,
+            commands::workbuddy::update_workbuddy_intl_account_tags,
+            commands::workbuddy::get_workbuddy_intl_accounts_index_path,
+            commands::workbuddy::refresh_workbuddy_intl_token,
+            commands::workbuddy::switch_workbuddy_intl_account,
+            commands::workbuddy::refresh_all_workbuddy_intl_tokens,
+            commands::workbuddy::workbuddy_intl_oauth_login_start,
+            commands::workbuddy::workbuddy_intl_oauth_login_complete,
+            commands::workbuddy::workbuddy_intl_oauth_login_cancel,
+            commands::workbuddy::add_workbuddy_intl_account_with_token,
             // WorkBuddy WebView (网页会话) Commands
             modules::workbuddy_webview::is_workbuddy_webview_supported,
             modules::workbuddy_webview::open_workbuddy_webview,
@@ -1318,6 +1340,22 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             commands::qoder::inject_qoder_account,
             commands::qoder::update_qoder_account_tags,
             commands::qoder::get_qoder_accounts_index_path,
+            // QoderWork Commands
+            commands::qoderwork::list_qoderwork_accounts,
+            commands::qoderwork::delete_qoderwork_account,
+            commands::qoderwork::delete_qoderwork_accounts,
+            commands::qoderwork::import_qoderwork_from_json,
+            commands::qoderwork::export_qoderwork_accounts,
+            commands::qoderwork::qoderwork_oauth_login_start,
+            commands::qoderwork::qoderwork_oauth_login_complete,
+            commands::qoderwork::qoderwork_oauth_login_cancel,
+            commands::qoderwork::qoderwork_oauth_open_window,
+            commands::qoderwork::qoderwork_oauth_close_window,
+            commands::qoderwork::refresh_qoderwork_token,
+            commands::qoderwork::refresh_all_qoderwork_tokens,
+            commands::qoderwork::update_qoderwork_account_tags,
+            commands::qoderwork::get_qoderwork_accounts_index_path,
+            commands::qoderwork::switch_qoderwork_intl_account,
             // Zed Commands
             commands::zed::list_zed_accounts,
             commands::zed::delete_zed_account,

@@ -85,6 +85,12 @@ export function CindyAccountsView() {
   const [settings, setSettings] = useState(readCindySettings);
   /** 账号额度（key = accountId）；本机账号没有 refreshToken，查不了，为 undefined */
   const [credits, setCredits] = useState<Record<string, CreditInfo>>({});
+  /** 额度是否正在拉取（用于卡片占位与按钮转圈） */
+  const [creditsLoading, setCreditsLoading] = useState(false);
+  /** 整批额度查询失败的原因（网关没起来最常见） */
+  const [creditsError, setCreditsError] = useState('');
+  /** 额度拉取并发闸门：避免定时器与手动点击叠成一堆请求 */
+  const creditsInflight = useRef<Promise<void> | null>(null);
   const noticeTimer = useRef<number | null>(null);
 
   /** 顶部提示：3 秒后自动消失，避免一直占用版面 */
@@ -94,24 +100,66 @@ export function CindyAccountsView() {
     noticeTimer.current = window.setTimeout(() => setNotice(''), 3000);
   }, []);
 
-  /** 拉取账号列表，并顺带拉额度（额度接口要逐个刷新令牌，慢一些，别阻塞列表） */
-  const load = useCallback(async () => {
-    await fetchAccounts();
-    try {
-      const fetched = await fetchCredits();
-      // 合并而非覆盖：额度查询要逐个刷新令牌走海外域名，网络一抖某个账号就会失败，
-      // 直接覆盖会让原本显示的进度条闪没 —— 失败的账号保留上次成功的数据。
-      setCredits((prev) => {
-        const next = { ...prev };
-        for (const [id, info] of Object.entries(fetched)) {
-          if (!info.error) next[id] = info;
+  /**
+   * 拉一次额度（单次尝试）。
+   *
+   * 合并而非覆盖：额度查询要逐个刷新令牌走海外域名，网络一抖某个账号就会失败，
+   * 直接覆盖会让原本显示的进度条闪没 —— 失败的账号保留上次成功的数据。
+   */
+  const loadCredits = useCallback(async () => {
+    const fetched = await fetchCredits();
+    setCredits((prev) => {
+      const next = { ...prev };
+      for (const [id, info] of Object.entries(fetched)) {
+        // 成功数据直接写入；失败的仅在「该账号从未成功过」时保留错误，
+        // 用于卡片上显示「额度查询失败」——避免静默无提示，也不闪掉旧进度条
+        if (!info.error || !next[id]) next[id] = info;
+      }
+      return next;
+    });
+    setCreditsError('');
+  }, []);
+
+  /**
+   * 额度拉取 + 自动重试。
+   *
+   * 为什么必须重试：应用刚启动时 Cindy 网关（sidecar）是应用拉起的，
+   * 页面挂载常常早于网关监听就绪 —— 那一发请求必然失败。
+   * 以前失败被静默吞掉且不再重取，表现就是"进度条永远不出来"。
+   */
+  const loadCreditsWithRetry = useCallback(async () => {
+    if (creditsInflight.current) return creditsInflight.current;
+    setCreditsLoading(true);
+    const task = (async () => {
+      try {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            await loadCredits();
+            return;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (attempt === 3) {
+              setCreditsError(message);
+              return;
+            }
+            // 退避 1.5s / 4s / 8s：给刚启动的网关留出监听时间
+            await new Promise((resolve) => window.setTimeout(resolve, [1500, 4000, 8000][attempt]));
+          }
         }
-        return next;
-      });
-    } catch {
-      /* 整体失败时保留现有数据，不打断列表展示 */
-    }
-  }, [fetchAccounts]);
+      } finally {
+        setCreditsLoading(false);
+        creditsInflight.current = null;
+      }
+    })();
+    creditsInflight.current = task;
+    return task;
+  }, [loadCredits]);
+
+  /** 首屏：账号列表与额度**并行**拉取，任一失败不影响另一个 */
+  const load = useCallback(async () => {
+    void fetchAccounts();
+    void loadCreditsWithRetry();
+  }, [fetchAccounts, loadCreditsWithRetry]);
 
   useEffect(() => {
     void load();
@@ -133,6 +181,19 @@ export function CindyAccountsView() {
     }, seconds * 1000);
     return () => window.clearInterval(timer);
   }, [settings.autoRefreshSeconds, fetchAccounts]);
+
+  /**
+   * 额度独立定时重取（5 分钟）。
+   *
+   * 不跟账号自动刷新共用间隔：额度要逐个刷新令牌，成本高，
+   * 但也不能像以前那样只在挂载时取一次 —— 那时网关没起来就再也不补了。
+   */
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void loadCreditsWithRetry();
+    }, 5 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [loadCreditsWithRetry]);
 
   useEffect(() => {
     try {
@@ -190,11 +251,13 @@ export function CindyAccountsView() {
     try {
       await refreshAllTokens();
       await fetchAccounts();
-      flash('已重新探测全部账号');
+      // 刷新按钮 = 状态 + 额度一起刷（额度要逐个号刷新令牌，稍慢，成功后才提示）
+      await loadCreditsWithRetry();
+      flash('已重新探测全部账号并刷新额度');
     } finally {
       setBusy(false);
     }
-  }, [refreshAllTokens, fetchAccounts, flash]);
+  }, [refreshAllTokens, fetchAccounts, loadCreditsWithRetry, flash]);
 
   /** 导出账号 JSON —— 只导出可安全外发的字段，不含任何凭据 */
   const handleExport = useCallback(() => {
@@ -295,7 +358,12 @@ export function CindyAccountsView() {
           <button className="cindy-btn primary" onClick={() => setAddOpen(true)} title="添加账号">
             <Plus size={16} />
           </button>
-          <button className="cindy-btn" onClick={() => void handleRefresh()} disabled={busy} title="重新探测全部账号">
+          <button
+            className="cindy-btn"
+            onClick={() => void handleRefresh()}
+            disabled={busy}
+            title="重新探测全部账号并刷新额度"
+          >
             <RefreshCw size={15} className={busy ? 'spin' : ''} />
           </button>
           <button className="cindy-btn" onClick={toggleCompact} title={compact ? '切换为网格' : '切换为列表'}>
@@ -389,6 +457,25 @@ export function CindyAccountsView() {
                       {total.toFixed(2)}（{pct}%） · 已用 {currency}
                       {used.toFixed(2)}
                     </div>
+                  </div>
+                ) : credit?.error ? (
+                  /* 额度查询失败：卡片上给红色首句提示（完整原因进 title），
+                     不再静默退回「可用模型 N」—— 否则用户根本不知道额度为什么没出来 */
+                  <div className="cindy-quota" title={credit.error}>
+                    <div className="cindy-quota-empty error">
+                      额度查询失败：{summarizeCindyDetail(credit.error)}
+                    </div>
+                  </div>
+                ) : creditsError ? (
+                  /* 整批查询失败（最常见：网关还没起来） */
+                  <div className="cindy-quota" title={creditsError}>
+                    <div className="cindy-quota-empty error">
+                      额度查询失败：{summarizeCindyDetail(creditsError)}
+                    </div>
+                  </div>
+                ) : creditsLoading ? (
+                  <div className="cindy-quota">
+                    <div className="cindy-quota-empty">额度加载中…</div>
                   </div>
                 ) : (
                   <div className="cindy-quota" title={account.statusDetail || undefined}>

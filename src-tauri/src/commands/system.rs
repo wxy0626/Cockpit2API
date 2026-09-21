@@ -22,27 +22,36 @@ pub async fn workbuddy_gateway_chat(
             "messages": [{"role": "user", "content": message}],
             "stream": false
         }))
-        .send().await.map_err(|e| e.to_string())?;
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     let status = response.status();
     let value: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
     if !status.is_success() {
         return Err(value.to_string());
     }
-    Ok(value["choices"][0]["message"]["content"].as_str().unwrap_or("调用成功").to_string())
+    Ok(value["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("调用成功")
+        .to_string())
 }
 
 #[tauri::command]
 pub async fn load_ui_preferences() -> Result<modules::ui_preferences::UiPreferences, String> {
     tauri::async_runtime::spawn_blocking(modules::ui_preferences::load_ui_preferences)
-        .await.map_err(|error| format!("读取界面偏好任务失败: {}", error))?
+        .await
+        .map_err(|error| format!("读取界面偏好任务失败: {}", error))?
 }
 
 #[tauri::command]
 pub async fn save_ui_preferences(
     values: std::collections::BTreeMap<String, String>,
 ) -> Result<modules::ui_preferences::UiPreferences, String> {
-    tauri::async_runtime::spawn_blocking(move || modules::ui_preferences::save_ui_preferences(values))
-        .await.map_err(|error| format!("保存界面偏好任务失败: {}", error))?
+    tauri::async_runtime::spawn_blocking(move || {
+        modules::ui_preferences::save_ui_preferences(values)
+    })
+    .await
+    .map_err(|error| format!("保存界面偏好任务失败: {}", error))?
 }
 
 #[cfg(test)]

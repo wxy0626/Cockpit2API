@@ -4,6 +4,7 @@ use crate::modules::codebuddy_cn_oauth;
 use tauri::{AppHandle, Emitter};
 
 use crate::models::workbuddy::{WorkbuddyAccount, WorkbuddyOAuthStartResponse};
+use crate::modules::workbuddy_realm::{REALM_CN, REALM_INTL};
 use crate::modules::{logger, workbuddy_account, workbuddy_oauth};
 
 async fn refresh_workbuddy_account_after_login(account: WorkbuddyAccount) -> WorkbuddyAccount {
@@ -194,6 +195,20 @@ pub async fn workbuddy_oauth_login_start() -> Result<WorkbuddyOAuthStartResponse
     workbuddy_oauth::start_login().await
 }
 
+/// 打开内置授权窗口（国内版 / 国际版共用）。
+///
+/// 区域不靠参数传，由 `auth_url` 里的 state 反查 pending 表得到 —— 所以国际版服务层
+/// 也直接调这一个命令，不存在“国际版专用开窗命令”。
+/// `incognito = true` 时会话隔离，是添加第二个账号的必要条件（见模块内注释）。
+#[tauri::command]
+pub async fn workbuddy_oauth_open_window(
+    app: AppHandle,
+    auth_url: String,
+    incognito: Option<bool>,
+) -> Result<(), String> {
+    workbuddy_oauth::open_oauth_window(&app, &auth_url, incognito.unwrap_or(false)).await
+}
+
 #[tauri::command]
 pub async fn workbuddy_oauth_login_complete(
     app: AppHandle,
@@ -220,6 +235,11 @@ pub async fn workbuddy_oauth_login_complete(
     }
 
     let account = result?;
+    // 授权成功后关掉内置授权窗口：轮询模型下窗口里没有回调页，
+    // 且前端成功后会把 loginId 置空 → 不再走 cancelLogin，只能在这里收尾。
+    if let Err(err) = workbuddy_oauth::close_oauth_window_for_realm(&app, &REALM_CN) {
+        logger::log_warn(&format!("[WorkBuddy OAuth] 关闭授权窗口失败：{}", err));
+    }
     if let Err(err) = workbuddy_account::run_quota_alert_if_needed() {
         logger::log_warn(&format!(
             "[QuotaAlert][WorkBuddy] 登录后预警检查失败：{}",
@@ -236,12 +256,17 @@ pub async fn workbuddy_oauth_login_complete(
 }
 
 #[tauri::command]
-pub fn workbuddy_oauth_login_cancel(login_id: Option<String>) -> Result<(), String> {
+pub fn workbuddy_oauth_login_cancel(
+    app: AppHandle,
+    login_id: Option<String>,
+) -> Result<(), String> {
     logger::log_info(&format!(
         "WorkBuddy OAuth cancel 命令触发：login_id={}",
         login_id.as_deref().unwrap_or("<none>")
     ));
-    workbuddy_oauth::cancel_login(login_id.as_deref())
+    workbuddy_oauth::cancel_login(login_id.as_deref())?;
+    // 取消 / 关闭弹窗时一并关掉授权窗口，避免残留窗口被误当成“已登录”的浏览器会话
+    workbuddy_oauth::close_oauth_window_for_realm(&app, &REALM_CN)
 }
 
 #[tauri::command]
@@ -620,10 +645,8 @@ pub fn save_workbuddy_auto_tasks_config(
 
 /// 读取自动任务运行日志
 #[tauri::command]
-pub fn get_workbuddy_auto_tasks_logs() -> Result<
-    Vec<crate::modules::workbuddy_auto_tasks::WorkbuddyAutoTasksLogRecord>,
-    String,
-> {
+pub fn get_workbuddy_auto_tasks_logs(
+) -> Result<Vec<crate::modules::workbuddy_auto_tasks::WorkbuddyAutoTasksLogRecord>, String> {
     crate::modules::workbuddy_auto_tasks::get_logs_checked()
 }
 
@@ -644,4 +667,206 @@ pub async fn run_workbuddy_auto_tasks_now(
         force.unwrap_or(false),
     )
     .await
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WorkBuddy 国际版（realm = intl）命令
+//
+// 与国内版共用同一套底层实现，差异全部来自 realm 配置：
+//   网关域名 = www.workbuddy.ai、账号目录 = workbuddy_intl_accounts、模型表 = 国际版 16 项。
+// ⚠️ 国际版没有签到 / 成长任务 / 猫猫旅行等运营活动，因此这里**不接入**这些能力，
+//    只保留账号管理（增删改查 / 导入导出 / OAuth 登录）与 Token 刷新保活。
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 国际版账号列表
+#[tauri::command]
+pub fn list_workbuddy_intl_accounts() -> Result<Vec<WorkbuddyAccount>, String> {
+    workbuddy_account::list_accounts_checked_for_realm(&REALM_INTL)
+}
+
+/// 国际版删除单个账号
+#[tauri::command]
+pub fn delete_workbuddy_intl_account(account_id: String) -> Result<(), String> {
+    workbuddy_account::remove_account_for_realm(&account_id, &REALM_INTL)
+}
+
+/// 国际版批量删除账号
+#[tauri::command]
+pub fn delete_workbuddy_intl_accounts(account_ids: Vec<String>) -> Result<(), String> {
+    workbuddy_account::remove_accounts_for_realm(&account_ids, &REALM_INTL)
+}
+
+/// 国际版从 JSON 导入账号
+#[tauri::command]
+pub fn import_workbuddy_intl_from_json(
+    json_content: String,
+) -> Result<Vec<WorkbuddyAccount>, String> {
+    workbuddy_account::import_from_json_for_realm(&json_content, &REALM_INTL)
+}
+
+/// 国际版导出账号
+#[tauri::command]
+pub fn export_workbuddy_intl_accounts(account_ids: Vec<String>) -> Result<String, String> {
+    workbuddy_account::export_accounts_for_realm(&account_ids, &REALM_INTL)
+}
+
+/// 国际版修改账号标签
+#[tauri::command]
+pub async fn update_workbuddy_intl_account_tags(
+    account_id: String,
+    tags: Vec<String>,
+) -> Result<WorkbuddyAccount, String> {
+    workbuddy_account::update_account_tags_for_realm(&account_id, tags, &REALM_INTL)
+}
+
+/// 国际版账号索引文件路径（排障用）
+#[tauri::command]
+pub fn get_workbuddy_intl_accounts_index_path() -> Result<String, String> {
+    workbuddy_account::accounts_index_path_string_for_realm("intl")
+}
+
+/// 国际版手动刷新单个账号
+#[tauri::command]
+pub async fn refresh_workbuddy_intl_token(
+    app: AppHandle,
+    account_id: String,
+) -> Result<WorkbuddyAccount, String> {
+    let started_at = Instant::now();
+    logger::log_info(&format!(
+        "[WorkBuddy Intl Command] 手动刷新账号开始：account_id={}",
+        account_id
+    ));
+    match workbuddy_account::refresh_account_token_for_realm(&account_id, &REALM_INTL).await {
+        Ok(account) => {
+            let _ = crate::modules::tray::update_tray_menu(&app);
+            logger::log_info(&format!(
+                "[WorkBuddy Intl Command] 手动刷新账号完成：account_id={}, email={}, elapsed={}ms",
+                account.id,
+                account.email,
+                started_at.elapsed().as_millis()
+            ));
+            Ok(account)
+        }
+        Err(err) => {
+            logger::log_warn(&format!(
+                "[WorkBuddy Intl Command] 手动刷新账号失败：account_id={}, elapsed={}ms, error={}",
+                account_id,
+                started_at.elapsed().as_millis(),
+                err
+            ));
+            Err(err)
+        }
+    }
+}
+
+/// 国际版切换当前账号；该页面不注入 VS Code，只更新内部当前账号状态。
+#[tauri::command]
+pub fn switch_workbuddy_intl_account(account_id: String) -> Result<(), String> {
+    workbuddy_account::load_account_for_realm(&account_id, &REALM_INTL)
+        .ok_or_else(|| format!("WorkBuddy 国际版账号不存在: {}", account_id))?;
+    crate::modules::provider_current_state::set_current_account_id(
+        "workbuddy_intl",
+        Some(account_id.as_str()),
+    )
+}
+
+/// 国际版批量刷新全部账号
+#[tauri::command]
+pub async fn refresh_all_workbuddy_intl_tokens(app: AppHandle) -> Result<i32, String> {
+    let started_at = Instant::now();
+    logger::log_info("[WorkBuddy Intl Command] 手动批量刷新开始");
+    let results = workbuddy_account::refresh_all_tokens_for_realm(&REALM_INTL).await?;
+    let success_count = results.iter().filter(|(_, item)| item.is_ok()).count();
+    let failed_count = results.len().saturating_sub(success_count);
+    logger::log_info(&format!(
+        "[WorkBuddy Intl Command] 手动批量刷新完成：success={}, failed={}, elapsed={}ms",
+        success_count,
+        failed_count,
+        started_at.elapsed().as_millis()
+    ));
+    let _ = crate::modules::tray::update_tray_menu(&app);
+    Ok(success_count as i32)
+}
+
+/// 国际版启动 OAuth 登录（返回浏览器授权页地址）
+#[tauri::command]
+pub async fn workbuddy_intl_oauth_login_start() -> Result<WorkbuddyOAuthStartResponse, String> {
+    logger::log_info("WorkBuddy Intl OAuth start 命令触发");
+    workbuddy_oauth::start_login_for_realm("intl").await
+}
+
+/// 国际版完成 OAuth 登录（轮询令牌并落库）
+#[tauri::command]
+pub async fn workbuddy_intl_oauth_login_complete(
+    app: AppHandle,
+    login_id: String,
+) -> Result<WorkbuddyAccount, String> {
+    logger::log_info(&format!(
+        "WorkBuddy Intl OAuth complete 命令触发：login_id={}",
+        login_id
+    ));
+
+    let result: Result<WorkbuddyAccount, String> = async {
+        let payload = workbuddy_oauth::complete_login(&login_id).await?;
+        let account = workbuddy_account::upsert_account_for_realm(payload, &REALM_INTL)?;
+        // 登录后立刻刷新一次，补齐用量信息；失败则保留原始账号信息不阻断登录
+        match workbuddy_account::refresh_account_token_for_realm(&account.id, &REALM_INTL).await {
+            Ok(refreshed) => Ok(refreshed),
+            Err(e) => {
+                logger::log_warn(&format!(
+                    "[WorkBuddy Intl OAuth] 登录后刷新失败，保留原账号信息：account_id={}, error={}",
+                    account.id, e
+                ));
+                Ok(account)
+            }
+        }
+    }
+    .await;
+
+    if let Err(err) = workbuddy_oauth::clear_pending_oauth_login(&login_id) {
+        logger::log_warn(&format!(
+            "[WorkBuddy Intl OAuth] 清理待处理登录状态失败：login_id={}, error={}",
+            login_id, err
+        ));
+    }
+
+    let account = result?;
+    // 授权成功后关掉内置授权窗口（原因同国内版：前端成功后不再走 cancelLogin）
+    if let Err(err) = workbuddy_oauth::close_oauth_window_for_realm(&app, &REALM_INTL) {
+        logger::log_warn(&format!("[WorkBuddy Intl OAuth] 关闭授权窗口失败：{}", err));
+    }
+    let _ = crate::modules::tray::update_tray_menu(&app);
+
+    logger::log_info(&format!(
+        "WorkBuddy Intl OAuth complete 成功：account_id={}, email={}",
+        account.id, account.email
+    ));
+    Ok(account)
+}
+
+/// 国际版取消 OAuth 登录
+#[tauri::command]
+pub fn workbuddy_intl_oauth_login_cancel(
+    app: AppHandle,
+    login_id: Option<String>,
+) -> Result<(), String> {
+    logger::log_info(&format!(
+        "WorkBuddy Intl OAuth cancel 命令触发：login_id={}",
+        login_id.as_deref().unwrap_or("<none>")
+    ));
+    workbuddy_oauth::cancel_login(login_id.as_deref())?;
+    workbuddy_oauth::close_oauth_window_for_realm(&app, &REALM_INTL)
+}
+
+/// 国际版用已有 access token 添加账号
+#[tauri::command]
+pub async fn add_workbuddy_intl_account_with_token(
+    app: AppHandle,
+    access_token: String,
+) -> Result<WorkbuddyAccount, String> {
+    let payload =
+        workbuddy_oauth::build_payload_from_token_for_realm(&access_token, &REALM_INTL).await?;
+    let account = workbuddy_account::upsert_account_for_realm(payload, &REALM_INTL)?;
+    let _ = crate::modules::tray::update_tray_menu(&app);
+    Ok(account)
 }

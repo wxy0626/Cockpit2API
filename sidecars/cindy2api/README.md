@@ -100,7 +100,7 @@ powershell -File build-sidecar.ps1          # 构建到 bin/cindy2api.exe
 | 路径 | 说明 |
 |---|---|
 | `GET /api/login/providers?region=global\|cn` | 该区域支持的登录方式（转发上游） |
-| `POST /api/login/oauth/start` | 创建授权会话并拉起系统浏览器 |
+| `POST /api/login/oauth/start` | 创建授权会话并返回授权地址；请求体 `openBrowser` 省略或 `true` 时由 sidecar 拉起系统浏览器，传 `false` 时只返回地址（交给宿主应用用应用内无痕窗口打开） |
 | `POST /api/login/oauth/poll` | 轮询授权结果；成功后自动兑换并落成账号 |
 | `POST /api/accounts/remove` | 移除**授权添加**的账号（本机账号不可删） |
 

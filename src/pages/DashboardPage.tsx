@@ -14,6 +14,8 @@ import { useQoderAccountStore } from '../stores/useQoderAccountStore';
 import { useZcodeAccountStore } from '../stores/useZcodeAccountStore';
 import { useTraeAccountStore } from '../stores/useTraeAccountStore';
 import { useWorkbuddyAccountStore } from '../stores/useWorkbuddyAccountStore';
+import { useWorkbuddyIntlAccountStore } from '../stores/useWorkbuddyIntlAccountStore';
+import { useQoderWorkIntlAccountStore } from '../stores/useQoderWorkIntlAccountStore';
 import { useZedAccountStore } from '../stores/useZedAccountStore';
 import { useSponsorStore } from '../stores/useSponsorStore';
 import { useRemoteConfigStore } from '../stores/useRemoteConfigStore';
@@ -513,6 +515,9 @@ export function DashboardPage({
     switchAccount: switchQoderAccount,
   } = useQoderAccountStore();
 
+  const { accounts: qoderWorkAccounts, fetchAccounts: fetchQoderWorkAccounts } =
+    useQoderWorkIntlAccountStore();
+
   const {
     accounts: zcodeAccounts,
     currentAccountId: zcodeCurrentId,
@@ -563,6 +568,9 @@ export function DashboardPage({
     fetchAccounts: fetchWorkbuddyAccounts,
     switchAccount: switchWorkbuddyAccount,
   } = useWorkbuddyAccountStore();
+
+  // 国际版账号单独一个池，统计与国内版分开
+  const { accounts: workbuddyIntlAccounts } = useWorkbuddyIntlAccountStore();
 
   const {
     accounts: zedAccounts,
@@ -624,6 +632,7 @@ export function DashboardPage({
       fetchZcodeAccounts,
       fetchTraeAccounts,
       fetchWorkbuddyAccounts,
+      fetchQoderWorkAccounts,
     ];
 
     const loadDeferredPlatforms = () => {
@@ -701,9 +710,11 @@ export function DashboardPage({
         codebuddyAccounts.length +
         codebuddyCnAccounts.length +
         qoderAccounts.length +
+        qoderWorkAccounts.length +
         zcodeAccounts.length +
         traeAccounts.length +
-        workbuddyAccounts.length,
+        workbuddyAccounts.length +
+        workbuddyIntlAccounts.length,
       antigravity: agAccounts.length,
       codex: codexAccounts.length,
       claude: claudeAccounts.length,
@@ -715,14 +726,16 @@ export function DashboardPage({
       codebuddy: codebuddyAccounts.length,
       codebuddy_cn: codebuddyCnAccounts.length,
       qoder: qoderAccounts.length,
+      qoderwork_intl: qoderWorkAccounts.length,
       zcode: zcodeAccounts.length,
       trae: traeAccountsByPlatform.trae.length,
       trae_solo: traeAccountsByPlatform.trae_solo.length,
       trae_cn: traeAccountsByPlatform.trae_cn.length,
       trae_solo_cn: traeAccountsByPlatform.trae_solo_cn.length,
       workbuddy: workbuddyAccounts.length,
+      workbuddy_intl: workbuddyIntlAccounts.length,
     };
-  }, [agAccounts, codexAccounts, claudeAccounts, zedAccounts, githubCopilotAccounts, windsurfAccounts, kiroAccounts, cursorAccounts, grokAccounts, codebuddyAccounts, codebuddyCnAccounts, qoderAccounts, zcodeAccounts, traeAccounts, traeAccountsByPlatform, workbuddyAccounts]);
+  }, [agAccounts, codexAccounts, claudeAccounts, zedAccounts, githubCopilotAccounts, windsurfAccounts, kiroAccounts, cursorAccounts, grokAccounts, codebuddyAccounts, codebuddyCnAccounts, qoderAccounts, qoderWorkAccounts, zcodeAccounts, traeAccounts, traeAccountsByPlatform, workbuddyAccounts, workbuddyIntlAccounts]);
 
   const dashboardAvailableTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -2673,12 +2686,14 @@ export function DashboardPage({
     codebuddy: stats.codebuddy,
     codebuddy_cn: stats.codebuddy_cn,
     qoder: stats.qoder,
+    qoderwork_intl: stats.qoderwork_intl,
     zcode: stats.zcode,
     trae: stats.trae,
     trae_solo: stats.trae_solo,
     trae_cn: stats.trae_cn,
     trae_solo_cn: stats.trae_solo_cn,
     workbuddy: stats.workbuddy,
+    workbuddy_intl: stats.workbuddy_intl,
     cindy: 0, // Cindy 账号由 sidecar 从本机登录态自动发现，不进本地账号库
   };
 

@@ -385,4 +385,3 @@ mod tests {
         assert_eq!(resolve_account_project_id(&acc_personal), None);
     }
 }
-

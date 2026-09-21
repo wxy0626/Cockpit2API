@@ -1796,13 +1796,7 @@ fn build_travel_request(
     enterprise_id: Option<&str>,
     domain: Option<&str>,
 ) -> reqwest::RequestBuilder {
-    apply_travel_headers(
-        client.get(url),
-        access_token,
-        uid,
-        enterprise_id,
-        domain,
-    )
+    apply_travel_headers(client.get(url), access_token, uid, enterprise_id, domain)
 }
 
 /// 组装旅行接口 POST 请求（派发 / 领奖）。
@@ -1822,15 +1816,9 @@ fn build_travel_request_post(
     enterprise_id: Option<&str>,
     domain: Option<&str>,
 ) -> reqwest::RequestBuilder {
-    apply_travel_headers(
-        client.post(url),
-        access_token,
-        uid,
-        enterprise_id,
-        domain,
-    )
-    .header("Content-Type", "application/json")
-    .json(&body)
+    apply_travel_headers(client.post(url), access_token, uid, enterprise_id, domain)
+        .header("Content-Type", "application/json")
+        .json(&body)
 }
 
 /// 查询某账号的派猫猫旅行状态（上游官方接口）
@@ -1973,7 +1961,9 @@ pub async fn get_travel_config(
     );
     let req = build_travel_request(&client, &url, access_token, uid, enterprise_id, domain);
     let body = send_travel_request(req, "请求旅行配置失败").await?;
-    let data = body.get("data").ok_or_else(|| "旅行配置响应缺少 data 字段".to_string())?;
+    let data = body
+        .get("data")
+        .ok_or_else(|| "旅行配置响应缺少 data 字段".to_string())?;
     let mut locations = Vec::new();
     if let Some(list) = data.get("locations").and_then(Value::as_array) {
         for item in list {
@@ -2075,7 +2065,10 @@ fn truncate_for_log(text: &str, max_chars: usize) -> String {
 /// 解析采用「先读原始文本、再手动 parse」而非 `resp.json()`：
 /// 前者在解析失败时能把真实响应体写进日志，便于定位上游契约变更
 /// （`resp.json()` 只会抛出 `error decoding response body`，原始内容被丢弃）。
-async fn send_travel_request(req: reqwest::RequestBuilder, err_prefix: &str) -> Result<Value, String> {
+async fn send_travel_request(
+    req: reqwest::RequestBuilder,
+    err_prefix: &str,
+) -> Result<Value, String> {
     let resp = req
         .send()
         .await
@@ -2109,7 +2102,12 @@ async fn send_travel_request(req: reqwest::RequestBuilder, err_prefix: &str) -> 
             .or_else(|| body.get("msg"))
             .and_then(Value::as_str)
             .unwrap_or("unknown error");
-        return Err(format!("{} (http={}): {}", err_prefix, status_code.as_u16(), message));
+        return Err(format!(
+            "{} (http={}): {}",
+            err_prefix,
+            status_code.as_u16(),
+            message
+        ));
     }
     let code = body.get("code").and_then(Value::as_i64).unwrap_or(-1);
     if code != 0 {
@@ -2141,9 +2139,17 @@ mod tests {
         let client = reqwest::Client::new();
         for path in ["/travel/depart", "/travel/claim"] {
             let url = format!("{}{}", CODEBUDDY_API_ENDPOINT, path);
-            let req = build_travel_request_post(&client, &url, json!({"location_id": 1}), "t", None, None, None)
-                .build()
-                .expect("构建旅行 POST 请求应成功");
+            let req = build_travel_request_post(
+                &client,
+                &url,
+                json!({"location_id": 1}),
+                "t",
+                None,
+                None,
+                None,
+            )
+            .build()
+            .expect("构建旅行 POST 请求应成功");
             assert_eq!(
                 req.method(),
                 reqwest::Method::POST,
@@ -2157,7 +2163,10 @@ mod tests {
     #[test]
     fn travel_get_endpoints_stay_get() {
         let client = reqwest::Client::new();
-        let url = format!("{}/activity/growth/buddy/travel/status", CODEBUDDY_API_ENDPOINT);
+        let url = format!(
+            "{}/activity/growth/buddy/travel/status",
+            CODEBUDDY_API_ENDPOINT
+        );
         let req = build_travel_request(&client, &url, "t", None, None, None)
             .build()
             .expect("构建旅行 GET 请求应成功");

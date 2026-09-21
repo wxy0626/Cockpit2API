@@ -2,15 +2,21 @@
  * AddCindyAccountDialog —— 「添加 Cindy 账号」对话框。
  *
  * 两个页签，对齐 WorkBuddy 那个对话框的形态：
- *   1. OAuth 授权：选区域与登录方式 → 在浏览器打开授权页 → 轮询授权结果 →
+ *   1. OAuth 授权：选区域与登录方式 → 在**可信授权窗口**打开授权页 → 轮询授权结果 →
  *      sidecar 自动完成 PKCE 兑换并取回 {endpoint, apiKey}
  *   2. 本机导入：一键扫描本机 Cindy 桌面端登录态（零交互，不需要授权）
  *
  * 全部凭据处理都在 sidecar 进程内完成，前端只拿到脱敏后的账号状态。
+ *
+ * 授权页统一走**可信授权窗口**，复用本机登录态和设备信任状态。
+ * 复用就会「再次授权还是上一个账号」。因此请求 sidecar 时传 `openBrowser: false`
+ * （默认它自己会拉起系统浏览器），改由本组件打开可信授权窗口。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ExternalLink, Globe, Loader, MonitorSmartphone, Smartphone, X } from 'lucide-react';
+import { Check, Copy, ExternalLink, Globe, Loader, MonitorSmartphone, Smartphone, X } from 'lucide-react';
 
+import { closeOAuthWindow, openOAuthWindow } from '../../services/cindyService';
+import { CindyEmailLoginForm } from './CindyEmailLoginForm';
 import { CindyPhoneLoginForm } from './CindyPhoneLoginForm';
 
 /** sidecar 的默认监听地址，与 sidecars/cindy2api/runtime/config.json 的 listen 对应 */
@@ -27,6 +33,11 @@ interface ProvidersResponse {
   desktopAuthorizationHint?: string;
   /** 该区域是否支持手机号 + 短信验证码登录（中国大陆版为 true） */
   phoneCodeLoginSupported?: boolean;
+  /** 人机验证信息（国际版邮箱验证码发送强制 Turnstile） */
+  captcha?: {
+    siteKey?: string;
+    requiredFor?: string[];
+  };
 }
 
 interface Props {
@@ -62,9 +73,11 @@ function authOptions(social: string[]): Array<{ key: string; label: string }> {
 }
 
 export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
-  // 三种添加方式并列成三个页签：国内手机号登录 / 国际账号 OAuth 授权 / 本机导入
-  const [tab, setTab] = useState<'phone' | 'oauth' | 'local'>('phone');
-  // OAuth 页签只用于国际版账号，区域固定 global（国内走手机号页签）
+  // 三种添加方式并列成三个页签：国内手机号登录 / 国际账号登录 / 本机导入
+  const [tab, setTab] = useState<'phone' | 'global' | 'local'>('phone');
+  // 国际登录页签内的两种方式：邮箱验证码 / OAuth 授权（Google/Apple/企业 SSO）
+  const [globalMode, setGlobalMode] = useState<'email' | 'oauth'>('email');
+  // 国际页签只用于国际版账号，区域固定 global（国内走手机号页签）
   const region = 'global' as const;
   const [providers, setProviders] = useState<ProvidersResponse | null>(null);
   const [provider, setProvider] = useState<string>('google');
@@ -74,6 +87,8 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
   const [phase, setPhase] = useState<'idle' | 'waiting' | 'done' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [importing, setImporting] = useState(false);
+  /** 授权链接是否刚被复制（按钮回显用） */
+  const [urlCopied, setUrlCopied] = useState(false);
 
   /** 轮询定时器：对话框关闭或授权完成时必须清掉，否则会一直打接口 */
   const pollTimer = useRef<number | null>(null);
@@ -132,6 +147,9 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
       setPhase('idle');
       setMessage('');
       setAuthorizeUrl('');
+      setUrlCopied(false);
+      // 关弹窗时顺手结束授权窗口状态，避免残留窗口被误认为仍在登录
+      void closeOAuthWindow().catch(() => {});
       return;
     }
     void loadProviders(region);
@@ -139,11 +157,39 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
 
   useEffect(() => stopPolling, [stopPolling]);
 
-  /** 发起授权：sidecar 会同时拉起系统浏览器 */
+  /**
+   * 用可信授权窗口打开授权页。
+   *
+   * 失败不中止流程：授权在服务端是会话级的，用户把链接复制到浏览器里完成也一样能被
+   * 轮询取到，所以这里只改提示文案，不动 phase（保持 waiting，轮询照跑）。
+   */
+  const openAuthWindow = useCallback(async (url: string) => {
+    if (!url) return;
+    try {
+      await openOAuthWindow(url);
+      setMessage('已打开可信授权窗口，请在窗口中完成授权…');
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setMessage(`打开可信授权窗口失败：${detail}。可复制下方链接到浏览器打开。`);
+    }
+  }, []);
+
+  /** 复制授权链接（授权窗口打不开时的退路） */
+  const copyAuthorizeUrl = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(authorizeUrl);
+      setUrlCopied(true);
+      window.setTimeout(() => setUrlCopied(false), 1200);
+    } catch {
+      setMessage('复制失败，请手动选中下方链接复制。');
+    }
+  }, [authorizeUrl]);
+
+  /** 发起授权：sidecar 只返回地址（openBrowser=false），授权页由本组件打开 */
   const startAuthorization = useCallback(async () => {
     stopPolling();
     setPhase('waiting');
-    setMessage('已请求打开浏览器，请在浏览器中完成授权…');
+    setMessage('正在发起授权…');
     try {
       const isSso = provider === 'sso';
       const response = await fetch(`${CINDY_BASE}/api/login/oauth/start`, {
@@ -154,6 +200,8 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
           // SSO 走组织标识，社交登录走 provider 名
           provider: isSso ? ssoOrg.trim() : provider,
           region,
+          // 不要让 sidecar 拉起系统浏览器：它复用的登录态会导致再次授权还是上一个账号
+          openBrowser: false,
         }),
       });
       const data = (await response.json()) as { sessionId?: string; authorizeUrl?: string; error?: { message?: string } };
@@ -164,7 +212,8 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
       }
       setAuthorizeUrl(data.authorizeUrl ?? '');
 
-      // 浏览器里完成授权需要时间，2 秒一轮；终态由 sidecar 判定
+      // 用可信授权窗口打开（而不是 sidecar 自行拉起浏览器）
+      await openAuthWindow(data.authorizeUrl ?? '');      // 完成授权需要时间，2 秒一轮；终态由 sidecar 判定
       pollTimer.current = window.setInterval(async () => {
         try {
           const pollResponse = await fetch(`${CINDY_BASE}/api/login/oauth/poll`, {
@@ -214,7 +263,7 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
       setPhase('error');
       setMessage(`发起授权失败：${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [provider, ssoOrg, region, onAdded, stopPolling]);
+  }, [provider, ssoOrg, region, onAdded, stopPolling, openAuthWindow]);
 
   /** 本机导入：让 sidecar 重新扫描本机 Cindy 登录态 */
   const importLocal = useCallback(async () => {
@@ -287,7 +336,7 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
           {(
             [
               ['phone', '国内登录', <Smartphone size={15} key="p" />],
-              ['oauth', 'OAuth 授权', <Globe size={15} key="g" />],
+              ['global', '国际登录', <Globe size={15} key="g" />],
               ['local', '本机导入', <MonitorSmartphone size={15} key="m" />],
             ] as const
           ).map(([key, label, icon]) => (
@@ -323,11 +372,59 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
               setPhase(tone === 'error' ? 'error' : tone === 'done' ? 'done' : 'idle');
             }}
           />
-        ) : tab === 'oauth' ? (
+        ) : tab === 'global' ? (
           <>
+            {/* 国际登录的两种方式并列切换：邮箱验证码 / 第三方授权 */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {(
+                [
+                  ['email', '邮箱登录'],
+                  ['oauth', 'OAuth 授权'],
+                ] as const
+              ).map(([key, label]) => {
+                const active = globalMode === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setGlobalMode(key);
+                      setMessage('');
+                      setPhase('idle');
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '9px 12px',
+                      borderRadius: 9,
+                      cursor: 'pointer',
+                      border:
+                        '1px solid ' + (active ? 'var(--primary, #2f6df6)' : 'var(--border-subtle)'),
+                      background: active ? 'var(--surface-tertiary)' : 'transparent',
+                      color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      fontWeight: active ? 600 : 400,
+                      fontSize: 13,
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {globalMode === 'email' ? (
+              <CindyEmailLoginForm
+                region={region}
+                onSuccess={onAdded}
+                onMessage={(text, tone) => {
+                  setMessage(text);
+                  setPhase(tone === 'error' ? 'error' : tone === 'done' ? 'done' : 'idle');
+                }}
+              />
+            ) : (
+              <>
             <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 0 }}>
-              使用国际版账号授权登录（Apple / Google）。点击下方按钮会在系统浏览器中
-              打开 Cindy 授权页，完成授权后本窗口自动更新。
+              使用国际版账号授权登录（Apple / Google）。点击下方按钮会在可信授权窗口中
+              打开 Cindy 授权页（复用本机可信登录态），
+              完成授权后本窗口自动更新。
             </p>
 
             {/* 登录方式全部平铺成可点选块，一眼看完、单击切换 */}
@@ -408,8 +505,56 @@ export function AddCindyAccountDialog({ open, onClose, onAdded }: Props) {
                   }}
                 >
                   {phase === 'waiting' ? <Loader size={16} className="spin" /> : <ExternalLink size={16} />}
-                  {phase === 'waiting' ? '等待授权完成…' : '在浏览器中打开授权页'}
+                  {phase === 'waiting' ? '等待授权完成…' : '打开可信授权窗口'}
                 </button>
+
+                {/* 等待期间窗口可能被用户关掉，给一个重开入口；再给一条复制链接的退路 */}
+                {phase === 'waiting' && authorizeUrl && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button
+                      onClick={() => void openAuthWindow(authorizeUrl)}
+                      style={{
+                        flex: 1,
+                        padding: '9px 10px',
+                        borderRadius: 9,
+                        border: '1px solid var(--border-subtle)',
+                        background: 'transparent',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        fontSize: 12,
+                      }}
+                    >
+                      <ExternalLink size={14} />
+                      重新打开授权窗口
+                    </button>
+                    <button
+                      onClick={() => void copyAuthorizeUrl()}
+                      style={{
+                        flex: 1,
+                        padding: '9px 10px',
+                        borderRadius: 9,
+                        border: '1px solid var(--border-subtle)',
+                        background: 'transparent',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        fontSize: 12,
+                      }}
+                    >
+                      {urlCopied ? <Check size={14} /> : <Copy size={14} />}
+                      {urlCopied ? '已复制' : '复制授权链接'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </>
         ) : (
           <>

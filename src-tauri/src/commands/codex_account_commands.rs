@@ -2002,7 +2002,7 @@ pub async fn codex_oauth_device_auth_start(
     codex_oauth::start_device_auth(app_handle).await
 }
 
-/// OAuth：在内置无痕 WebView 中打开当前授权地址
+/// OAuth：在可信授权窗口中打开当前授权地址
 #[tauri::command]
 pub fn codex_oauth_open_incognito_window(
     app_handle: AppHandle,

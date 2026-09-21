@@ -37,6 +37,9 @@ fn normalize_platform(platform: &str) -> Result<&'static str, String> {
         "codebuddy" => Ok("codebuddy"),
         "codebuddy_cn" | "codebuddy-cn" => Ok("codebuddy_cn"),
         "qoder" => Ok("qoder"),
+        "qoderwork" => Ok("qoderwork"),
+        "qoderwork_intl" | "qoderwork-intl" => Ok("qoderwork_intl"),
+        "workbuddy_intl" | "workbuddy-intl" => Ok("workbuddy_intl"),
         "zcode" => Ok("zcode"),
         "trae" => Ok("trae"),
         "trae_solo" | "trae-solo" => Ok("trae_solo"),
@@ -199,6 +202,28 @@ mod tests {
         assert_eq!(
             get_current_account_id("grok").expect("get grok canonical"),
             Some("grok-account".to_string())
+        );
+
+        set_current_account_id("qoderwork_intl", Some("qoderwork-account"))
+            .expect("set qoderwork intl current");
+        assert_eq!(
+            get_current_account_id("qoderwork-intl").expect("get qoderwork intl canonical"),
+            Some("qoderwork-account".to_string())
+        );
+        assert_eq!(
+            get_current_account_id("qoderwork").expect("get qoderwork remains separate"),
+            None
+        );
+
+        set_current_account_id("workbuddy-intl", Some("workbuddy-account"))
+            .expect("set workbuddy intl current");
+        assert_eq!(
+            get_current_account_id("workbuddy_intl").expect("get workbuddy intl canonical"),
+            Some("workbuddy-account".to_string())
+        );
+        assert_eq!(
+            get_current_account_id("workbuddy").expect("get workbuddy remains separate"),
+            None
         );
     }
 

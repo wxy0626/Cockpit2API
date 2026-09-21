@@ -126,7 +126,7 @@ export function ZcodeAccountsPage() {
     oauthWaitingDefault: '等待 ZCode OAuth 回调...',
     oauthOpenButtonKey: 'zcode.oauth.openWindow',
     oauthOpenButtonDefault: '打开授权窗口',
-    showOauthIncognitoOpenButton: true,
+    showOauthIncognitoOpenButton: false,
     tokenTabLabelKey: 'zcode.apiKey.tab',
     tokenTabLabelDefault: 'API Key',
     tokenDescKey: 'zcode.apiKey.desc',

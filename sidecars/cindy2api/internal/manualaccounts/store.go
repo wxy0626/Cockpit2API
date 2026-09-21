@@ -31,6 +31,13 @@ type Account struct {
 	RefreshToken string `json:"refreshToken"`
 	// Region 该账号所属区域（global / cn），决定刷新时打哪个端点
 	Region string `json:"region"`
+	// DeviceID 签发 refreshToken 时使用的设备标识。
+	//
+	// 为什么必须单独存：OAuth 社交/SSO 授权为了让「换号登录」可用，每次授权都用
+	// 会话专属 deviceId（基础值 + 随机后缀）兑换令牌；上游校验 refreshToken 与
+	// 签发设备一致，刷新时必须回传**同一个**值，否则 401 DEVICE_MISMATCH。
+	// 手机验证码路径签发时用的就是基础 deviceId，此时留空、刷新时回退基础值。
+	DeviceID string `json:"deviceID,omitempty"`
 	// AddedAt 添加时间（Unix 毫秒）
 	AddedAt int64 `json:"addedAt"`
 }

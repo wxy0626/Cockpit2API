@@ -27,10 +27,11 @@
   border-color: var(--primary, #2f6df6);
 }
 
+/* 与平台页（.ghcp-accounts-page）保持一致：不自加内边距、不设宽度上限，
+   间距由外层 shell 提供 —— 否则宽度被多扣 64px，卡片列宽会比其他平台宽一档。 */
 .cindy-accounts-view {
-  padding: 24px 32px;
+  padding: 0;
   color: var(--text-primary);
-  max-width: 1280px;
 }
 
 /* ── 说明卡 ───────────────────────────────────────────── */
@@ -146,7 +147,7 @@
 .cindy-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .cindy-grid.list {
@@ -155,12 +156,20 @@
 
 .cindy-card {
   background: var(--surface-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 14px);
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+  transition: all 0.25s ease;
+}
+
+.cindy-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .cindy-card.selected {
@@ -280,6 +289,11 @@
   color: var(--text-secondary);
   text-align: center;
   line-height: 1.6;
+}
+
+/* 额度查询失败（如刷新令牌被上游拒绝）：红色提示，完整原因放卡片 title */
+.cindy-quota-empty.error {
+  color: var(--danger, #e5484d);
 }
 
 .cindy-sub {

@@ -80,6 +80,15 @@ export async function qoderOauthLoginCancel(loginId?: string): Promise<void> {
   return await invoke('qoder_oauth_login_cancel', { loginId: loginId ?? null });
 }
 
+/** 在可信授权窗口中打开 Qoder/QoderWork 授权页。 */
+export async function openQoderWorkOAuthWindow(authUrl: string): Promise<void> {
+  return await invoke('qoderwork_oauth_open_window', { authUrl });
+}
+
+export async function closeQoderWorkOAuthWindow(): Promise<void> {
+  return await invoke('qoderwork_oauth_close_window');
+}
+
 export async function exportQoderAccounts(accountIds: string[]): Promise<string> {
   return await invoke('export_qoder_accounts', { accountIds });
 }

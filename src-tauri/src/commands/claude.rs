@@ -4,7 +4,6 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 use tauri::AppHandle;
-use tauri_plugin_opener::OpenerExt;
 
 use crate::models::claude::{
     ClaudeAccount, ClaudeAuthMode, ClaudeDesktopGatewayModelMapping,
@@ -550,14 +549,14 @@ pub fn claude_oauth_login_prepare() -> Result<ClaudeOAuthStartResponse, String> 
 }
 
 #[tauri::command]
-pub async fn claude_oauth_login_start(app: AppHandle) -> Result<ClaudeOAuthStartResponse, String> {
+pub async fn claude_oauth_login_start(_app: AppHandle) -> Result<ClaudeOAuthStartResponse, String> {
     let response = claude_account::start_oauth_login()?;
-    if let Err(error) = app
-        .opener()
-        .open_url(&response.verification_uri, None::<String>)
-    {
+    if let Err(error) = crate::modules::chrome_oauth::open_trusted(&response.verification_uri) {
         let _ = claude_account::cancel_oauth_login(Some(response.login_id.as_str()));
-        return Err(format!("打开 Claude OAuth 授权页失败: {}", error));
+        return Err(format!(
+            "打开 Claude OAuth Chrome 可信授权页失败: {}",
+            error
+        ));
     }
     Ok(response)
 }

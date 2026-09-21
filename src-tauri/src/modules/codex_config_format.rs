@@ -170,10 +170,8 @@ fn recover_invalid_codex_config(
         if let Ok(Some((backup_text, _))) = read_codex_config_file_text(&backup_path) {
             if !backup_text.trim().is_empty() {
                 if let Ok((doc, _)) = parse_codex_config_doc(&backup_text) {
-                    let quarantined = crate::modules::atomic_write::quarantine_file(
-                        path,
-                        "invalid-toml",
-                    )?;
+                    let quarantined =
+                        crate::modules::atomic_write::quarantine_file(path, "invalid-toml")?;
                     write_repaired_codex_config(path, &doc)?;
                     crate::modules::logger::log_warn(&format!(
                         "[Codex Config] 已从备份恢复损坏的 config.toml: path={}, backup={}, quarantined={:?}, error={}",
@@ -188,8 +186,7 @@ fn recover_invalid_codex_config(
         }
     }
 
-    let quarantined =
-        crate::modules::atomic_write::quarantine_file(path, "invalid-toml")?;
+    let quarantined = crate::modules::atomic_write::quarantine_file(path, "invalid-toml")?;
     crate::modules::logger::log_warn(&format!(
         "[Codex Config] 已隔离无法解析的 config.toml 并继续使用空配置: path={}, quarantined={:?}, error={}",
         path.display(),
@@ -614,8 +611,14 @@ features = true
 
         assert!(!sanitize_codex_config_toml_file(&config_path).expect("sanitize config"));
 
-        assert_eq!(fs::read_to_string(&config_path).expect("read config"), input);
-        assert_eq!(fs::read_to_string(&backup_path).expect("read backup"), input);
+        assert_eq!(
+            fs::read_to_string(&config_path).expect("read config"),
+            input
+        );
+        assert_eq!(
+            fs::read_to_string(&backup_path).expect("read backup"),
+            input
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 

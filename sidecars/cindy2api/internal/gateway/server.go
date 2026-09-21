@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -23,6 +24,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"cindy2api/internal/cindyaccount"
@@ -49,6 +51,61 @@ type Server struct {
 	manual *manualaccounts.Store
 	// hidden 用户屏蔽的账号（保留给「临时禁用」场景；常规移除走 delete-local）
 	hidden *hiddenstore.Store
+	// captchaSessions 邮箱验证码辅助页（/captcha）的会话状态。
+	// key = 前端生成的会话 id；value = *captchaSession。带 TTL 懒清理。
+	captchaSessions sync.Map
+}
+
+// captchaSession 辅助页一次人机验证 + 发送流程的状态。
+type captchaSession struct {
+	status  string // pending | sent | error
+	message string
+	// email/region 由 prepare 端点登记，回调时据此发验证码
+	email   string
+	region  string
+	created time.Time
+}
+
+// prepareCaptchaSession 登记一次验证流程（前端开验证窗口前调用）。
+func (s *Server) prepareCaptchaSession(session, email, region string) {
+	s.captchaSessions.Store(session, &captchaSession{
+		status: "pending", email: email, region: region, created: time.Now(),
+	})
+	s.pruneCaptchaSessions()
+}
+
+// setCaptchaSession 记录/更新会话状态（保留 prepare 登记的 email/region）。
+func (s *Server) setCaptchaSession(session, status, message string) {
+	existing, ok := s.captchaSessions.Load(session)
+	cs := &captchaSession{status: status, message: message, created: time.Now()}
+	if ok {
+		if prev, ok2 := existing.(*captchaSession); ok2 {
+			cs.email = prev.email
+			cs.region = prev.region
+		}
+	}
+	s.captchaSessions.Store(session, cs)
+	s.pruneCaptchaSessions()
+}
+
+// getCaptchaSession 取会话（不存在返回 nil）。
+func (s *Server) getCaptchaSession(session string) *captchaSession {
+	value, ok := s.captchaSessions.Load(session)
+	if !ok {
+		return nil
+	}
+	cs, _ := value.(*captchaSession)
+	return cs
+}
+
+// pruneCaptchaSessions 清掉 10 分钟前的旧会话（顺手调用，避免无限堆积）。
+func (s *Server) pruneCaptchaSessions() {
+	s.captchaSessions.Range(func(key, value any) bool {
+		if cs, ok := value.(*captchaSession); ok && time.Since(cs.created) > 10*time.Minute {
+			s.captchaSessions.Delete(key)
+		}
+		return true
+	})
 }
 
 // New 构造网关。
@@ -90,6 +147,9 @@ func New(
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
+	mux.HandleFunc("/captcha", s.handleCaptchaPage)
+	// ServeMux 的 "/captcha" 只精确匹配；子路径（/captcha/callback）要单独注册
+	mux.HandleFunc("/captcha/", s.handleCaptchaSubroutes)
 	mux.HandleFunc("/api/", s.handleAdmin)
 	mux.HandleFunc("/v1/", s.handleOpenAI)
 	return withCORS(mux)
@@ -202,6 +262,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // handleAdmin 管理接口（仅本机使用，不需要本地 key）。
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	path := strings.SplitN(r.URL.Path, "?", 2)[0]
+	// 管理接口不多，逐条留痕：排查「前端到底有没有发这个请求」时比猜快得多
+	s.logger.Printf("管理请求：%s %s", r.Method, path)
 	switch {
 	case r.Method == http.MethodGet && path == "/api/status":
 		snapshot := s.pool.Snapshot()
@@ -253,6 +315,20 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		s.handlePhoneRequestCode(w, r)
 	case r.Method == http.MethodPost && path == "/api/login/phone/verify-code":
 		s.handlePhoneVerifyCode(w, r)
+	case r.Method == http.MethodPost && path == "/api/login/email/request-code":
+		s.handleEmailRequestCode(w, r)
+	case r.Method == http.MethodPost && path == "/api/login/email/verify-code":
+		s.handleEmailVerifyCode(w, r)
+	case r.Method == http.MethodGet && path == "/captcha":
+		s.handleCaptchaPage(w, r)
+	case r.Method == http.MethodGet && path == "/api/login/captcha/params":
+		s.handleCaptchaParams(w, r)
+	case r.Method == http.MethodPost && path == "/api/login/email/captcha/prepare":
+		s.handleCaptchaPrepare(w, r)
+	case r.Method == http.MethodGet && path == "/captcha/callback":
+		s.handleCaptchaCallback(w, r)
+	case r.Method == http.MethodGet && path == "/api/login/email/captcha/status":
+		s.handleCaptchaStatus(w, r)
 	case r.Method == http.MethodPost && path == "/api/accounts/remove":
 		s.handleRemoveAccount(w, r)
 	case r.Method == http.MethodPost && path == "/api/credits":
@@ -688,13 +764,20 @@ func (s *Server) handleLoginProviders(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, payload)
 }
 
-// handleLoginStart 创建授权会话并拉起系统浏览器。
+// handleLoginStart 创建授权会话并返回授权地址。
+//
+// 默认仍会拉起系统浏览器（保持本 sidecar 独立使用时的手感）；
+// 客户端传入 openBrowser=false 时改为只返回地址 —— CockpitTools 就是走这条：
+// 它用**应用内无痕窗口**打开授权页，避免复用系统浏览器里已有的登录态
+// （复用会导致「再次授权还是上一个账号」）。
 func (s *Server) handleLoginStart(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		// Kind "social"（默认，Apple/Google）或 "sso"（企业单点登录）
 		Kind     string `json:"kind"`
 		Provider string `json:"provider"`
 		Region   string `json:"region"`
+		// OpenBrowser 省略或 true = 由 sidecar 拉起系统浏览器；false = 只返回 authorizeUrl。
+		OpenBrowser *bool `json:"openBrowser"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "请求体解析失败："+err.Error())
@@ -709,11 +792,16 @@ func (s *Server) handleLoginStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "login_start_failed", err.Error())
 		return
 	}
-	if err := openInBrowser(session.AuthorizeURL); err != nil {
-		// 打不开浏览器不算失败：授权链接一并返回，用户可手动打开
-		s.logger.Printf("打开系统浏览器失败：%v（已把授权链接返回给前端）", err)
+
+	if body.OpenBrowser == nil || *body.OpenBrowser {
+		if err := openInBrowser(session.AuthorizeURL); err != nil {
+			// 打不开浏览器不算失败：授权链接一并返回，用户可手动打开
+			s.logger.Printf("打开系统浏览器失败：%v（已把授权链接返回给前端）", err)
+		}
+		s.logger.Printf("已发起 %s 授权（区域 %s），等待用户在浏览器完成", session.Provider, session.Region)
+	} else {
+		s.logger.Printf("已发起 %s 授权（区域 %s），等待客户端自行打开授权页", session.Provider, session.Region)
 	}
-	s.logger.Printf("已发起 %s 授权（区域 %s），等待用户在浏览器完成", session.Provider, session.Region)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sessionId":    session.ID,
@@ -785,7 +873,9 @@ func (s *Server) handleLoginPoll(w http.ResponseWriter, r *http.Request) {
 		APIKey:       apiKey,
 		RefreshToken: pair.RefreshToken,
 		Region:       session.Region,
-		AddedAt:      time.Now().UnixMilli(),
+		// 兑换用的会话专属 deviceId 必须记下来：刷新令牌时上游要求回传同一设备
+		DeviceID: session.DeviceID,
+		AddedAt:  time.Now().UnixMilli(),
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "persist_failed", "账号保存失败："+err.Error())
 		return
@@ -863,7 +953,14 @@ func (s *Server) handleCredits(w http.ResponseWriter, r *http.Request) {
 			"accountId": "oauth-" + item.ID,
 			"region":    item.Region,
 		}
-		pair, err := oauth.RefreshAccessToken(ctx, s.client, item.Region, item.RefreshToken, s.cfg.DeviceID)
+		// 刷新必须回传**签发时**的 deviceId：OAuth 社交/SSO 路径用的是会话专属值
+		//（基础值+随机后缀），不回传同值会被上游以 DEVICE_MISMATCH 拒绝（401）。
+		// 旧账号表没有该字段 → 回退基础 deviceId（手机路径签发的本来就用它）。
+		refreshDeviceID := item.DeviceID
+		if refreshDeviceID == "" {
+			refreshDeviceID = s.cfg.DeviceID
+		}
+		pair, err := oauth.RefreshAccessToken(ctx, s.client, item.Region, item.RefreshToken, refreshDeviceID)
 		if err != nil {
 			entry["error"] = err.Error()
 			results = append(results, entry)
@@ -1011,7 +1108,7 @@ func (s *Server) handlePhoneVerifyCode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "login_failed", err.Error())
 		return
 	}
-	label, endpoint, err := s.persistLoginAccount(r.Context(), pair, body.Region)
+	label, endpoint, err := s.persistLoginAccount(r.Context(), pair, body.Region, s.cfg.DeviceID)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "credentials_failed", err.Error())
 		return
@@ -1024,8 +1121,279 @@ func (s *Server) handlePhoneVerifyCode(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// persistLoginAccount 把登录得到的令牌对落成账号；OAuth 与手机号两条路径共用。
-func (s *Server) persistLoginAccount(ctx context.Context, pair *oauth.TokenPair, region string) (label, endpoint string, err error) {
+// handleEmailRequestCode 请求邮箱验证码（国际版）。
+//
+// 人机验证**按需触发**：captchaToken 可空，先不带 token 发一次；
+// 上游要求时返回 409 + code=captcha_required，前端再把用户引导到
+// /captcha 辅助页（localhost 来源，见 handleCaptchaPage）拿 token 重试。
+func (s *Server) handleEmailRequestCode(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Email        string `json:"email"`
+		CaptchaToken string `json:"captchaToken"`
+		Region       string `json:"region"`
+		// Session 辅助页流程的会话 id：前端开 /captcha 页前生成，
+		// 页面拿到 token 后带着它来发验证码；本端点把结果回写进会话供前端轮询
+		Session string `json:"session"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "请求体解析失败："+err.Error())
+		return
+	}
+	err := oauth.RequestEmailCode(r.Context(), s.client, body.Region, body.Email, body.CaptchaToken)
+	if err != nil {
+		// 失败原因必须落日志：CAPTCHA_INVALID 一类的上游拒绝只有这里有细节，
+		// 没有这条日志就无法判断是不是域名白名单/令牌复用之类的问题
+		s.logger.Printf("邮箱验证码请求失败（%s）：%v", maskEmail(body.Email), err)
+		message := err.Error()
+		var captchaErr *oauth.CaptchaError
+		if errors.As(err, &captchaErr) {
+			message = captchaErr.Message
+			writeError(w, http.StatusConflict, captchaErr.Code, captchaErr.Message)
+		} else {
+			writeError(w, http.StatusBadGateway, "request_code_failed", err.Error())
+		}
+		if body.Session != "" {
+			s.setCaptchaSession(body.Session, "error", message)
+		}
+		return
+	}
+	if body.Session != "" {
+		s.setCaptchaSession(body.Session, "sent", "验证码已发送")
+	}
+	s.logger.Printf("已请求邮箱验证码（区域 %s）", body.Region)
+	writeJSON(w, http.StatusOK, map[string]any{"status": "sent"})
+}
+
+// handleEmailVerifyCode 校验邮箱验证码并落成账号（国际版）。
+//
+// 与手机号路径一样用基础 deviceId 签发令牌，因此刷新令牌天然一致，
+// 不会踩 OAuth 社交登录那类 DEVICE_MISMATCH 问题。
+func (s *Server) handleEmailVerifyCode(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Email  string `json:"email"`
+		Code   string `json:"code"`
+		Region string `json:"region"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "请求体解析失败："+err.Error())
+		return
+	}
+	pair, err := oauth.VerifyEmailCode(r.Context(), s.client, body.Region, body.Email, body.Code, s.cfg.DeviceID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "login_failed", err.Error())
+		return
+	}
+	label, endpoint, err := s.persistLoginAccount(r.Context(), pair, body.Region, s.cfg.DeviceID)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "credentials_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":   "ok",
+		"label":    label,
+		"endpoint": endpoint,
+		"accounts": s.pool.Snapshot().Accounts,
+	})
+}
+
+// ── 人机验证辅助页（/captcha） ──────────────────────────────────────────────
+//
+// 为什么要有这个页：Cindy 的 Turnstile sitekey 配了主机名白名单，
+// 应用 WebView 的来源是 http://tauri.localhost（不在白名单里），在那里签发的
+// token 会被上游 siteverify 判为 CAPTCHA_INVALID（实测）。而 **localhost 是
+// Turnstile 永远放行的主机名** —— 所以把验证页挂在本服务自己的 http://localhost
+// 来源下，由应用内嵌 iframe 加载：token 在 localhost 签发，上游必然认账。
+//
+// 页面自包含：读 query 里的 email/region/session，自动完成验证并发送验证码，
+// 把结果写进会话；前端只轮询 /api/login/email/captcha/status 展示即可。
+
+const captchaPageHTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Cindy 安全校验</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #14161a; color: #d8dce2;
+         display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+  .box { text-align: center; }
+  #widget { display: flex; justify-content: center; margin: 12px 0; }
+  .msg { font-size: 14px; line-height: 1.7; min-height: 20px; }
+  .ok { color: #56e0b0; } .bad { color: #ff7b72; }
+</style></head>
+<body>
+<div class="box">
+  <div class="msg" id="msg">正在完成安全校验…</div>
+  <div id="widget"></div>
+</div>
+<script>
+var params = new URLSearchParams(location.search);
+var email = params.get('email') || '';
+var region = params.get('region') || 'global';
+var session = params.get('session') || '';
+var msgEl = document.getElementById('msg');
+function setMsg(t, cls) { msgEl.textContent = t; msgEl.className = 'msg ' + (cls || ''); }
+
+function onTurnstileLoad() {
+  // 渲染参数直接取官方验证页那套（sitekey/action/cData），
+  // 上游 siteverify 会校验 action —— 自己编一套必被拒（CAPTCHA_INVALID）
+  fetch('/api/login/captcha/params').then(function (r) { return r.json(); }).then(function (p) {
+    var siteKey = p && p.siteKey;
+    if (!siteKey) { setMsg('未取到人机验证参数' + (p && p.error ? '：' + p.error : ''), 'bad'); return; }
+    turnstile.render('#widget', {
+      sitekey: siteKey,
+      action: p.action || undefined,
+      cData: p.cData || undefined,
+      theme: 'dark',
+      language: 'zh-cn',
+      callback: function (token) { sendWithToken(token); },
+      'error-callback': function (code) { setMsg('人机验证失败（' + code + '），请回到应用重试', 'bad'); },
+      'expired-callback': function () { setMsg('人机验证已过期，请回到应用重试', 'bad'); }
+    });
+  }).catch(function (e) { setMsg('初始化失败：' + e, 'bad'); });
+}
+
+function sendWithToken(token) {
+  setMsg('校验通过，正在发送验证码…');
+  fetch('/api/login/email/request-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, captchaToken: token, region: region, session: session })
+  }).then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); })
+    .then(function (res) {
+      if (res.status === 200) {
+        setMsg('验证码已发送至 ' + email + '，请回到应用填写。本页可以关闭。', 'ok');
+      } else {
+        var m = (res.body && res.body.error && res.body.error.message) || ('HTTP ' + res.status);
+        setMsg('发送失败：' + m + '。请回到应用重试。', 'bad');
+      }
+    })
+    .catch(function (e) { setMsg('发送失败：' + e + '。请回到应用重试。', 'bad'); });
+}
+</script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad" async defer></script>
+</body>
+</html>`
+
+// handleCaptchaPage 邮箱验证码的人机验证辅助页（localhost 来源）。
+func (s *Server) handleCaptchaPage(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(captchaPageHTML))
+}
+
+// handleCaptchaParams 返回官方验证页的渲染参数（sitekey/action/cData）。
+//
+// 为什么不自己编：上游 siteverify 校验 action，与官方页不一致会被判
+// CAPTCHA_INVALID（2026-09-18 实测）。这里每次实时抓官方页面，官方改参数也能跟上。
+func (s *Server) handleCaptchaParams(w http.ResponseWriter, r *http.Request) {
+	params, err := oauth.FetchCaptchaChallengeParams(r.Context(), s.client)
+	if err != nil {
+		s.logger.Printf("获取验证页参数失败：%v", err)
+		writeJSON(w, http.StatusOK, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"siteKey": params.SiteKey,
+		"action":  params.Action,
+		"cData":   params.CData,
+	})
+}
+
+// handleCaptchaPrepare 登记一次验证流程（前端开官方验证窗口之前调用）。
+func (s *Server) handleCaptchaPrepare(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Session string `json:"session"`
+		Email   string `json:"email"`
+		Region  string `json:"region"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "请求体解析失败："+err.Error())
+		return
+	}
+	if strings.TrimSpace(body.Session) == "" || strings.TrimSpace(body.Email) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "缺少 session 或 email")
+		return
+	}
+	s.prepareCaptchaSession(body.Session, body.Email, body.Region)
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
+// handleCaptchaCallback 官方验证页回传 token 的落地点（窗口自动跳到这里）。
+//
+// 页面把 token 交给我们而不是交回前端：token 一次性，立刻用掉最稳。
+// 结果写进会话，前端轮询 /api/login/email/captcha/status 取用。
+func (s *Server) handleCaptchaCallback(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	session := query.Get("session")
+	token := query.Get("token")
+	failure := query.Get("error")
+
+	message := "验证完成"
+	ok := false
+	if cs := s.getCaptchaSession(session); cs == nil {
+		message = "会话不存在或已过期"
+	} else if failure != "" {
+		message = "人机验证未通过：" + failure
+		s.setCaptchaSession(session, "error", message)
+	} else if token == "" {
+		message = "未收到验证令牌"
+		s.setCaptchaSession(session, "error", message)
+	} else {
+		err := oauth.RequestEmailCode(r.Context(), s.client, cs.region, cs.email, token)
+		if err != nil {
+			message = err.Error()
+			s.logger.Printf("邮箱验证码请求失败（%s）：%v", maskEmail(cs.email), err)
+			s.setCaptchaSession(session, "error", message)
+		} else {
+			ok = true
+			message = "验证码已发送"
+			s.setCaptchaSession(session, "sent", message)
+			s.logger.Printf("已请求邮箱验证码（%s，区域 %s）", maskEmail(cs.email), cs.region)
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	title := "校验未通过"
+	detail := message + "，请回到应用重试。"
+	if ok {
+		title = "校验通过"
+		detail = "验证码已发送，请回到应用填写。本窗口会自动关闭。"
+	}
+	_, _ = w.Write([]byte("<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">" +
+		"<title>" + title + "</title><style>body{font-family:system-ui,sans-serif;background:#14161a;" +
+		"color:#d8dce2;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;" +
+		"font-size:14px;line-height:1.8;text-align:center;padding:0 24px}</style></head><body><div>" +
+		"<div style=\"font-size:16px;font-weight:600;margin-bottom:8px\">" + title + "</div>" +
+		"<div>" + detail + "</div></div></body></html>"))
+}
+
+// handleCaptchaSubroutes 处理 /captcha/ 下的子路径。
+func (s *Server) handleCaptchaSubroutes(w http.ResponseWriter, r *http.Request) {
+	switch strings.SplitN(r.URL.Path, "?", 2)[0] {
+	case "/captcha/callback":
+		s.handleCaptchaCallback(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// handleCaptchaStatus 供前端轮询辅助页流程的结果。
+func (s *Server) handleCaptchaStatus(w http.ResponseWriter, r *http.Request) {
+	session := r.URL.Query().Get("session")
+	if session == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "缺少 session")
+		return
+	}
+	value, ok := s.captchaSessions.Load(session)
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "pending"})
+		return
+	}
+	cs, _ := value.(*captchaSession)
+	writeJSON(w, http.StatusOK, map[string]any{"status": cs.status, "message": cs.message})
+}
+
+// persistLoginAccount 把登录得到的令牌对落成账号；手机/邮箱验证码路径共用。//
+// deviceID 是签发这组令牌时用的设备标识（手机路径即基础 deviceId），
+// 原样存入账号表，供后续刷新令牌时回传 —— 见 handleCredits。
+func (s *Server) persistLoginAccount(ctx context.Context, pair *oauth.TokenPair, region, deviceID string) (label, endpoint string, err error) {
 	gatewayEndpoint, apiKey, err := oauth.FetchGatewayCredentials(ctx, s.client, region, pair.AccessToken)
 	if err != nil {
 		return "", "", err
@@ -1064,6 +1432,19 @@ func maskPhone(phone string) string {
 		return phone
 	}
 	return phone[:3] + "****" + phone[len(phone)-2:]
+}
+
+// maskEmail 邮箱脱敏，用于日志：保留首字符与域名，中间打码。
+func maskEmail(email string) string {
+	at := strings.LastIndex(email, "@")
+	if at <= 0 {
+		return "***"
+	}
+	local := email[:at]
+	if len(local) > 2 {
+		local = local[:2] + "***"
+	}
+	return local + email[at:]
 }
 
 // recheckAsync 在后台对账号池做一次健康检查（不阻塞调用方响应）。
