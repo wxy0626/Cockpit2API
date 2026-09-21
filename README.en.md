@@ -17,6 +17,32 @@ Exposes the local WorkBuddy account pool as an OpenAI-compatible service. It sup
 
 Exposes QoderWork login state as an OpenAI Chat Completions-compatible gateway. It refreshes local credentials, forwards requests to Qoder, maps display model names to upstream IDs, and aggregates upstream SSE when the client requests a non-streaming response. The gateway listens on port `7866`.
 
+### `cindy2api`
+
+Adds the Cindy platform gateway and account management. The gateway can discover local Cindy credentials or add accounts by phone number, email verification code, or OAuth.
+
+- Provides OpenAI-compatible `/v1/models` and `/v1/chat/completions`
+- Supports streaming, non-streaming, account pooling, and health checks
+- Supports Cindy CN phone login, international email login, OAuth, and local import
+- Opens a dedicated verification window when required
+- Keeps gateway keys isolated from upstream credentials
+- Listens on port `7865`
+
+### WorkBuddy automation and hardening
+
+- Auto check-in, travel, and growth-center tasks can be configured separately
+- Backend scheduling includes run logs and manual triggers
+- The native gateway adds single-instance locking, port takeover, token refresh, account rotation, and inline per-account concurrency limits that also feed account selection weights
+
+### Protocol and OAuth compatibility
+
+- Completes Responses-to-Chat protocol translation for the WorkBuddy gateway and enables the Codex `spawn_agent` flow
+- Uses the trusted local Chrome profile for OAuth authorization flows
+
+### Incremental build speed
+
+Moves frontend assets, the application binary, and the Tauri context into a dedicated `context` crate so frontend output changes no longer invalidate the main business library. Build-script fingerprints are deterministic, Windows links with `rust-lld`, TypeScript type checking is incremental, and `npm run build:app` is the unified release-build entry point.
+
 ## Usage
 
 ```bash

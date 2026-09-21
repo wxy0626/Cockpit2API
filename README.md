@@ -28,6 +28,41 @@
 - 401、403 或额度不可用时会在账号池内继续尝试
 - 本地端口：`7866`
 
+### `cindy2api`
+
+新增 Cindy 平台网关和账号管理能力。网关可以从本机 Cindy 登录态发现账号，也能通过手机号、邮箱验证码或 OAuth 授权添加账号。
+
+- 提供 OpenAI 兼容的 `/v1/models` 和 `/v1/chat/completions`
+- 支持流式与非流式请求、账号池轮换和健康检查
+- 支持 Cindy 国内手机号登录、国际邮箱验证码登录、OAuth 授权和本机导入
+- 需要人机验证时自动唤起独立验证窗口
+- 网关本地 Key 与上游凭据隔离，凭据不进入前端
+- 本地端口：`7865`
+
+### WorkBuddy 自动化与稳定性
+
+把 WorkBuddy 的日常操作拆成可配置、可观测的后端模块，同时收编原生网关。
+
+- 自动签到、自动旅行和成长中心任务可分别开关
+- 任务执行日志可查看、清空和手动触发
+- 任务调度与执行都在 Rust 后端，前端只负责配置和展示
+- 原生网关支持单实例锁、端口释放后自动接管、token 刷新和账号轮换
+- 单账号并发上限可内联配置，并参与选号权重
+
+### 协议与 OAuth 兼容
+
+- WorkBuddy 网关补齐 Responses 与 Chat Completions 的协议翻译，支持 Codex `spawn_agent` 链路
+- OAuth 授权统一使用本机 Chrome 可信用户配置，减少第三方登录的设备信任问题
+
+### 构建增量提速
+
+重构 Tauri 构建边界，把前端资源、应用 bin 和 Tauri Context 迁到独立的 `context` crate，避免前端产物变化牵连主业务库全量重编。
+
+- `build.rs` 会排序 `rerun-if-changed` 输出，避免构建脚本指纹随机失效
+- Windows 构建使用 `rust-lld`，Release 使用 `opt-level = 2` 和更高并行度
+- TypeScript 开启增量检查，日常构建提供 `build:fast`
+- `npm run build:app` 是发布构建统一入口，自动带上正确的 `custom-protocol` feature
+
 ## 环境要求
 
 - Node.js 24
