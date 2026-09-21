@@ -1,6 +1,6 @@
 [package]
 name = "cockpit-app-context"
-version = "0.1.0"
+version = "1.3.53"
 edition = "2021"
 
 [features]
