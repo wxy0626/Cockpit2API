@@ -56,3 +56,12 @@ Use as páginas WorkBuddy e QoderWork para adicionar contas e abra o painel corr
 - Qoder2API: `http://127.0.0.1:7866/v1`
 
 Defina esses valores como Base URL e chave de API do cliente compatível com OpenAI. O serviço é destinado apenas a clientes locais ou de rede privada; não o exponha diretamente à internet pública.
+
+## Licença
+
+Este projeto é distribuído sob a licença [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). Consulte [LICENSE](LICENSE) para ver os termos completos.
+
+- Uso, modificação e compartilhamento não comerciais são permitidos
+- A distribuição deve manter a atribuição a CockpitTools e Cockpit2API
+- Projetos derivados devem usar a mesma licença
+- Uso comercial requer permissão separada

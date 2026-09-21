@@ -35,3 +35,7 @@ npm run test:rust:core
 
 - `README.md`：项目入口和本地亮点。
 - `docs/LOCAL_GATEWAYS.md`：两个本地网关的端口、接口和安全说明。
+
+## 许可
+
+本项目采用 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)，完整条款见 [LICENSE](LICENSE)。
