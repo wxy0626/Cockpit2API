@@ -1,4 +1,4 @@
-# Cockpit Tools
+# Cockpit2API
 
 Este projeto é baseado no projeto original [CockpitTools](https://github.com/jlcodes99/cockpit-tools).
 

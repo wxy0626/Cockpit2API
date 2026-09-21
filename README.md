@@ -1,8 +1,13 @@
-# Cockpit Tools
+# Cockpit2API
 
 本项目基于原项目 [CockpitTools](https://github.com/jlcodes99/cockpit-tools) 制作。
 
 本仓库只描述本地新增能力与使用方式，不复述原项目的完整功能清单。仓库只包含构建项目所需的源码，不包含本地数据库、账号数据或运行时配置。
+
+## 文档
+
+- [项目概览](docs/PROJECT.md)
+- [本地网关说明](docs/LOCAL_GATEWAYS.md)
 
 ## 本地亮点
 
@@ -89,7 +94,7 @@ npm run build:app
 
 ## 使用步骤
 
-1. 启动 Cockpit Tools。
+1. 启动 Cockpit2API。
 2. 在 `WorkBuddy` 或 `WorkBuddy 国际版` 页面添加账号。
 3. 在 `QoderWork 国际版` 页面添加账号。
 4. 进入网关面板复制 Base URL 和 API Key：
